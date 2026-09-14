@@ -198,6 +198,16 @@ async function main(): Promise<void> {
 	log(`Rail: ${presets.length} projects in parallel on ${model} (concurrency ${concurrency})`);
 	log(`Projects: ${presets.join(", ")}\n`);
 	await base.runtime.saveNKleinProviderSettings.mutate({ providerId: "lmstudio", modelId: model, baseUrl: ENDPOINT_BASE_URL });
+	// A HARD pin, not a provider default (live 2026-09-14: the provider default alone let the router auto-discover
+	// every loaded model on the endpoint and rank the operator-idled m5max model above the m4mini alias the rail
+	// was told to drive). `modelSelectionMode: "pinned"` on every role makes the named model the assignment as
+	// long as it is loaded and fits; the original roles are restored on cleanup.
+	const originalModelRoles = before.modelRoles ?? {};
+	const pinnedRole = { providerId: "lmstudio", modelId: model, modelSelectionMode: "pinned" as const };
+	await base.runtime.saveConfig
+		.mutate({ modelRoles: { architect: pinnedRole, worker: pinnedRole, reviewer: pinnedRole } })
+		.then(() => log(`Pinned architect/worker/reviewer to ${model} (modelSelectionMode: pinned).`))
+		.catch((error) => log(`(could not pin the role models: ${error instanceof Error ? error.message : String(error)})`));
 	await base.runtime.saveNKleinModelMaxConcurrentRequests
 		.mutate({ providerId: "lmstudio", modelId: model, baseUrl: ENDPOINT_BASE_URL, maxConcurrentRequests: concurrency })
 		.catch((error) => log(`(could not set per-model concurrency: ${error instanceof Error ? error.message : String(error)})`));
@@ -222,6 +232,7 @@ async function main(): Promise<void> {
 		await base.runtime.saveNKleinProviderSettings
 			.mutate({ providerId: "lmstudio", modelId: original.modelId, baseUrl: original.baseUrl })
 			.catch(() => undefined);
+		await base.runtime.saveConfig.mutate({ modelRoles: originalModelRoles }).catch(() => undefined);
 		if (useGenerousGuardrails) {
 			await base.runtime.saveConfig.mutate({ swarmGuardrails: originalGuardrails }).catch(() => undefined);
 		}

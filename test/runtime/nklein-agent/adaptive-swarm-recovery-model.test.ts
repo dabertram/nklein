@@ -1,9 +1,11 @@
 import type { AgentMessage, AgentModel, AgentModelEvent, AgentModelRequest, AgentToolDefinition } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { REASONING_BUDGET_BREACH_NUDGE } from "../../../src/core/reasoning-budget-breach";
 import {
 	compactAgentMessagesPreservingToolWork,
 	createAdaptiveSwarmRecoveryModel,
 } from "../../../src/nklein-agent/adaptive-swarm-recovery-model";
+import { ReasoningBudgetBreachError } from "../../../src/nklein-agent/reasoning-breach-model";
 
 type Script = readonly AgentModelEvent[] | Error;
 
@@ -290,5 +292,25 @@ describe("compactAgentMessagesPreservingToolWork", () => {
 		const compacted = compactAgentMessagesPreservingToolWork(source);
 		expect(compacted).not.toBe(source);
 		expect(source[0]?.content[0]).toEqual({ type: "text", text: "Call submit_review with the verdict." });
+	});
+});
+
+describe("F3.36 (b) reasoning-budget breach in the ladder", () => {
+	it("takes thinking-off FIRST after a mid-stream breach and carries the commit-to-implementation nudge", async () => {
+		const base = scriptedBase([new ReasoningBudgetBreachError(5_000, 4_096), called]);
+		const onStrategyApplied = vi.fn();
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			// The qwen3.8 line: thinking off rides the request (`reasoning_effort:"none"`), a verified soft switch.
+			modelId: "qwen/qwen3.8-27b",
+			role: "worker",
+			onStrategyApplied,
+		});
+		expect(await collect(model, request())).toEqual(called);
+		expect(onStrategyApplied).toHaveBeenCalledWith("thinking_disable");
+		const retry = base.requests[1];
+		expect(retry?.options?.thinking).toBe(false);
+		const lastUser = [...(retry?.messages ?? [])].reverse().find((message) => message.role === "user");
+		const text = (lastUser?.content ?? []).map((part) => (part.type === "text" ? part.text : "")).join("\n");
+		expect(text).toContain(REASONING_BUDGET_BREACH_NUDGE);
 	});
 });

@@ -173,7 +173,11 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_PROCEDURAL_SKILLS", mode: "enforcing", gate: "surfaces procedures into the prompt" },
 	{ flag: "NKLEIN_PROPERTY_GATE", mode: "enforcing", gate: "nklein-acceptance-verifier.ts (gates acceptance)" },
 	{ flag: "NKLEIN_QUEUE_AWARE_FREE_FIRST", mode: "enforcing", gate: "start-task-session.ts (routing)" },
-	{ flag: "NKLEIN_REASONING_BREACH", mode: "enforcing", gate: "chat-local-llm-adapter.ts" },
+	{
+		flag: "NKLEIN_REASONING_BREACH",
+		mode: "enforcing",
+		gate: "chat-local-llm-adapter.ts (chat turns) + nklein-session-runtime.ts (F3.36 b: the swarm-path reasoning-breach model wrapper)",
+	},
 	{ flag: "NKLEIN_REVIEW_LENSES", mode: "enforcing", gate: "runtime-config (force-enables lenses)" },
 	{ flag: "NKLEIN_REVIEW_PANEL", mode: "enforcing", gate: "second-opinion-review-runner.ts (panel assembly)" },
 	{ flag: "NKLEIN_RUNAWAY_ABORT", mode: "enforcing", gate: "nklein-session-runtime.ts (wraps the model)" },

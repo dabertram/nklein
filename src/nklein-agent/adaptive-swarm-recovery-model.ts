@@ -7,10 +7,16 @@ import {
 	type ModelBehaviorProfile,
 	type ModelOutcomeKind,
 } from "../core/model-behavior-profile";
-import { applyThinkingDisable, supportsThinkingControl } from "../core/model-thinking-control";
+import {
+	applyThinkingDisable,
+	getThinkingRequestControl,
+	supportsThinkingControl,
+} from "../core/model-thinking-control";
+import { REASONING_BUDGET_BREACH_NUDGE } from "../core/reasoning-budget-breach";
 import { type RetryStrategy, raisedTokenBudget } from "../core/retry-policy";
 import type { StrategyEffectivenessLedger } from "../core/strategy-effectiveness-ledger";
 import { planSwarmPromptVariation, type SwarmPromptVariationRole } from "./prompt-variation-model";
+import { ReasoningBudgetBreachError } from "./reasoning-breach-model";
 import { type BufferedRecoveryTurn, collectBufferedModelTurn, type RecoveryTurnSignal } from "./recovery-ladder-model";
 import { RunawayGenerationInterruptError } from "./runaway-interrupt-model";
 
@@ -112,7 +118,7 @@ function strategiesForSignature(
 	const plan =
 		options.promptVariationEnabled === false ? null : planSwarmPromptVariation(request, options.role ?? "unknown");
 	const external = endpointAndCarry(options, request);
-	const thinking = supportsThinkingControl(options.modelId) ? "thinking_disable" : null;
+	const thinking = hasThinkingSwitch(options.modelId) ? "thinking_disable" : null;
 	switch (signature) {
 		case "context_overflow":
 			// The alternate endpoint re-sends the SAME transcript on a text wire — it cannot make an over-window
@@ -160,6 +166,27 @@ function classifyTurn(
 			whyFailed: "caller/session cancellation is authoritative and must never be retried",
 		};
 	}
+	if (signal.thrownError instanceof ReasoningBudgetBreachError) {
+		// F3.36 (b): the reasoning budget was cut mid-stream. The turn is ABORTED (no action landed), and the rung
+		// that answers it is thinking-off — first, ahead of a bigger budget, which would only buy more reasoning.
+		// The remedy for a breach IS thinking-off: offering a bigger budget beside it would let the brain's usual
+		// aborted-turn preference buy more reasoning instead. A model without any switch keeps the ordinary
+		// aborted-turn ladder (the wrapper is not armed for such models, so this arm is a safety net).
+		const thinking = hasThinkingSwitch(options.modelId) ? "thinking_disable" : null;
+		return {
+			outcome: "aborted",
+			availableStrategies: thinking
+				? [thinking]
+				: uniqueStrategies([
+						"raise_token_budget",
+						"same_model_retry",
+						"context_shrink",
+						...endpointAndCarry(options, request),
+					]),
+			evidence: errorText(signal.thrownError),
+			whyFailed: "the reasoning budget was breached mid-stream before any action landed",
+		};
+	}
 	if (signal.thrownError instanceof RunawayGenerationInterruptError) {
 		return {
 			outcome: "loop",
@@ -195,7 +222,7 @@ function classifyTurn(
 		};
 	}
 	if (signal.finishReason === "aborted" || signal.finishReason === null) {
-		const thinking = supportsThinkingControl(options.modelId) ? "thinking_disable" : null;
+		const thinking = hasThinkingSwitch(options.modelId) ? "thinking_disable" : null;
 		return {
 			outcome: "aborted",
 			availableStrategies: uniqueStrategies([
@@ -309,6 +336,14 @@ function appendRetryNote(request: AgentModelRequest, note: string): AgentModelRe
 	};
 }
 
+/**
+ * F3.36 (b): a thinking soft switch is either a MESSAGE token (`/no_think` families) or a REQUEST parameter
+ * (`reasoning_effort:"none"` on the qwen3.8 line, live-verified) — both are verified switches the ladder may drive.
+ */
+function hasThinkingSwitch(modelId: string): boolean {
+	return supportsThinkingControl(modelId) || getThinkingRequestControl(modelId) !== null;
+}
+
 function applyThinkingOff(request: AgentModelRequest, modelId: string): AgentModelRequest {
 	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
 		const message = request.messages[index];
@@ -324,10 +359,19 @@ function applyThinkingOff(request: AgentModelRequest, modelId: string): AgentMod
 		return {
 			...request,
 			messages,
-			options: { ...request.options, thinking: false },
+			options: { ...request.options, thinking: false, ...thinkingOffRequestOptions(modelId) },
 		};
 	}
-	return { ...request, options: { ...request.options, thinking: false } };
+	return { ...request, options: { ...request.options, thinking: false, ...thinkingOffRequestOptions(modelId) } };
+}
+
+/**
+ * The request-parameter half of thinking-off: for a param-switch model the message token is a no-op, so the rung
+ * must ride the request (`reasoning_effort:"none"`); the local endpoint model forwards `options.reasoningEffort`.
+ */
+function thinkingOffRequestOptions(modelId: string): { reasoningEffort?: string } {
+	const control = getThinkingRequestControl(modelId);
+	return control ? { reasoningEffort: control.disableValue } : {};
 }
 
 function requestForStrategy(
@@ -387,10 +431,13 @@ export function createAdaptiveSwarmRecoveryModel(
 		stream(request): AsyncIterable<AgentModelEvent> {
 			return (async function* () {
 				const profile = options.profile ?? emptyModelBehaviorProfile(options.modelId, 0);
+				// F3.36 (b): when the previous attempt was cut for a reasoning-budget breach, the thinking-off retry
+				// also carries little-coder's nudge — commit to an implementation instead of reasoning further.
+				let breachPending = false;
 				const outcome = await runAdaptiveAttemptLoop<AttemptPayload>({
 					profile,
 					strategyEffectivenessLedger: options.strategyEffectivenessLedger,
-					supportsThinkingControl: supportsThinkingControl(options.modelId),
+					supportsThinkingControl: hasThinkingSwitch(options.modelId),
 					retryBudgetOptions: {
 						minBudget: options.minRetryBudget ?? DEFAULT_MIN_RETRY_BUDGET,
 						maxBudget: options.maxRetryBudget ?? 6,
@@ -401,8 +448,12 @@ export function createAdaptiveSwarmRecoveryModel(
 							strategy === "prompt_variant"
 								? planSwarmPromptVariation(request, options.role ?? "unknown")
 								: null;
+						const retryNote =
+							strategy === "thinking_disable" && breachPending
+								? [note, REASONING_BUDGET_BREACH_NUDGE].filter((part) => part.trim()).join("\n\n")
+								: note;
 						const planned = strategy
-							? requestForStrategy(request, strategy, note, options)
+							? requestForStrategy(request, strategy, retryNote, options)
 							: { request, label: "baseline" };
 						const selected = modelForStrategy(base, strategy, options);
 						const providerRequest: AgentModelRequest = {
@@ -421,6 +472,7 @@ export function createAdaptiveSwarmRecoveryModel(
 							}
 						});
 						const classified = classifyTurn(buffered, planned.request, options);
+						breachPending = buffered.signal.thrownError instanceof ReasoningBudgetBreachError;
 						const durationMs = Math.max(0, Date.now() - startedAt);
 						const usage = bufferedUsage(buffered.events);
 						const recovered = strategy !== null && classified.outcome === "success";

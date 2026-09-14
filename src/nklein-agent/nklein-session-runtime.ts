@@ -48,6 +48,7 @@ import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descr
 import { preferredEndpointKind } from "../core/model-behavior-profile";
 import { CONSULT_MIN_CAPABILITY_MARGIN, decideConsultAdmission } from "../core/model-consult";
 import { MODEL_CONSULT_CATEGORY } from "../core/model-consult-visibility";
+import { getThinkingRequestControl, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { isMeasuredRetrievalDiscriminatorModel } from "../core/retrieval-discriminator";
 import { StatefulResponsesCapabilityCache } from "../core/stateful-responses-gate";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
@@ -109,8 +110,8 @@ import {
 } from "./nklein-swarm-tool-broker";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
-
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
+import { createReasoningBreachModel } from "./reasoning-breach-model";
 import { createRunawayInterruptModel } from "./runaway-interrupt-model";
 import type { AgentTool } from "./sdk-agent-types";
 import { createSessionRequestLogModel } from "./session-request-log-model";
@@ -948,8 +949,42 @@ ${new Error("stack").stack ?? ""}
 									},
 								})
 							: recordedBase;
+						// F3.36 (b): the swarm path's mid-turn reasoning-budget cut — only for a reasoning model with a
+						// VERIFIED thinking soft switch (forcing thinking off on a model without one would silently do
+						// nothing and waste the retry), default-OFF behind NKLEIN_REASONING_BREACH like the chat path.
+						// Sits with the runaway interrupt UNDER the recovery wrapper, which takes the thinking-off rung
+						// with the nudge on the typed abort (adaptive-swarm-recovery-model.ts).
+						const breachModelId = request.modelId ?? "";
+						const breachEligible =
+							isTruthyEnv(process.env.NKLEIN_REASONING_BREACH) &&
+							breachModelId.length > 0 &&
+							isReasoningModel(breachModelId) &&
+							(supportsThinkingControl(breachModelId) || getThinkingRequestControl(breachModelId) !== null);
+						const breachGuardedBase = breachEligible
+							? createReasoningBreachModel(interruptionGuardedBase, {
+									onBreach: (error) => {
+										try {
+											recordSelfObservation({
+												signal: "custom",
+												severity: "info",
+												message: `Reasoning budget breached mid-stream on ${breachModelId} for ${request.taskId} (~${error.spentTokens} reasoning tokens) — retrying with thinking off.`,
+												taskId: request.taskId,
+												metadata: {
+													category: "reasoning_budget_breach",
+													path: "session",
+													modelId: breachModelId,
+													spentTokens: error.spentTokens,
+													budgetTokens: error.budgetTokens,
+												},
+											});
+										} catch {
+											// Telemetry must never break the cut.
+										}
+									},
+								})
+							: interruptionGuardedBase;
 						const guardedBase = statefulResponsesDecision.adopt
-							? createStatefulResponsesModel(interruptionGuardedBase, {
+							? createStatefulResponsesModel(breachGuardedBase, {
 									onObservation: (observation) => {
 										try {
 											recordSelfObservation({
@@ -971,7 +1006,7 @@ ${new Error("stack").stack ?? ""}
 										}
 									},
 								})
-							: interruptionGuardedBase;
+							: breachGuardedBase;
 						const directClient = request.baseUrl?.trim()
 							? new LocalLlmClient({
 									providerId: request.providerId,
