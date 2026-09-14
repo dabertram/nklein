@@ -2855,6 +2855,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   default complexity 50 replay again, and the "pass an explicit low complexity" responder rule is no longer needed
   for replay's sake.
 
+- [x] **P1.OPENAICOMPATROSTER — SHIPPED `b1519dfad` (2026-09-15).** The `openai-compatible` provider took its roster from
+  the SDK's static placeholder catalog (`gpt-4o`) and never asked the endpoint the user configured, so a model pinned
+  there but absent from the placeholder (a HITL seat, a proxy, any self-hosted server) had no context window and the
+  32k admission floor refused every start ("does not report a context window"); the 2026-09-06 HITL drive only worked
+  through a hand-set 200k override. Found by the four SWE-bench Claude arms (one instance each lost, excluded). Now
+  discovery probes the endpoint's own `/v1/models` (only that route), its advertised window wins, missing models are
+  appended; four tests. Record: `docs/benchmarks/swebench-tranche-2026-09.md` finding 5.
 - [x] **P1.ZOMBIEBOARD — a project the rail gave up on keeps being driven, starving the live drive and polluting
   its capture.** *(Live 2026-09-10/11, repeatedly.)*
   `dev-test-rail.mts` cleans up in a `finally`, and that cleanup trashes every card — so the stall/wedge exit does

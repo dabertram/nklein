@@ -60,9 +60,32 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 | pytest-dev__pytest-5227 | no | 75 | blocked_by_review_cards (delivered) | 578-byte patch delivered; 3 F2P still failing (log-cli level defaults) |
 
 Running tally: **2 / 5 resolved**. Remaining: pytest-6202, pytest-7521, pylint-4970, pylint-6903, pylint-7993.
-**SUSPENDED 2026-09-14 17:50** on David's instruction ("suspend our use of qwen3.8 27b on m5max until i give a go
-again") — the model is his DeepSeek Harness (dsh) run's seat. Runner, runtime and the campaign orchestrator stopped; instance 6
-(pytest-6202) had just started and was discarded. Resumes on his go (the runner skips graded instances).
+Suspended 2026-09-14 17:50 on David's instruction (the model was his DeepSeek Harness (dsh) run's seat); instance 6
+(pytest-6202) had just started and was set aside. **Resumed 2026-09-14 21:30** on his go ("continue with the swebench
+on m5max") — pytest-7521 in progress; pytest-6202 needs a second `run.sh all` pass.
+
+### Legion arm — !Klein `83c39fe71`, `qwen3.6-35b-a3b@legion` (Q4_K_M, ctx 32k, in progress)
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 42 | blocked_by_review_cards (delivered) | `blueprints.py` fix; 1/1 F2P, 59 P2P held |
+
+Running tally: **1 / 1 resolved**.
+
+### m4 mini arm — !Klein `83c39fe71`, `dirk-qwen3.8-iq4xs@m4mini` (IQ4_XS, ctx 32k, in progress)
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 33 | blocked_by_review_cards (delivered) | `blueprints.py` fix; 1/1 F2P, 59 P2P held |
+
+Running tally: **1 / 1 resolved**.
+
+### Claude arms — !Klein `83c39fe71`, `claude-{sonnet-5,opus-5,fable-5-1,haiku-4-5}-hitl` (started 2026-09-14 22:14)
+
+First launch (22:00) burned one instance per arm with `session did not start … does not report a context window`
+(NOT counted — finding 5). Relaunched at 22:14 with the documented per-model context-window override (200k) in each
+arm HOME's registry; the arms' pinned runtime (`83c39fe71`) predates the discovery fix, so the override is the lever
+that keeps every pass-1 arm on the same !Klein commit.
 
 ## Findings → improvements (treated as found)
 
@@ -80,6 +103,13 @@ again") — the model is his DeepSeek Harness (dsh) run's seat. Runner, runtime 
 4. **Delivering with a still-failing visible test** — the held-out configuration requires nothing visible. → Arm B
    public acceptance (`7e13720e8`): repro test in a new file + graded files' existing tests as the acceptance command,
    visible test evidence, auto-review on.
+5. **`openai-compatible` never asked its configured endpoint for models** — the provider's roster came from the SDK's
+   static placeholder catalog (`gpt-4o`), so a model pinned to a custom endpoint but absent from that placeholder
+   (the HITL seats, any proxy/self-hosted server) had no context window and the 32k admission floor refused every
+   session start ("does not report a context window"). The 2026-09-06 HITL drive only worked because a 200k override
+   had been set by hand. → Discovery probes the endpoint's own `/v1/models` (only that route) and lets its
+   advertised window win; four tests (`b1519dfad`). The four Claude arms lost one instance each to it (excluded, not
+   counted) before the per-model override was seeded.
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 
@@ -88,7 +118,7 @@ again") — the model is his DeepSeek Harness (dsh) run's seat. Runner, runtime 
 | qwen38-8bit-m5max-20260914 | `qwen/qwen3.8-27b` MLX 8-bit, ctx 262k | m5max LM Studio | :3507 | resumed after David's go; 5 left |
 | legion-qwen36-35b-a3b-q4 | `qwen3.6-35b-a3b@legion` GGUF Q4_K_M, ctx 32k | Legion 5 Pro (RTX 4070 8 GB + 32 GB RAM, experts in RAM) via LM Link | :3513 | running |
 | m4mini-dirk-qwen38-iq4xs | `dirk-qwen3.8-iq4xs@m4mini` GGUF IQ4_XS, ctx 32k | m4 mini (24 GB) via LM Link — replaced the q2 quant, which needed 10–13 min per turn | :3514 | running |
-| sonnet5 / opus5 / fable51 / haiku45 | `claude-<model>-hitl` — the HITL model server (:8096–8099) answered by `scripts/hitl-claude-responder.mjs` (`claude -p --model …`, tools disallowed, JSON-schema output) | Anthropic (David's Claude account via the CLI) | :3515–3518 | prepared; blocked on `claude` CLI login on the m5max |
+| sonnet5 / opus5 / fable51 / haiku45 | `claude-<model>-hitl` — the HITL model server (:8096–8099) answered by `scripts/hitl-claude-responder.mjs` (`claude -p --model …`, tools disallowed, JSON-schema output, Claude Code 2.1.270) | Anthropic (David's Claude account via the CLI) | :3515–3518 | running since 22:14 (first launch 22:00 lost one instance per arm to finding 5) |
 
 The Claude seats are the same harness with a different model behind the OpenAI-compatible endpoint; their
 receipts carry `queue/seat.json` (CLI model id + Claude Code version) instead of `lms ps` facts.

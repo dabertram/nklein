@@ -118,3 +118,27 @@ with these rows. Fix: `core/admission-phase-memo` — each phase stamped ONCE pe
 admission settles; the runtime uses it. Also learned about that seat: a 27B q2 quant on the m4 mini spends 10 to 13
 minutes per turn on prefill at ~20k tokens (3 to 8 turns per 120-minute card), so no card can deliver and no
 mechanism evidence with outcomes can come from it; the seat, not the mechanisms, is what the drain measured.
+
+## Night (2026-09-15 00:00–00:30): the Claude arms could not start, and why the HITL drive ever could
+
+All four Claude-seat arms (sonnet5/opus5/fable51/haiku45) refused every session start with `Selected !Klein model
+openai-compatible:claude-<model>-hitl does not report a context window` — one instance per arm burned before the
+runner was stopped (excluded from the score, not counted). The endpoint advertised `max_context_length: 200000` on
+`/v1/models`, and the parser reads exactly that field — but the `openai-compatible` provider never fetched it:
+`loadProviderModelsWithFallbackForSettings` fell into the "any other provider" branch and used the SDK's static
+placeholder roster (`gpt-4o`, 128k). The 2026-09-06 HITL drive had worked only because its registry carried a
+200k `userOverride` set by hand. Fixed in `b1519dfad`: the provider probes the configured endpoint's own `/v1/models`
+(that route only — no LM Studio `/api/v*` 404 noise), the endpoint's advertised window wins, models the placeholder
+lacks are appended; four tests. The arms stay pinned on `83c39fe71` for pass-1 comparability, so they got the
+documented per-model override (200k) seeded into their registries instead, and were relaunched at 22:14 UTC. Opus
+resolved flask-5014 seven minutes later.
+
+Second finding in the same hour, the shared-seat one: arm A's runtime still held a `psf__requests-1921::review` card
+(instance graded, project retired) waiting for the seat and a `pytest-6202` task from the suspended run, both
+competing with the live `pytest-7521` on a one-slot host. Retired by hand; the runner's retirement (`projects.remove`)
+evidently leaves the review card behind — to be traced.
+
+Also tonight: a Claude rig for DeepSeek Harness (dsh) — one HITL server on :8100 serving four seat ids, the responder
+now maps the request's model to the CLI seat, its `reasoning_effort` to `--effort`, and answers up to four requests
+at once (dsh fires title/summary side requests beside the agent turn). Fable's first real turn: 346 s for 25k output
+tokens (it wrote a whole file), $2.63.
