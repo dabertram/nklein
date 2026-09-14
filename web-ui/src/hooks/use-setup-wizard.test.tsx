@@ -182,6 +182,32 @@ describe("useSetupWizard", () => {
 		});
 	});
 
+	it("a GLOBAL skip is remembered whatever workspace is active — before the id is known, and in another project", async () => {
+		// F2.32 (live-caught by the wizard flow spec 2026-09-14): the global wizard fires the moment a client
+		// exists, ahead of the workspace snapshot; a skip written then landed under a workspace-scoped key and the
+		// reload — now with the id — re-fired the wizard the user had just dismissed.
+		window.localStorage.clear();
+		try {
+			fetchGlobalSetupPlanMock.mockResolvedValue(globalPlan(null));
+			const first = await mount({ kind: "global", workspaceId: null, enabled: true });
+			expect(first.latest().isOpen).toBe(true);
+			await act(async () => {
+				first.latest().skip();
+				await Promise.resolve();
+			});
+			expect(first.latest().isOpen).toBe(false);
+			act(() => {
+				root.unmount();
+			});
+			root = createRoot(container);
+			const later = await mount({ kind: "global", workspaceId: "ws-known-now", enabled: true });
+			expect(later.latest().isOpen).toBe(false);
+			expect(later.latest().wouldAutoFire).toBe(false);
+		} finally {
+			window.localStorage.clear();
+		}
+	});
+
 	it("open() force-opens even after a completed plan would keep it closed", async () => {
 		fetchGlobalSetupPlanMock.mockResolvedValue(globalPlan(1_700_000_000_000));
 		const { latest } = await mount({ kind: "global", workspaceId: null, enabled: true });

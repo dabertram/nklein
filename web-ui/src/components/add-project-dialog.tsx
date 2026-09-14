@@ -386,9 +386,12 @@ export function AddProjectDialog({
 	// For combobox inputs (DirectoryAutocomplete), just prevent close and
 	// let the autocomplete handle its own escape logic (close dropdown → blur).
 	// For regular inputs, blur immediately.
+	// F2.32 (live-caught by the initializer flow spec 2026-09-14): the guard covered <input> only, so Escape
+	// inside one of the brief's TEXTAREAS — where the long answers live — closed the dialog and discarded the
+	// whole brief, while a one-word input was protected. A textarea gets the same blur-first treatment.
 	const handleDialogEscapeKeyDown = useCallback((event: KeyboardEvent) => {
 		const active = document.activeElement;
-		if (active instanceof HTMLInputElement) {
+		if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
 			event.preventDefault();
 			// Let DirectoryAutocomplete handle its own Escape internally
 			if (active.role !== "combobox") {

@@ -628,24 +628,31 @@ export function TaskStartAgentOnboardingCarousel({
 		if (activeAgentId !== "nklein") {
 			return { ok: true };
 		}
-		if (!hasUnsavedChanges) {
+		// F2.32 (live-caught by the carousel flow spec 2026-09-14): a typed context-window override counts as a
+		// change. Before, Done returned early whenever the PROVIDER fields were untouched, so a user who only set
+		// the window — the one field on this slide that is theirs to type — saw it silently dropped, no error.
+		const trimmedContextWindow = nkleinContextWindowInput.trim();
+		if (!hasUnsavedChanges && !trimmedContextWindow) {
 			return { ok: true };
 		}
 		setNKleinSetupError(null);
-		const saveResult = await saveProviderSettings();
-		if (!saveResult.ok) {
-			const message = saveResult.message ?? "Could not save !Klein provider settings.";
-			setNKleinSetupError(message);
-			return { ok: false, message };
+		if (hasUnsavedChanges) {
+			const saveResult = await saveProviderSettings();
+			if (!saveResult.ok) {
+				const message = saveResult.message ?? "Could not save !Klein provider settings.";
+				setNKleinSetupError(message);
+				return { ok: false, message };
+			}
 		}
-		const firstRunRoles = buildFirstRunLocalModelRoles({
-			existingRoles: runtimeConfig?.modelRoles,
-			providerId: nkleinProviderId,
-			modelId: nkleinModelId,
-			baseUrl: nkleinBaseUrl,
-			reasoningEffort: nkleinReasoningEffort,
-		});
-		const trimmedContextWindow = nkleinContextWindowInput.trim();
+		const firstRunRoles = hasUnsavedChanges
+			? buildFirstRunLocalModelRoles({
+					existingRoles: runtimeConfig?.modelRoles,
+					providerId: nkleinProviderId,
+					modelId: nkleinModelId,
+					baseUrl: nkleinBaseUrl,
+					reasoningEffort: nkleinReasoningEffort,
+				})
+			: null;
 		if (trimmedContextWindow) {
 			const contextWindow = Number(trimmedContextWindow);
 			if (!Number.isInteger(contextWindow) || contextWindow < RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS) {

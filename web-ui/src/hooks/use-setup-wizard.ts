@@ -48,9 +48,15 @@ function stampFieldForKind(kind: SetupWizardKind): "setupWizardCompletedAt" | "p
 	return kind === "global" ? "setupWizardCompletedAt" : "projectSetupWizardCompletedAt";
 }
 
-/** Scope for the persisted skip marker: per kind + workspace, so each project remembers its own dismissal. */
+/**
+ * Scope for the persisted skip marker. The PROJECT wizard is per workspace, so each project remembers its own
+ * dismissal. The GLOBAL wizard is about global config, so its dismissal is global too — F2.32 (live-caught by the
+ * wizard flow spec 2026-09-14): scoped per workspace, a skip written before the workspace id was known (the wizard
+ * fires the moment a client exists, ahead of the snapshot) landed under "global.global", and the reload — now with
+ * the id — read "global.<ws>", found nothing, and re-fired the wizard the user had just dismissed.
+ */
 function skipScope(kind: SetupWizardKind, workspaceId: string | null): string {
-	return `${kind}.${workspaceId ?? "global"}`;
+	return kind === "global" ? "global" : `${kind}.${workspaceId ?? "global"}`;
 }
 
 function readPersistedSkip(kind: SetupWizardKind, workspaceId: string | null): boolean {
