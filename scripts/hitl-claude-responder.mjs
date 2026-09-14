@@ -106,7 +106,7 @@ function runClaude(prompt) {
 			"-p",
 			"--model",
 			MODEL,
-			"--bare",
+			// NOT --bare: bare mode skips the keychain login and returns an empty answer (exit 1, 0 api ms).
 			"--no-session-persistence",
 			"--output-format",
 			"json",
@@ -117,7 +117,12 @@ function runClaude(prompt) {
 			"--append-system-prompt",
 			"You answer as a machine endpoint: output only the structured JSON answer; no prose outside it.",
 		];
-		const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: "16000" } });
+		// cwd = the queue dir: an empty directory, so no project CLAUDE.md/AGENTS.md is loaded into every call.
+		const child = spawn("claude", args, {
+			cwd: ROOT,
+			stdio: ["pipe", "pipe", "pipe"],
+			env: { ...process.env, CLAUDE_CODE_MAX_OUTPUT_TOKENS: "16000" },
+		});
 		let stdout = "";
 		let stderr = "";
 		const timer = setTimeout(() => {
