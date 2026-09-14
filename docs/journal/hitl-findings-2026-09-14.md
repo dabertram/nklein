@@ -107,3 +107,14 @@ Two things the tests caught before the wire did: the ladder's next-rung availabi
 NARROWED attempt request (one tool ⇒ no prompt-variation plan ⇒ parked), so it is judged against the baseline now;
 and a `src/core` module must not import `@cline/shared` (biome boundary) — the core mirrors the delta shape
 structurally.
+
+## Evening: the admission-breadcrumb flood (fixed)
+
+The m4mini evidence drain's telemetry for three waiting cards held 7,628 `model_turn_admission` rows in 104 minutes,
+one every 0.8 s. The 2026-08-04 gate compared each phase only against the PREVIOUS one, and a capacity-queued card
+cycles through the same four phases on every retry, so the gate never suppressed anything. Every read-limited
+evidence reader (`dev mechanism-decision`, the complexity-floor calibration, the ledger joins) saw its window filled
+with these rows. Fix: `core/admission-phase-memo` — each phase stamped ONCE per waiting episode, memo cleared when
+admission settles; the runtime uses it. Also learned about that seat: a 27B q2 quant on the m4 mini spends 10 to 13
+minutes per turn on prefill at ~20k tokens (3 to 8 turns per 120-minute card), so no card can deliver and no
+mechanism evidence with outcomes can come from it; the seat, not the mechanisms, is what the drain measured.

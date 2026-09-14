@@ -22,6 +22,7 @@ import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { selectA2aStatusNote } from "../core/a2a-task-mapping";
 import { A2A_WELL_KNOWN_AGENT_CARD_PATH } from "../core/a2a-wire-shapes";
 import { decideCardAblation } from "../core/ablation-scheduling";
+import { createAdmissionPhaseMemo } from "../core/admission-phase-memo";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	capabilitiesForTier,
@@ -1043,21 +1044,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	>();
 	// Chip task_f8c1a384 (2026-08-04): these breadcrumbs used to emit per PHASE per RETRY under the misleading
 	// `aux_session_start` category — a capacity-queued card retrying every ~2s wrote 3-4 rows per attempt
-	// (4,516 rows from 5 waiting cards in one 50-min drain). They now carry their own category and are
-	// STATE-CHANGE gated: a phase is stamped once per task until the phase actually changes, and the memo
-	// clears on completion so a future wait re-narrates. The queued-on-capacity INFORMATION stays; the
-	// per-retry duplication goes.
-	const lastAdmissionPhaseByTaskId = new Map<string, string>();
+	// (4,516 rows from 5 waiting cards in one 50-min drain). They now carry their own category and are gated
+	// PER WAITING EPISODE: each phase is stamped ONCE per task until the task's admission completes, when the
+	// memo clears so a future wait re-narrates. (The 2026-08-04 gate compared only against the PREVIOUS phase;
+	// the four phases CYCLE on every retry, so it never suppressed anything — 7,628 rows from three waiting
+	// cards in 104 minutes on 2026-09-14, one every 0.8 s, crowding every read-limited evidence reader.) The
+	// queued-on-capacity INFORMATION stays; the per-retry duplication goes.
+	const admissionPhaseMemo = createAdmissionPhaseMemo();
 	const auxAdmissionStamp = (
 		scope: RuntimeTrpcWorkspaceScope,
 		request: NKleinModelTurnAdmissionRequest,
 		phase: string,
 	): void => {
 		try {
-			if (lastAdmissionPhaseByTaskId.get(request.taskId) === phase) {
+			if (!admissionPhaseMemo.stamp(request.taskId, phase)) {
 				return;
 			}
-			lastAdmissionPhaseByTaskId.set(request.taskId, phase);
 			recordSelfObservation({
 				signal: "custom",
 				severity: "debug",
@@ -1298,7 +1300,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		const activeTurns = activeModelTurnsByWorkspaceId.get(scope.workspaceId) ?? [];
 		activeModelTurnsByWorkspaceId.set(scope.workspaceId, [...activeTurns, reservation]);
 		// Admission settled — clear the phase memo so a FUTURE capacity wait narrates itself afresh.
-		lastAdmissionPhaseByTaskId.delete(request.taskId);
+		admissionPhaseMemo.settle(request.taskId);
 		return { ok: true, reservation };
 	};
 	const waitForModelTurnAdmission = async (
