@@ -89,6 +89,39 @@ describe("AgentSandboxManager.prepareWorkspace — the provisioning deadline (P1
 		).toHaveLength(2);
 	});
 
+	it("gives a JOINING caller the same deadline — the hole the hung-start release would have fallen into", async () => {
+		// The owner's start is refused as hung after 5 minutes and the retry arrives while the hung preparation is
+		// still in the map. Joining it without a deadline waits forever (P1.STARTHANG's warning: do not trade a
+		// wedged card for a silent one). The joiner fails on its own deadline and performs no cleanup — the owner's
+		// abandon owns the map entry, the epoch and the disposal.
+		observations.length = 0;
+		const { execFile: execFileStub } = createExecFileStub({ hangClone: true });
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			provisioningDeadlineMs: 60,
+		});
+
+		// Attach the handlers in the same tick: both settle ~simultaneously, and an unhandled rejection window here
+		// would be a test artifact, not a product one (every real caller awaits `prepareWorkspace` immediately).
+		const owner = manager
+			.prepareWorkspace({ taskId: "task-1", projectRepoPath: "/repo" })
+			.then(() => null)
+			.catch((error: unknown) => error);
+		// Joins the in-flight preparation rather than starting a second one.
+		const joiner = manager
+			.prepareWorkspace({ taskId: "task-1", projectRepoPath: "/repo" })
+			.then(() => null)
+			.catch((error: unknown) => error);
+
+		expect(String(await joiner)).toMatch(/joined a preparation already in flight/);
+		expect(String(await owner)).toMatch(/did not settle within/);
+		// Exactly one abandonment was recorded: the owner's.
+		expect(
+			observations.filter((event) => event.metadata?.category === "sandbox_provisioning_deadline_exceeded"),
+		).toHaveLength(1);
+	});
+
 	it("leaves a preparation that settles before the deadline untouched", async () => {
 		observations.length = 0;
 		const { execFile: execFileStub } = createExecFileStub({ hangClone: false });

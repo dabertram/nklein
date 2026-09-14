@@ -960,7 +960,18 @@ export class AgentSandboxManager {
 		}
 		const alreadyPreparing = this.inFlightWorkspacePreparations.get(input.taskId);
 		if (alreadyPreparing) {
-			return await alreadyPreparing;
+			// A JOINER gets the deadline too. Without this the guard had a hole exactly where it was needed most:
+			// the owner's start is refused as hung after five minutes (`start_in_flight_released_as_hung`), the retry
+			// arrives while the hung preparation is still in the map, joins it — and waits forever, because only the
+			// owner held a deadline. The joiner never cleans up: the owner's own abandon owns the map entry, the
+			// epoch and the disposal of anything the preparation eventually produces.
+			return await this.awaitWithProvisioningDeadline(
+				alreadyPreparing,
+				() =>
+					new AgentSandboxUnavailableError(
+						`Sandbox provisioning for ${input.taskId} did not settle within ${Math.round(this.provisioningDeadlineMs / 1000)}s — this caller joined a preparation already in flight and gave up waiting for it.`,
+					),
+			);
 		}
 		const epoch = (this.preparationEpochByTaskId.get(input.taskId) ?? 0) + 1;
 		this.preparationEpochByTaskId.set(input.taskId, epoch);
@@ -968,11 +979,29 @@ export class AgentSandboxManager {
 		this.inFlightWorkspacePreparations.set(input.taskId, preparation);
 		// P1.STARTHANG2 (a): the preparation as a whole gets a deadline. Its steps are each docker-bounded, but a
 		// start that never settled held its single-flight claim for the life of the runtime — see the constant.
+		try {
+			return await this.awaitWithProvisioningDeadline(preparation, () =>
+				this.abandonHungPreparation(input.taskId, preparation, epoch),
+			);
+		} finally {
+			if (this.inFlightWorkspacePreparations.get(input.taskId) === preparation) {
+				this.inFlightWorkspacePreparations.delete(input.taskId);
+			}
+		}
+	}
+
+	/**
+	 * Await a preparation, but never past {@link WORKSPACE_PROVISIONING_DEADLINE_MS}. `onDeadline` produces the
+	 * error AND performs whatever cleanup that caller owns — the owner abandons the preparation, a joiner only
+	 * gives up its own wait.
+	 */
+	private async awaitWithProvisioningDeadline<T>(
+		preparation: Promise<T>,
+		onDeadline: () => AgentSandboxUnavailableError,
+	): Promise<T> {
 		let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
 		const deadline = new Promise<never>((_resolve, reject) => {
-			deadlineTimer = this.setTimeoutImpl(() => {
-				reject(this.abandonHungPreparation(input.taskId, preparation, epoch));
-			}, this.provisioningDeadlineMs);
+			deadlineTimer = this.setTimeoutImpl(() => reject(onDeadline()), this.provisioningDeadlineMs);
 			deadlineTimer.unref?.();
 		});
 		try {
@@ -980,9 +1009,6 @@ export class AgentSandboxManager {
 		} finally {
 			if (deadlineTimer) {
 				this.clearTimeoutImpl(deadlineTimer);
-			}
-			if (this.inFlightWorkspacePreparations.get(input.taskId) === preparation) {
-				this.inFlightWorkspacePreparations.delete(input.taskId);
 			}
 		}
 	}

@@ -2882,7 +2882,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Several real rig defects were found along the way and are worth keeping — but this one was mine, and it was the
   dominant cause of the 50/52/53 failures.
 
-- [ ] **P1.REPLAYNOCHILD — with drives now healthy, EVERY planning-family recording fails replay the same way, and
+- [x] **P1.REPLAYNOCHILD — with drives now healthy, EVERY planning-family recording fails replay the same way, and
   the cause is two stacked problems.** *(Live 2026-09-11: 52, 53, 54, 55 all `replay failed`, none `stalled`.)*
   Since the decompose-card guidance was corrected the drives themselves complete cleanly in ~12 minutes each and
   record. Only the replay fails, so this is now the ONLY thing between the batch and its remaining ~26 recordings.
@@ -2921,6 +2921,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **DO NOT fix this by "strongest class wins" across a needle group.** I tried exactly that and it regressed things:
   a card's WORKER and REVIEW sessions share a needle (the review seed quotes the card prompt), so `review` swallowed
   six worker tracks in 52. Reverted before commit; the repair-and-replay check caught it.
+  **▶ CLOSED 2026-09-14 — all three blocks gone, measured on the artifacts themselves.** Block 1 is fixed at the
+  router (`1f6a6386d`): a `sim/…` replay model satisfies any difficulty, because its capability IS its recording, so
+  a recorded `complexity` can no longer refuse the child. Blocks 2 and 3 were downstream of it — the pin was only
+  "unstartable" because the difficulty gate refused the start, and the attempt budget was spent on those refusals.
+  Proof: 52 and 53 — two of the four projects this item was opened on — replay PASS today with **zero**
+  `needs_decomposition`, **zero** `Auto-healed unstartable pin`, **zero** `pinned_model_unavailable` and **zero**
+  `auto_start_paused` in their runtime logs. All 40 recorded sets (37–76) carry `replayVerified: true`.
 
 - [x] **P2.FIXTUREINTEGRITY — a dev-test fixture's own "frozen and untouched" test can be satisfied by editing the
   thing that does the checking.** *(Found 2026-09-13 by recon on projects 71-76, both holes proven by exploit in a
@@ -3049,6 +3056,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (`0299f9096`). The reaper was deliberately left alone: a live runtime's proxy is its own to tear down, a dead
   runtime's are reaped by ownership at startup. (i): the failing runtime's log was overwritten by the restart and
   Docker's events had rotated, so the hung await is unproven — the item stays open for (i) only.
+  **▶ 2026-09-14, second pass: the deadline covers JOINERS too.** The first cut bounded only the caller that
+  created the preparation; a start refused as hung and retried joined the hung preparation and waited with no
+  deadline. Fixed with the shared `awaitWithProvisioningDeadline` (see P1.STARTHANG's entry for how the two
+  mechanisms compose). Shape (i)'s underlying hang is still unproven and still self-reporting.
 
 - [ ] **P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board
   then issues no further requests.** *(Live 2026-09-10, project 41 `kill-result-ordering`, requests 2036-2045.)*
@@ -3083,7 +3094,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   exists. The stale-focus-span cause of the write loop stays with [[P1.PARKEDINREVIEW]]'s evidence for a fresh
   occurrence.
 
-- [ ] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
+- [x] **P1.DECOMPOSEABORTS — decompose cards arrive with many prior "aborted before producing output" attempts.**
   *(Live 2026-09-09/10, three independent sightings.)* Project 41's decompose card carried **6** prior failed
   attempts in its own system prompt (5 `aborted`, 1 `other_failure`); project 42's carried **5**
   (`same_model_retry → aborted`, three on `openai-compatible`, two on `lmstudio`); project 44's carried **7**, with
@@ -3103,6 +3114,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   five in-turn attempts aborted, the aborts are about the SIZE of the exploration inside the biggest prompt the
   rig produces — which points at the context-length/turn-timeout reading above and away from "model failure",
   and makes the ladder's tool-set narrowing exactly the wrong response. Four projects now: 41, 42, 44, 45.
+  **▶ ROOT-CAUSED 2026-09-14, AND THE STANDING HYPOTHESIS IS REFUTED.** It is not context-length or turn-timeout
+  on the biggest prompt, and the retry ladder is not mis-firing on a model failure: the aborts are SANDBOX
+  DISPOSALS. `mapTerminalStateToOutcome` records any `interrupted` end without a !Klein timeout as `aborted`, and
+  the stop-stack instrumentation (`NKLEIN_STOP_STACKS=1`) names the stopper for every one: on the three worst cards
+  it is `AgentSandboxManager.onSessionUnusableHandler` — the placement vanishing mid-tool —
+  17 of 25 stops on `dev-39-…-decompose`, 11 of 16 on `dev-43`, 11 of 13 on `dev-40`; the rest are the board
+  watchdog's own legs (`handleSnapshot`). The model turn had nothing to do with it.
+  That also explains the responder workaround the item recorded as diagnostic: deriving the graph OUTSIDE the turn
+  and calling `decompose_project` immediately wins because it finishes before the disposal race, not because the
+  prompt got smaller. Decompose cards dominate because they are the longest-lived sessions with the most tool calls.
+  **Largely fixed already** by the post-capture dispose re-check (`d4858efc5`, 2026-09-09 10:13) — the same-day
+  count is 66 unusable-session stops, then 7 on 09-11 and 2 on 09-13. The residual is not decompose cards at all:
+  7 of those 9 are `main-branch-custodian::review`, which is the custodian's shared-task-id collision, fixed
+  2026-09-14 (see P1.REVIEWSANDBOX).
 - [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
   reached the trunk.**
   **▶ THIS NAME COVERS TWO DIFFERENT DEFECTS. Second one root-caused end to end 2026-09-10 (project 47,
@@ -3225,7 +3250,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   reasoning.
   **Operational note meanwhile:** responders are told to render the verdict on evidence they actually witnessed
   and to state in the review that the fresh sandbox check could not run — never to fabricate a run.
-- [ ] **P1.PHANTOMRUNNING — a session can sit in `running` for HOURS having ended its turn, and no watchdog
+  **▶ 2026-09-14 — THE `No such container` HYPOTHESIS IS REFUTED BY ITS OWN INSTRUMENT, and the population was
+  wrong.** The retire-time record added for exactly this question answers it: across the drain's telemetry **0 of
+  19** `No such container` refusals name a container this manager recorded retiring, and all 16 recorded
+  retirements were at occupancy 0 with an EMPTY queue — so `retireContainer` firing on a container `drainQueue`
+  had just handed to a waiter did not happen. Do not revive that theory without new evidence.
+  The same correlation corrects the item's framing: the population is NOT `::review` sessions. 16 of the 19 are
+  `plan::<slug>::acceptance-N` — the plan integration gate's acceptance runs — plus one decompose card and three
+  Dschinn spine cards.
+  **The `::review` half IS explained and fixed**: every custodian sweep used the literal `main-branch-custodian`,
+  while the single-flight guard is per workspace and the rig drives several at once, so concurrent sweeps shared
+  one session id AND one placement — the stop stacks caught three `main-branch-custodian::review` stops inside the
+  same second (2026-09-11 13:40:58, all `onSessionUnusableHandler`), each sweep disposing the others' workspace.
+  `mainCustodianTaskId({workspacePath, headCommit})` gives each sweep its own id (2026-09-14).
+  **The "hangs forever on pool exhaustion" product gap is closed** by the provisioning deadline (`754870837`): the
+  primary path's queue wait is inside `prepareWorkspace`, so it now fails with a named error and the pool's state
+  (containers, placements, queue depth) instead of waiting silently.
+  **Still open, and now instrumented to answer itself:** which path removes those containers. Three paths deleted
+  containers without recording it — the startup orphan reap, `stopNow`, and `startContainer`'s own pre-emptive
+  `rm -f`; all four now report through one callback with `via` naming the remover
+  (`sandbox_container_removed`). The next refusal is attributable; until then, do not theorise.
+- [x] **P1.PHANTOMRUNNING — a session can sit in `running` for HOURS having ended its turn, and no watchdog
   notices.** *(Live 2026-09-09, measured.)* Project 41's decompose session request log reads:
   `06:44:48 request → 06:45:18 response`, then **nothing until 10:25:07** — a 3h40m gap in which
   `workspace.getState` still reported the session as `running` and the card sat in `planning`. Every "stall" in
@@ -3253,7 +3298,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   **Next step is observation, not theory:** watch a drive live (`workspace.getState` every couple of minutes)
   across the moment the model stops, and record what the card's lane and the session's state actually do. Four
   hypotheses on the sibling sandbox defect were refuted by exactly this kind of after-the-fact reconstruction.
-- [ ] **P1.SETTLEDNUDGE — a SETTLED session keeps being re-prompted, and a clean stop is scored as a failure.**
+  **▶ ROOT-CAUSED AND FIXED 2026-09-14 — the session was never classified as served.** `lastTokenAt` is the fact
+  both liveness sweeps split on (the zero-token wedge sweep owns sessions never served; the silent-running sweep
+  owns sessions served and then gone quiet), and it was stamped only on prose/reasoning — never on a tool call. A
+  turn that goes STRAIGHT TO A TOOL CALL, which is the shape an agent turn is supposed to have, therefore read as
+  permanently "pre-first-token": every HITL session in the drain carries `lastTokenAt: null` beside a healthy
+  heartbeat and real tool activity. So the silent sweep DISCLAIMED project 41's decompose (its gate defers to the
+  wedge sweep) and the wedge sweep only owns never-served sessions — the card was owned by nobody, which is the
+  3h40m. The ledger confirms the sweep was running and looking: **1,452 watchdog ticks** on that workspace inside
+  the gap, every one reaching `snapshot_loaded`. Both tool-call sites now stamp the witness; a tool RESULT stays
+  unstamped (that is the runtime answering, not the model). The same fix removes the mirror-image defect, where the
+  wedge sweep CLAIMED such sessions and its probe condemned the model — see P0.POOLLOSS below.
+  Rejected on evidence first: widening both sweeps' predicate to "token OR output" instead. `lastOutputAt` is
+  stamped by ~30 lifecycle sites that are not model content, and the P0.3 zero-token self-heal integration test
+  caught it by refusing to interrupt its no-byte zombie. Fixing the fact beat reinterpreting the proxy.
+- [x] **P1.SETTLEDNUDGE — a SETTLED session keeps being re-prompted, and a clean stop is scored as a failure.**
   *(Opened 2026-09-09 from a responder shift; one hypothesis already refuted, see below.)* Card
   `main-branch-custodian::review` was approved and acknowledged (`ok:true` + "Stop now; do not make further tool
   calls"), and **9 of that shift's 25 requests — 36% — were that same settled review re-sent as nudges**, with
@@ -3363,6 +3422,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   trap the brief documents, not a reopen path the sweep misses. Residual, still open: the custodian
   `main-branch-custodian::review` re-prompt (exempt from the terminal-lane sweeper by design; two later shifts saw
   0 loops) — start at whoever calls `sendTaskSessionInput` for a `::review` task with a recorded verdict.
+  **▶ CLOSED 2026-09-14 — the custodian residual is root-caused and fixed, and it was the responder's hypothesis
+  all along.** That hypothesis (recorded here as "unverified and worth testing first") is now confirmed by the
+  stop-stack instrumentation: every sweep used the literal task id `main-branch-custodian`, so its session was
+  always `main-branch-custodian::review`, while the custodian's single-flight guard is per WORKSPACE and the rig
+  drives several workspaces at once. Concurrent sweeps therefore shared one session AND one sandbox placement —
+  three stops inside the same second on 2026-09-11 13:40:58, all `onSessionUnusableHandler` — and a later sweep
+  RESUMED an earlier sweep's settled session, which is exactly "a settled review re-sent with full conversation
+  memory including its own acknowledgment". Not a board-lane problem, which is why the terminal-lane retirement
+  sweep could never end it, and why two shifts saw zero loops (they had no concurrent sweep).
+  `mainCustodianTaskId({workspacePath, headCommit})` gives every sweep its own id: distinct workspaces cannot
+  collide, and a NEW sweep can never resume a settled one. Together with the terminal-lane retirement fix
+  (`b5d6d3bd4`, confirmed firing 2026-09-11 06:07:11 on completed dev-52) both halves of this item are closed.
 - [ ] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
   *(Opened 2026-09-09 from a confirmed rig failure; the stop-gap knob shipped as `1f3183c7c`.)* The budget is a
   flat `DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 min` with a separately-configurable verdict RESERVE carved
@@ -3401,6 +3472,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   queued acquisition, so start there with the slow-acquisition line and the pool occupancy at that moment.
   **Do NOT "fix" it by clearing the single-flight entry on a deadline** without understanding the hang — the inner
   promise is still live, so that trades a wedged card for a double start.
+  **▶ 2026-09-14: this item's closing warning earned its keep, and produced a fix.** "Do NOT clear the
+  single-flight entry on a deadline without understanding the hang" — re-reading it while composing the new
+  provisioning deadline with the hung-start release exposed a hole in the deadline itself: the claim is released
+  as hung at 5 minutes, the provisioning deadline fires at 15, and the retry that the release lets through JOINS
+  the hung preparation through `inFlightWorkspacePreparations`, a path that awaited it with NO deadline at all.
+  The owner failed; every joiner waited forever. Both paths now share `awaitWithProvisioningDeadline`, each caller
+  supplying what its own timeout means (the owner abandons and cleans up; a joiner only gives up its wait). The
+  double-start this item warns about is still prevented downstream — the join and the per-task workspace lifecycle
+  lock mean two starts never provision two sandboxes.
 - [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).** *(not testable: an operational image rebuild on a real connection — consent-gated multi-GB pulls, nothing here to assert)*
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after
