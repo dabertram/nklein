@@ -17774,8 +17774,18 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   across runs so run N+1 boots the runtime over the surviving board and dispatches the DEEPER startable cards
   instead of re-scaffolding (needs: skip the duplicate seed when a board already exists; the rig's teardown to
   spare the persisted pair; the monitor to classify as today). This is the honest path to "is the domain slice
-  reachable locally" — incremental accumulation across runs. **(2) constrained-schema retry for empty calls**
-  (strongest model-side lever). **(3)** bank the verdict as the local-capability boundary and grade any deeper
+  reachable locally" — incremental accumulation across runs. **(2) ~~constrained-schema retry for empty calls~~
+  SHIPPED 2026-09-14 (`9f421d05f`)** — the swarm ladder now judges the ARGUMENTS of a completed tool call
+  (`core/tool-call-argument-triage`, the SDK's own assembly rules + the shared repair assessor): every call
+  unusable ⇒ the turn is `malformed`, and the new `constrained_schema` rung
+  (`nklein-agent/constrained-tool-call-model`, over the direct local client) forces THAT tool — native
+  `tool_choice:required` first, per-tool `json_schema` second — with a re-ask naming the missing fields; a
+  lossless repair lands in the buffered events without a retry; a mixed batch keeps its good calls. Default ON
+  (`NKLEIN_CONSTRAINED_TOOL_CALL=off` kill switch); observation `swarm_constrained_tool_call`. Gotcha caught by
+  the tests: next-rung availability must be judged against the BASELINE request — the narrowed constrained
+  attempt (one tool) hid `prompt_variant` and parked the ladder. Live proof owed: the first
+  `swarm_adaptive_retry` with `strategy: constrained_schema` on a real seat (the evidence drain is armed for
+  it). **(3)** bank the verdict as the local-capability boundary and grade any deeper
   tree with the standing oracle wire. The types card's test-refusal park remains the correct gate doing its
   job.
 - [x] **P23.6 — Author the DISCOVERY variant and grade both with the same oracle. CLOSED 2026-08-10 — the

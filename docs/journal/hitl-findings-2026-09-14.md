@@ -91,3 +91,19 @@ loops; start at whoever calls `sendTaskSessionInput` for a `::review` task with 
 Lessons re-learned today, recorded in §4A / memory: the hook checks the working tree (no src edits while a commit's
 hook runs); zsh reports `tail`'s exit code after a pipe (`${pipestatus[1]}`); `git stash push --staged` + `pop`
 restores changes UNstaged and the commit lands empty.
+
+## Afternoon: P23.5 (2) — the empty-call wall gets a model-side lever (`9f421d05f`)
+
+The campaign's purest failure (three empty `write_file` calls with the payload in the prompt, clean stops) was
+invisible to the swarm ladder: "a tool call happened" counted as success, the SDK salvaged `{}`, the tool refused,
+and the same empty call came back. Now the ladder judges the arguments the SDK would dispatch
+(`core/tool-call-argument-triage`); an unusable call is a `malformed` turn and the `constrained_schema` rung
+(`nklein-agent/constrained-tool-call-model`) forces that tool over the direct client — native
+`tool_choice:required`, then a per-tool `json_schema` — with a re-ask naming the missing fields. Lossless repairs
+(coercions, dropped unknown fields) land in the buffered events with no retry; a mixed batch keeps its good calls.
+Kill switch `NKLEIN_CONSTRAINED_TOOL_CALL=off`; observation `swarm_constrained_tool_call`.
+
+Two things the tests caught before the wire did: the ladder's next-rung availability was computed from the
+NARROWED attempt request (one tool ⇒ no prompt-variation plan ⇒ parked), so it is judged against the baseline now;
+and a `src/core` module must not import `@cline/shared` (biome boundary) — the core mirrors the delta shape
+structurally.
