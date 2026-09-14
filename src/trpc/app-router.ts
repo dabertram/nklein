@@ -71,6 +71,7 @@ import type {
 	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
 	RuntimeFitnessTableResponse,
+	RuntimeFleetPoolHealthResponse,
 	RuntimeFleetStatusResponse,
 	RuntimeFocusChainHistoryRequest,
 	RuntimeFocusChainHistoryResponse,
@@ -584,6 +585,8 @@ export interface RuntimeTrpcContext {
 		getNKleinCodeIntelligenceStatus: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeNKleinCodeIntelligenceStatusResponse>;
+		/** P0.POOLLOSS: the proactive fleet sweep's current pool losses (board notice data). */
+		getFleetPoolHealth: () => Promise<RuntimeFleetPoolHealthResponse>;
 		getKleinCorePyHealth: () => Promise<RuntimeKleinCorePyHealthResponse>;
 		getMergeHistory: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeMergeHistoryResponse>;
 		/** Explicit re-decompose (David 2026-09-04): one card or every unfinished card → decompose cards, started. */

@@ -14,6 +14,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { AgentModel, AgentModelEvent, AgentModelRequest } from "@cline/shared";
+import { recordModelWireError } from "../core/model-wire-error-ledger";
 import { buildSessionRequestRecord, type SessionRequestWireMessage } from "../core/session-request-log";
 import {
 	appendSessionRequestRecord,
@@ -141,6 +142,11 @@ function recordResponseBestEffort(state: ResponseAccumulator, scope: SessionRequ
 	try {
 		if (!isSessionRequestLogEnabled()) {
 			return;
+		}
+		// P0.POOLLOSS: keep the model's last wire error in memory — the fleet sweep reports a vanished pool member
+		// WITH its crash signature (the "one 500, then gone" shape) instead of as a bare absence.
+		if (state.error) {
+			recordModelWireError({ modelId: scope.modelId, message: state.error, sessionId: scope.sessionId });
 		}
 		void appendSessionResponseRecord({
 			schemaVersion: 1,

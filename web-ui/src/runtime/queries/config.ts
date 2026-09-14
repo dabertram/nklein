@@ -9,6 +9,7 @@ import type {
 	RuntimeDebugResetAllStateResponse,
 	RuntimeEvaluateConnectedModelsResponse,
 	RuntimeFitnessTableResponse,
+	RuntimeFleetPoolHealthResponse,
 	RuntimeFleetStatusResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
@@ -185,6 +186,12 @@ export async function fetchProjectSetupPlan(workspaceId: string | null): Promise
 export async function fetchKleinCorePyHealth(workspaceId: string | null): Promise<RuntimeKleinCorePyHealthResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getKleinCorePyHealth.query();
+}
+
+/** P0.POOLLOSS: the fleet sweep's current pool losses — the board notice's data. */
+export async function fetchFleetPoolHealth(workspaceId: string | null): Promise<RuntimeFleetPoolHealthResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getFleetPoolHealth.query();
 }
 
 export async function fetchKnowledgeToolUsageStats(

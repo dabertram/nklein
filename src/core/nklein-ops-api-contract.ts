@@ -16,6 +16,33 @@ export const runtimeKleinCorePyHealthResponseSchema = z.object({
 });
 export type RuntimeKleinCorePyHealthResponse = z.infer<typeof runtimeKleinCorePyHealthResponseSchema>;
 
+// P0.POOLLOSS: the proactive fleet pool sweep's current losses — what the board notice renders. A loss is a
+// configured role-pool member (primary or `additionalModels`) absent from its endpoint's loaded set on two
+// consecutive sweeps; `lastError` is the model's last wire error when the tap saw one (its crash signature).
+export const runtimeFleetPoolLossSchema = z.object({
+	modelId: z.string().min(1),
+	endpoint: z.string().min(1),
+	roles: z.array(z.string()),
+	/** Epoch ms the sweep last listed it; null when it was never seen loaded since the runtime started. */
+	lastSeenAt: z.number().nullable(),
+	absentSince: z.number(),
+	declaredAt: z.number(),
+	lastError: z
+		.object({
+			message: z.string(),
+			at: z.number(),
+			sessionId: z.string().nullable(),
+		})
+		.nullable(),
+});
+export type RuntimeFleetPoolLoss = z.infer<typeof runtimeFleetPoolLossSchema>;
+export const runtimeFleetPoolHealthResponseSchema = z.object({
+	/** Epoch ms of the last completed sweep; null until the first one ran. */
+	sweptAt: z.number().nullable(),
+	losses: z.array(runtimeFleetPoolLossSchema),
+});
+export type RuntimeFleetPoolHealthResponse = z.infer<typeof runtimeFleetPoolHealthResponseSchema>;
+
 // Board-level merge history (todo §5.G) — durable record of each dependency-ordered auto-merge pass.
 export const runtimeMergeHistoryRecordSchema = z.object({
 	recordedAt: z.number(),

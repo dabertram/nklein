@@ -64,6 +64,7 @@ import {
 	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
 	runtimeFitnessTableResponseSchema,
+	runtimeFleetPoolHealthResponseSchema,
 	runtimeFleetStatusResponseSchema,
 	runtimeFocusChainHistoryRequestSchema,
 	runtimeFocusChainHistoryResponseSchema,
@@ -715,6 +716,9 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getNKleinCodeIntelligenceStatus(ctx.workspaceScope);
 			}),
+		getFleetPoolHealth: t.procedure.output(runtimeFleetPoolHealthResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getFleetPoolHealth();
+		}),
 		getKleinCorePyHealth: t.procedure.output(runtimeKleinCorePyHealthResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getKleinCorePyHealth();
 		}),

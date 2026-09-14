@@ -64,6 +64,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { assembleFieldReportCandidates } from "../core/field-report-assembly";
 import { buildFieldReport, renderReviewPayload } from "../core/field-report-content";
 import { buildFitnessTableView } from "../core/fitness-table-view";
+import { fleetPoolLastSweptAtMs, listFleetPoolLosses } from "../core/fleet-pool-presence";
 import { createGitProcessEnv } from "../core/git-process-env";
 import {
 	buildHostOpenCommand,
@@ -98,6 +99,7 @@ import {
 } from "../core/model-behavior-profile";
 import { clearModelDeadMark, listModelDeadMarks } from "../core/model-liveness-ledger";
 import { buildModelTuningRecommendations } from "../core/model-tuning-recommendations";
+import { getLastModelWireError } from "../core/model-wire-error-ledger";
 import type {
 	RuntimeBoardScheduleResponse,
 	RuntimeClearModelDeadMarkRequest,
@@ -1788,6 +1790,23 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
 			});
 		},
+		getFleetPoolHealth: async () => ({
+			sweptAt: fleetPoolLastSweptAtMs(),
+			losses: listFleetPoolLosses().map((loss) => {
+				const lastError = getLastModelWireError(loss.modelId);
+				return {
+					modelId: loss.modelId,
+					endpoint: loss.endpoint,
+					roles: [...loss.roles],
+					lastSeenAt: loss.lastSeenAtMs,
+					absentSince: loss.absentSinceMs,
+					declaredAt: loss.declaredAtMs,
+					lastError: lastError
+						? { message: lastError.message, at: lastError.atMs, sessionId: lastError.sessionId }
+						: null,
+				};
+			}),
+		}),
 		getKleinCorePyHealth: async () => {
 			const config = resolveKleinCorePyConfig();
 			if (!config.enabled) {

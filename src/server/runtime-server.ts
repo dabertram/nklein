@@ -76,6 +76,12 @@ import type {
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { EVAL_PROMPT_CORPUS } from "../core/eval-prompt-corpus";
 import { resolveExercisingTests } from "../core/exercising-tests";
+import {
+	advanceFleetPoolPresence,
+	commitFleetPoolSweep,
+	type FleetPoolMember,
+	getFleetPoolPresenceState,
+} from "../core/fleet-pool-presence";
 import { seedFocusChainFromPlanTask } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { inheritedDebtSignature, shouldRecordInheritedDebt } from "../core/inherited-debt";
@@ -92,6 +98,7 @@ import { clearModelDeadMark, isModelMarkedDead, markModelDead } from "../core/mo
 import { findRecentTokenEvidence } from "../core/model-recent-token-evidence";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
+import { getLastModelWireError } from "../core/model-wire-error-ledger";
 import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
 import { createNestedModelTurnAdmissionGate } from "../core/nested-model-turn-admission";
 import {
@@ -210,11 +217,13 @@ import {
 import { recordExecutionClarificationBlock } from "../nklein-agent/nklein-execution-clarification";
 import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { buildLmStudioMachineByModelId } from "../nklein-agent/nklein-lmstudio-host-map";
+import { isLocalProvider } from "../nklein-agent/nklein-local-only-policy";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import { runNKleinMutationAdequacy } from "../nklein-agent/nklein-mutation-adequacy-runner";
 import { readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { getPropertyCheckEvidence } from "../nklein-agent/nklein-property-evidence-registry";
+import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { excludeUnroutableDescriptors } from "../nklein-agent/nklein-reviewer-model-selection";
 import { isLocalModelUnavailableWarning } from "../nklein-agent/nklein-session-state";
 import { SpeculativeAttemptRegistry } from "../nklein-agent/nklein-speculative-attempt-registry";
@@ -2355,6 +2364,134 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		? setInterval(() => {
 				void durableRunWiring?.tickAll(liveTaskIdsForWorkspace);
 			}, DURABLE_RUN_TICK_INTERVAL_MS)
+		: null;
+	// P0.POOLLOSS proactive fleet sweep (2026-09-14). The two legs shipped on 09-04 learned about a vanished pool
+	// model only from a VICTIM session wedging on it; a member the router simply stopped picking produced none, so
+	// dirk's 03:41 crash went 17 hours without a record. Every minute: diff the GLOBAL role pools (each role's
+	// primary + `additionalModels`, local providers only — a cloud provider has no loaded set) against each
+	// endpoint's loaded descriptors. Two consecutive misses declare a loss → dead mark (routing excludes it at
+	// once) + warning observation + the board notice (`runtime.getFleetPoolHealth`); the first listing that has it
+	// back declares recovery and clears the mark. An empty or failed probe is uncertainty, never a loss
+	// (fleet-pool-presence.ts). Project-level pool overrides are not swept: the fleet is global, as was the pool
+	// that lost dirk. `NKLEIN_FLEET_POOL_SWEEP=0` disables the timer.
+	const FLEET_POOL_SWEEP_MS = readTestTimingOverride("NKLEIN_TEST_FLEET_POOL_SWEEP_MS", 60_000);
+	let fleetPoolSweepInFlight = false;
+	const runFleetPoolSweep = async (): Promise<void> => {
+		if (fleetPoolSweepInFlight) {
+			return;
+		}
+		fleetPoolSweepInFlight = true;
+		try {
+			const globalConfig = await loadGlobalRuntimeConfig();
+			const providerService = createNKleinProviderService();
+			const members: FleetPoolMember[] = [];
+			for (const [role, settings] of Object.entries(globalConfig.effectiveModelRoles)) {
+				const roleModels = [
+					{ model: settings, primary: true },
+					...(settings.additionalModels ?? []).map((model) => ({ model, primary: false })),
+				];
+				for (const { model, primary } of roleModels) {
+					if (!model.providerId && !model.modelId) {
+						continue;
+					}
+					try {
+						const launch = await providerService.resolveLaunchConfig({
+							providerIdOverride: model.providerId ?? undefined,
+							modelIdOverride: model.modelId ?? undefined,
+							reasoningEffortOverride: model.reasoningEffort ?? null,
+						});
+						if (launch.baseUrl && launch.modelId && isLocalProvider(launch.providerId, launch.baseUrl)) {
+							members.push({ role, primary, modelId: launch.modelId, endpoint: launch.baseUrl });
+						}
+					} catch {
+						// A role configured but not resolvable is not a pool member to watch.
+					}
+				}
+			}
+			if (members.length === 0) {
+				return;
+			}
+			const listings = await Promise.all(
+				[...new Set(members.map((member) => member.endpoint))].map(async (endpoint) => {
+					const descriptors = await fetchLoadedModelDescriptors(endpoint).catch(
+						() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+					);
+					return {
+						endpoint,
+						loadedModelIds:
+							descriptors.length === 0
+								? null
+								: descriptors.flatMap((descriptor) => [descriptor.runtimeId, descriptor.modelKey]),
+					};
+				}),
+			);
+			const nowMs = Date.now();
+			const sweep = advanceFleetPoolPresence({
+				previous: getFleetPoolPresenceState(),
+				members,
+				listings,
+				nowMs,
+			});
+			commitFleetPoolSweep(sweep.state, nowMs);
+			for (const loss of sweep.losses) {
+				markModelDead({ modelId: loss.modelId, endpoint: loss.endpoint, reason: "absent_from_listing", nowMs });
+				const lastError = getLastModelWireError(loss.modelId);
+				const signature = lastError
+					? ` Last wire error (${new Date(lastError.atMs).toISOString()}): ${lastError.message}`
+					: " No wire error was recorded for it before it vanished.";
+				const lastSeen =
+					loss.lastSeenAtMs === null
+						? "never seen loaded since this runtime started"
+						: `last seen loaded ${new Date(loss.lastSeenAtMs).toISOString()}`;
+				const headline = `Fleet pool loss: ${loss.modelId} at ${loss.endpoint} (${loss.roles.join(", ")} pool) is no longer loaded — ${lastSeen}; marked dead for routing.`;
+				deps.warn(`${headline}${signature}`);
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `${headline}${signature}`,
+					metadata: {
+						category: "model_pool_loss",
+						reason: "fleet_sweep",
+						modelId: loss.modelId,
+						endpoint: loss.endpoint,
+						roles: [...loss.roles],
+						lastSeenAt: loss.lastSeenAtMs,
+						absentSince: loss.absentSinceMs,
+						lastError: lastError
+							? { message: lastError.message, at: lastError.atMs, sessionId: lastError.sessionId }
+							: null,
+					},
+				});
+			}
+			for (const recovery of sweep.recoveries) {
+				clearModelDeadMark(recovery.modelId, recovery.endpoint);
+				const headline = `Fleet pool recovery: ${recovery.modelId} at ${recovery.endpoint} (${recovery.roles.join(", ")} pool) is loaded again after ${Math.round(recovery.lostForMs / 60_000)} min — dead mark cleared.`;
+				deps.warn(headline);
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: headline,
+					metadata: {
+						category: "model_pool_recovered",
+						modelId: recovery.modelId,
+						endpoint: recovery.endpoint,
+						roles: [...recovery.roles],
+						lostForMs: recovery.lostForMs,
+					},
+				});
+			}
+		} catch (error) {
+			deps.warn(`Fleet pool sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+		} finally {
+			fleetPoolSweepInFlight = false;
+		}
+	};
+	const fleetPoolSweepTimer: ReturnType<typeof setInterval> | null = isEnabledByDefaultEnv(
+		process.env.NKLEIN_FLEET_POOL_SWEEP,
+	)
+		? setInterval(() => {
+				void runFleetPoolSweep();
+			}, FLEET_POOL_SWEEP_MS)
 		: null;
 	// Audit 2026-08-12 F1 (CRITICAL): cards born MID-RUN were invisible to the durable controller — `ensureRun`
 	// no-ops on an existing run and the durable guard then swallowed every foreground start, so re-decompose
@@ -8015,6 +8152,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			queuedStartDrainUnsubscribeByWorkspaceId.clear();
 			if (durableTickTimer) {
 				clearInterval(durableTickTimer);
+			}
+			if (fleetPoolSweepTimer) {
+				clearInterval(fleetPoolSweepTimer);
 			}
 			await Promise.all(
 				Array.from(nkleinTaskSessionServiceByWorkspaceId.values()).map(async (service) => {

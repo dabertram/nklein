@@ -1281,6 +1281,30 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		firesWhen: "attempt_started",
 		addedOn: Date.UTC(2026, 8, 14),
 	},
+	{
+		// P0.POOLLOSS (victim-driven legs 2026-09-04; proactive fleet sweep 2026-09-14): a role-pool model vanished.
+		// Until 09-14 every firing needed a VICTIM — a session wedged token-less on the model before the watchdog
+		// classified it (`absent_from_listing` / `listed_but_dead` / `redrive_cap` / `parked_unavailable`); the
+		// minute-cadence sweep (`reason: fleet_sweep`) needs none: two consecutive misses against the endpoint's
+		// loaded set declare the loss, mark the model dead for routing and put it on the board notice.
+		category: "model_pool_loss",
+		item: "P0.POOLLOSS",
+		observes:
+			"a configured pool model that vanished (absent from its endpoint's loaded set, or dead behind a listing) — the reason, the roles it served, when it was last seen and its last wire error",
+		enabledBy: null,
+		// `exceptional`: a healthy fleet never loses a model; silence is the goal.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 4),
+	},
+	{
+		category: "model_pool_recovered",
+		item: "P0.POOLLOSS",
+		observes:
+			"a pool model the fleet sweep had declared lost is listed loaded again — its dead mark cleared, with how long it was gone",
+		enabledBy: null,
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
 ];
 
 /**
@@ -1357,7 +1381,6 @@ export const OPERATIONAL_OBSERVATION_CATEGORIES: readonly string[] = [
 	"model_unavailable_recovered",
 	// P0.POOLLOSS classifier (2026-09-04): a zero-token wedge whose model VANISHED from its endpoint listing
 	// (gateway queues absent-model requests forever instead of erroring) — pin cleared, card redriven via Auto.
-	"model_pool_loss",
 	// Explicit re-decompose (2026-09-04): the operator filed a decompose card for one card / every unfinished card.
 	"explicit_redecompose",
 	"decomposition_starved_bounce",

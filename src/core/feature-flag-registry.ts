@@ -208,6 +208,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		mode: "enforcing",
 		gate: "second-opinion-review-runner.ts (P0.LAZYBASELINE base-tree sample feeds the pre-existing waiver)",
 	},
+	// 2026-09-14 P0.POOLLOSS proactive fleet sweep (default ON; `=0` disables):
+	{
+		flag: "NKLEIN_FLEET_POOL_SWEEP",
+		mode: "enforcing",
+		gate: "runtime-server.ts (P0.POOLLOSS minute-cadence fleet pool sweep: loss → dead mark + observation + board notice)",
+	},
 	{
 		flag: "NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES",
 		mode: "enforcing",
@@ -443,6 +449,11 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		flag: "NKLEIN_RESULT_BASE_REFRESH",
 		kind: "permanent",
 		reason: "default ON; `=0` is the opt-out — the lane already refreshes stale results onto the current base",
+	},
+	{
+		flag: "NKLEIN_FLEET_POOL_SWEEP",
+		kind: "permanent",
+		reason: "default ON; `=0` is the opt-out — the lane already runs the fleet pool sweep",
 	},
 	{
 		flag: "NKLEIN_CAPTURE_KEEP_GENERATED_LOCKFILES",

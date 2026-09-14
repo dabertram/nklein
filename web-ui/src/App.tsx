@@ -22,6 +22,7 @@ import { DebugDialog } from "@/components/debug-dialog";
 import { type DependencyPickerCard, DependencyPickerDialog } from "@/components/dependency-picker-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { EgressConfirmDialog } from "@/components/egress-confirm-dialog";
+import { FleetPoolLossNotice } from "@/components/fleet-pool-loss-notice";
 import { FrontierRadar } from "@/components/frontier-radar";
 import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
@@ -1204,6 +1205,8 @@ export default function App(): ReactElement {
 											}
 										/>
 									) : null}
+									{/* P0.POOLLOSS: a vanished role-pool model says so here instead of waiting to be noticed. */}
+									<FleetPoolLossNotice workspaceId={currentProjectId} />
 									{/* §5.BB zoom control — one continuous surface, four zoom levels (buttons per the user's pick). */}
 									{!isGitHistoryOpen ? (
 										<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-1 px-3 py-1.5">
