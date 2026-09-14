@@ -1150,6 +1150,25 @@ export class AgentSandboxManager {
 					}),
 					"create sandbox task workspace",
 				);
+				// FAIL LOUD ON A FOREIGN WORKSPACE (live 2026-09-11, project 50's R-03). A 0700 workspace owned by a
+				// DIFFERENT uid is unusable in every direction and says nothing about why: `read_files`, `list_files`
+				// (0 entries for the root), `get_file_size`, `search_codebase` and even `spawn /bin/bash` all fail
+				// EACCES, because the session's own cwd is unreadable. The cause was a path collision — three card ids
+				// sharing their first 80 characters mapped to one directory while their uids hash the full id — and
+				// `normalizeTaskIdForSandboxPath` is injective now, so this assert is the net: it names both uids and
+				// the path instead of letting a session spend a whole shift re-confirming an unexplained EACCES.
+				const workspaceOwner = await this.execAsRoot(placement, ["stat", "-c", "%u", placement.workdir]);
+				// STRICT parse: `Number("")` is 0, and reading a blank/abridged stat as "owned by root" would refuse
+				// every healthy placement. Only an all-digits answer is an ownership fact; anything else is unknown,
+				// and unknown proceeds (the fail-safe direction — this assert exists to catch a PROVEN mismatch).
+				const workspaceOwnerUid = /^\d+$/.test(workspaceOwner.stdout.trim())
+					? Number(workspaceOwner.stdout.trim())
+					: null;
+				if (workspaceOwner.exitCode === 0 && workspaceOwnerUid !== null && workspaceOwnerUid !== placement.uid) {
+					throw new AgentSandboxUnavailableError(
+						`Sandbox workspace ${placement.workdir} for ${placement.taskId} is owned by uid ${workspaceOwnerUid}, not this task's uid ${placement.uid} — every tool in this session would fail EACCES. Refusing the placement instead of handing over an unusable workspace.`,
+					);
+				}
 				// Language/package managers need writable HOME/cache locations. The image root is deliberately read-only;
 				// putting these under the container tmpfs preserves strict isolation and avoids polluting the git clone.
 				assertSandboxExecOk(
