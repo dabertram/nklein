@@ -30,6 +30,11 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 export interface ReviewContext {
 	workerReasoning: string | null;
 	boardContext: ReviewBoardContext | null;
+	/**
+	 * P1.PASSEDBUTUNLANDED: prompt-ready evidence that the runtime REJECTED this session's write(s). Rendered only
+	 * in the no-changes branch, where it explains an absent diff the reviewer would otherwise have to infer.
+	 */
+	blockedWriteNote?: string | null;
 }
 
 /** Minimal card shape the orchestrator needs (a subset of `RuntimeBoardCard`). */
@@ -280,6 +285,7 @@ export async function runNKleinSecondOpinionReview(
 		speculativeDiff: speculativeDiff || null,
 		executionNote: executionNote || null,
 		workerReasoning: reviewContext?.workerReasoning ?? null,
+		blockedWriteNote: reviewContext?.blockedWriteNote ?? null,
 		boardContext: reviewContext?.boardContext ?? null,
 		acceptanceSummary: input.acceptanceSummary ?? null,
 		round,

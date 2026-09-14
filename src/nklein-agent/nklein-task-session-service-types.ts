@@ -11,6 +11,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import type { AutoDecompositionDepthDecision } from "../core/auto-decomposition-depth";
+import type { BlockedWriteEvidence } from "../core/blocked-write-evidence";
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import type {
 	DecompositionResearchPreflightInput,
@@ -247,6 +248,8 @@ export interface NKleinTaskSessionService {
 	getMemoryFootprint?(): Record<string, number>;
 	rebindPersistedTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null>;
 	getSummary(taskId: string): RuntimeTaskSessionSummary | null;
+	/** P1.PASSEDBUTUNLANDED: the write calls this task's transcript records as rejected (review evidence). */
+	describeBlockedWrites?(taskId: string): Promise<BlockedWriteEvidence | null>;
 	/**
 	 * Process-local primary-turn generation. Optional for test/external implementations; the in-memory service always
 	 * provides it so delivery can distinguish a real newer turn from a late same-turn summary projection.

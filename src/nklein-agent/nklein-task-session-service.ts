@@ -66,6 +66,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
+import { type BlockedWriteEvidence, summarizeBlockedWrites } from "../core/blocked-write-evidence";
 import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { ATTEMPT_STARTED_CATEGORY } from "../core/card-tracking-coverage";
 import {
@@ -3367,6 +3368,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** The retirement record for a task, or null. */
 	findRetiredTaskSession(taskId: string): RetiredSession | null {
 		return findRetiredSession(this.sessionRetirementLedger, taskId);
+	}
+
+	/**
+	 * P1.PASSEDBUTUNLANDED: the write calls this task's transcript records as REJECTED, as review evidence.
+	 * Best-effort — an unreadable transcript yields null, and the review path is unchanged by its absence.
+	 */
+	async describeBlockedWrites(taskId: string): Promise<BlockedWriteEvidence | null> {
+		const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+		return summarizeBlockedWrites(extractTerminalToolCalls(snapshot?.messages ?? []));
 	}
 
 	async stopTaskSession(

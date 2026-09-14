@@ -108,6 +108,12 @@ export interface ReviewSeedPromptInput {
 	executionNote?: string | null;
 	/** The worker's own final summary of what it did and why — so the reviewer judges the reasoning, not just the diff. */
 	workerReasoning?: string | null;
+	/**
+	 * P1.PASSEDBUTUNLANDED: prompt-ready evidence that the runtime REJECTED this session's write(s)
+	 * (`summarizeBlockedWrites`). Rendered ONLY in the no-changes branch — with a diff in hand the reviewer can
+	 * see what landed, and a blocked-then-retried write is then just history. Evidence, never a gate.
+	 */
+	blockedWriteNote?: string | null;
 	/** The card's place in the wider board/plan, so the reviewer can judge fit, scope, and coherence. */
 	boardContext?: ReviewBoardContext | null;
 	/** Human acceptance-gate summary, when an acceptance check ran (e.g. "Acceptance check passed: npm test."). */
@@ -286,6 +292,13 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 			"## No file changes",
 			"The worker reported this card complete but made **no file changes**. A no-op result is usually a red flag — it often means the task was misunderstood, mis-scoped, already done, or not actually performed (bad planning or wrong task processing) — not a correct outcome. Judge against the objective: `approve` only if doing nothing is genuinely the right result here; otherwise `request_changes` explaining what the implementer should actually do.",
 		);
+		// P1.PASSEDBUTUNLANDED: when the runtime REJECTED this session's writes, say so here. The reviewer was
+		// otherwise asked to infer from an absent diff what the tool log already stated in plain text — and an
+		// acceptance check that ran after a rejected write can pass vacuously, which is how a card reported itself
+		// complete with nothing on the trunk (project 47, 2026-09-10).
+		if (input.blockedWriteNote?.trim()) {
+			lines.push("", input.blockedWriteNote.trim());
+		}
 	}
 	if (input.workerReasoning?.trim()) {
 		const reasoning = input.workerReasoning.trim();

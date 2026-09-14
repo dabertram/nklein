@@ -176,6 +176,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "markSandboxRecaptureExpected"
 				| "previewSessionForkBoundary"
 				| "rewindTaskSessionForRetry"
+				| "describeBlockedWrites"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -1329,6 +1330,11 @@ export async function runSecondOpinionReviewForTask(
 			getReviewContext: async () => ({
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),
+				// P1.PASSEDBUTUNLANDED: the transcript's REJECTED writes, so an absent diff comes with the recorded
+				// reason instead of leaving the reviewer to infer it. Best-effort; an older service without the
+				// method, or an unreadable transcript, leaves the prompt byte-identical.
+				blockedWriteNote:
+					(await input.service.describeBlockedWrites?.(input.taskId).catch(() => null))?.note ?? null,
 			}),
 			// F12.91 history-blind CORRECTOR (OPT-IN via NKLEIN_HISTORY_BLIND_CORRECTOR; default OFF ⇒ this wrapper
 			// returns the primary submission untouched and the path is byte-identical).
