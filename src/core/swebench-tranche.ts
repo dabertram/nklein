@@ -45,6 +45,15 @@ export interface SwebenchTrancheEntry {
 	 */
 	readonly sealedPassToPassExclusions?: readonly { id: string; cause: string }[];
 	/**
+	 * FAIL_TO_PASS ids excluded from SEALED grading, each with cause — the rarer, heavier decision: a graded test
+	 * that can never pass under `--network none` no matter the fix (2026-09-15: requests-2317's
+	 * `test_requests_history_is_saved` hardcodes `https://httpbin.org/redirect/5`, ignoring HTTPBIN_URL; every
+	 * seat — Opus, Fable, Sonnet, qwen3.8 — passed the other seven and "failed" exactly this one). The verdict
+	 * names each excluded id so the trimmed requirement is visible on the receipt, never silent; an instance
+	 * whose gradable F2P would become empty stays "not resolvable".
+	 */
+	readonly sealedFailToPassExclusions?: readonly { id: string; cause: string }[];
+	/**
 	 * Start a loopback httpbin INSIDE the grade container and export HTTPBIN_URL before the selections run —
 	 * for the 2014/15-era requests suites that build URLs from that env (their tests otherwise call
 	 * httpbin.org live, which --network none forbids and determinism abhors). Loopback works fine inside the
@@ -98,6 +107,12 @@ export const SWEBENCH_TRANCHE: readonly SwebenchTrancheEntry[] = [
 		// pytest-httpbin supplies the httpbin package the loopback service runs; the era suite reads HTTPBIN_URL.
 		extraRequirements: ["pytest", "pytest-httpbin"],
 		httpbinService: { port: 8998 },
+		sealedFailToPassExclusions: [
+			{
+				id: "test_requests.py::RequestsTestCase::test_requests_history_is_saved",
+				cause: "hardcodes https://httpbin.org/redirect/5 (ignores HTTPBIN_URL) — live TLS egress, impossible under --network none",
+			},
+		],
 		sealedPassToPassExclusions: [
 			{
 				id: "test_requests.py::RequestsTestCase::test_mixed_case_scheme_acceptable",

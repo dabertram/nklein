@@ -55,11 +55,11 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 |---|---|---|---|---|
 | pallets__flask-5014 | yes | 10 | blocked_by_review_cards (delivered) | 2-line `blueprints.py` fix; 1/1 F2P, 59 P2P held |
 | psf__requests-1921 | yes | 45 (cap) | stagnant | 1-line `sessions.py` fix delivered at stop; 6/6 F2P, 105 P2P |
-| psf__requests-2317 | no | 31 | blocked_by_review_cards (delivered) | right files (`models.py`, `sessions.py`), 1 F2P still failing |
+| psf__requests-2317 | yes (re-graded, finding 7) | 31 | blocked_by_review_cards (delivered) | `models.py`, `sessions.py`; 7/7 gradable F2P green, the eighth is internet-bound |
 | psf__requests-5414 | no | 45 (cap) | stagnant | no delivery — 18 turns, ~96 s median turn latency (shared seat) |
 | pytest-dev__pytest-5227 | no | 75 | blocked_by_review_cards (delivered) | 578-byte patch delivered; 3 F2P still failing (log-cli level defaults) |
 
-Running tally: **2 / 5 resolved**. Remaining: pytest-6202, pytest-7521, pylint-4970, pylint-6903, pylint-7993.
+Running tally: **4 / 6 resolved** (pytest-7521 resolved at the 120-min cap; requests-2317 re-graded under finding 7). Remaining: pytest-6202 (second pass), pylint-4970, pylint-6903, pylint-7993.
 Suspended 2026-09-14 17:50 on David's instruction (the model was his DeepSeek Harness (dsh) run's seat); instance 6
 (pytest-6202) had just started and was set aside. **Resumed 2026-09-14 21:30** on his go ("continue with the swebench
 on m5max") — pytest-7521 in progress; pytest-6202 needs a second `run.sh all` pass.
@@ -89,7 +89,7 @@ effort, schema answer mode, responder concurrency 1 until 00:25 then 4). Receipt
 |---|---|---|---|---|
 | pallets__flask-5014 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
 | psf__requests-1921 | yes | 7 | blocked_by_review_cards | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held; `requests/sessions.py` |
-| psf__requests-2317 | no | 7 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `requests/sessions.py` |
+| psf__requests-2317 | yes (re-graded, finding 7) | 7 | blocked_by_review_cards | resolved: 7/7 fail-to-pass green, 127 pass-to-pass held; 1 fail-to-pass excluded under the seal; `requests/sessions.py` |
 | psf__requests-5414 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held; `requests/models.py` |
 | pytest-dev__pytest-5227 | yes | 16 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
 | pytest-dev__pytest-6202 | yes | 13 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
@@ -98,8 +98,9 @@ effort, schema answer mode, responder concurrency 1 until 00:25 then 4). Receipt
 | pylint-dev__pylint-6903 | yes | 6 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
 | pylint-dev__pylint-7993 | yes | 7 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held; `pylint/reporters/text.py` |
 
-**Score: 9 / 10 resolved.** Mean 8.6 min per instance. The one failure, requests-2317, is the instance every Claude seat and
-the qwen3.8 arm failed the same way (one fail-to-pass still failing after a `sessions.py` change).
+**Score: 10 / 10 resolved** (9/10 before finding 7 was treated). Mean 8.6 min per instance. requests-2317 had been
+\"unresolved\" on every seat for the same reason: its eighth fail-to-pass test hardcodes `https://httpbin.org`, which the
+sealed grader can never reach; all seats passed the other seven.
 
 ### Claude arms — !Klein `83c39fe71`, `claude-{sonnet-5,opus-5,fable-5-1,haiku-4-5}-hitl` (started 2026-09-14 22:14)
 
@@ -138,6 +139,14 @@ that keeps every pass-1 arm on the same !Klein commit.
    first-launch leftovers (six half-materialized `requests-1921`/`2317` workspaces from the 22:00 launch) the LIVE
    requests-1921 attempts on the Legion and m4 mini arms were retired by mistake at 22:32 UTC; both arms were
    relaunched at 22:33 for a clean attempt (nothing from the retired attempt is counted).
+7. **An internet-bound fail-to-pass test made requests-2317 unresolvable offline** — `test_requests_history_is_saved`
+   hardcodes `https://httpbin.org/redirect/5` (it ignores the loopback `HTTPBIN_URL` the grader provides), so under
+   `--network none` it fails for any fix. Opus, Fable, Sonnet and qwen3.8 all passed the other seven fail-to-pass
+   tests and "failed" exactly this one. → The tranche now declares `sealedFailToPassExclusions` (per id, with cause),
+   the grader drops those ids and NAMES them on the receipt, and an instance whose gradable set would become empty
+   stays "not resolvable". The four deliveries were re-graded with the same sealed grader (superseded receipts kept
+   as `*.superseded-sealed-f2p.json`): all four resolved. Upstream SWE-bench grades with the network on; this is the
+   local-only equivalent, recorded on every receipt it touches.
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 

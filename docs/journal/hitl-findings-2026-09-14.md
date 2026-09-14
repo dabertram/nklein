@@ -145,3 +145,16 @@ Also tonight: a Claude rig for DeepSeek Harness (dsh) — one HITL server on :81
 now maps the request's model to the CLI seat, its `reasoning_effort` to `--effort`, and answers up to four requests
 at once (dsh fires title/summary side requests beside the agent turn). Fable's first real turn: 346 s for 25k output
 tokens (it wrote a whole file), $2.63.
+
+## 03:00: Opus finished 9/10 — and the tenth was the grader's, not the model's
+
+Opus 5 closed the tranche at 9/10; its one failure, requests-2317, was the same failure on Fable, Sonnet and qwen3.8:
+seven fail-to-pass tests green, `test_requests_history_is_saved` red. That test hardcodes `https://httpbin.org/redirect/5`
+and ignores the loopback `HTTPBIN_URL` the sealed grader provides — under `--network none` no fix can pass it. The
+tranche already had per-id sealed exclusions for pass-to-pass tests; it now has them for fail-to-pass too, the verdict
+names every excluded id, and the four deliveries were re-graded with the same sealed grader: all four resolved. Opus
+stands at 10/10, Fable 7/7 so far, Sonnet 2/2, qwen3.8 4/6. The honest framing: upstream SWE-bench grades with the
+network on; ours is the local-only equivalent and says so on every receipt it touches.
+
+Costs so far through the Claude CLI seats (responder ledgers): Opus $39.77 for the whole tranche (~$4 per instance),
+Fable $86.91 for 7 (~$12), Haiku $7.06 for 6 (~$1.2), Sonnet $15.91 for 3 (~$5).

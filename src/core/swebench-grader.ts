@@ -145,8 +145,17 @@ export function planSealedGrade(
 	entry: SwebenchTrancheEntry,
 	instance: SwebenchInstanceMetadata,
 	workspaceDir: string,
-): { plan: ReturnType<typeof buildSwebenchGradePlan>; excludedCount: number } {
+): {
+	plan: ReturnType<typeof buildSwebenchGradePlan>;
+	excludedCount: number;
+	/** FAIL_TO_PASS ids removed by the tranche's sealed exclusions (named on the receipt, never silent). */
+	sealedFailToPassExcluded: readonly { id: string; cause: string }[];
+} {
 	const sealedExcluded = new Set((entry.sealedPassToPassExclusions ?? []).map((exclusion) => exclusion.id));
+	const sealedFailToPassExcluded = (entry.sealedFailToPassExclusions ?? []).filter((exclusion) =>
+		instance.failToPass.includes(exclusion.id),
+	);
+	const sealedFailToPassIds = new Set(sealedFailToPassExcluded.map((exclusion) => exclusion.id));
 	const fileExists = (selection: string): boolean => {
 		const file = selection.split("::")[0];
 		return file !== undefined && existsSync(join(workspaceDir, file));
@@ -154,13 +163,15 @@ export function planSealedGrade(
 	const passToPass = instance.passToPass.filter(
 		(selection) => !sealedExcluded.has(selection) && fileExists(selection),
 	);
-	const failToPass = instance.failToPass.filter(fileExists);
+	const failToPass = instance.failToPass.filter(
+		(selection) => !sealedFailToPassIds.has(selection) && fileExists(selection),
+	);
 	const plan = buildSwebenchGradePlan({ ...instance, failToPass, passToPass });
 	const excludedCount =
 		plan.droppedSelections.length +
 		(instance.passToPass.length - passToPass.length) +
 		(instance.failToPass.length - failToPass.length);
-	return { plan, excludedCount };
+	return { plan, excludedCount, sealedFailToPassExcluded };
 }
 
 export interface SwebenchGraderDeps {
@@ -233,7 +244,7 @@ export async function gradeSwebenchWorkspace(
 		stdout = error instanceof Error ? error.message : String(error);
 	}
 	const { failToPassOutput, passToPassOutput } = splitSwebenchGradeOutput(stdout);
-	const { plan, excludedCount } = sealed;
+	const { plan, excludedCount, sealedFailToPassExcluded } = sealed;
 	const verdict = parseSwebenchGradeOutput({
 		failToPass: plan.failToPass,
 		passToPass: plan.passToPass,
@@ -242,9 +253,15 @@ export async function gradeSwebenchWorkspace(
 	});
 	// A tranche instance whose gradable F2P is EMPTY cannot prove any fix — that is disqualifying, not green.
 	const resolvable = plan.failToPass.length > 0;
+	const sealedNote =
+		sealedFailToPassExcluded.length > 0
+			? `; ${sealedFailToPassExcluded.length} fail-to-pass excluded under the seal: ${sealedFailToPassExcluded
+					.map((exclusion) => `${exclusion.id.split("::").pop()} (${exclusion.cause})`)
+					.join(", ")}`
+			: "";
 	const reason = `${
 		resolvable ? verdict.reason : `not resolvable: no gradable fail-to-pass id survived the dataset`
-	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}`;
+	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}${sealedNote}`;
 	return {
 		...verdict,
 		resolved: verdict.resolved && resolvable,

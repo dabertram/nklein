@@ -2855,6 +2855,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   default complexity 50 replay again, and the "pass an explicit low complexity" responder rule is no longer needed
   for replay's sake.
 
+- [x] **P1.SEALEDF2P — SHIPPED (2026-09-15).** A SWE-bench fail-to-pass test that hardcodes a public URL
+  (`requests-2317` `test_requests_history_is_saved` → `https://httpbin.org/redirect/5`, ignoring the loopback
+  `HTTPBIN_URL`) can never pass under the sealed `--network none` grader, so every seat — Opus, Fable, Sonnet,
+  qwen3.8 — "failed" the instance identically after passing the other seven. `SwebenchTrancheEntry.sealedFailToPassExclusions`
+  (per id, with cause) now sits beside the P2P exclusions; `planSealedGrade` drops the ids, counts them, and the
+  verdict NAMES them on the receipt; an instance whose gradable F2P would empty stays "not resolvable". The four
+  deliveries were re-graded (`bin/swebench-regrade-sealed-f2p.py`, superseded receipts kept) — all resolved. Record:
+  `docs/benchmarks/swebench-tranche-2026-09.md` finding 7. Upstream grades online; this is the local-only equivalent.
 - [x] **P1.OPENAICOMPATROSTER — SHIPPED `b1519dfad` (2026-09-15).** The `openai-compatible` provider took its roster from
   the SDK's static placeholder catalog (`gpt-4o`) and never asked the endpoint the user configured, so a model pinned
   there but absent from the placeholder (a HITL seat, a proxy, any self-hosted server) had no context window and the

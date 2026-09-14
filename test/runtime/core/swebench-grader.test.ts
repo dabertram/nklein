@@ -12,6 +12,7 @@ import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
+	planSealedGrade,
 	splitSwebenchGradeOutput,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
@@ -143,5 +144,53 @@ describe("applyTestPatchToCopy", () => {
 		expect(result.applied).toBe(true);
 		expect(await readFile(join(dir, "test_thing.py"), "utf8")).toContain("assert 1 == 2");
 		await rm(dir, { recursive: true, force: true });
+	});
+});
+
+describe("planSealedGrade — sealed fail-to-pass exclusions", () => {
+	it("drops a declared internet-bound fail-to-pass id, counts it, and names it for the receipt", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-sealed-f2p-"));
+		try {
+			await writeFile(join(dir, "test_requests.py"), "def test_a(): pass\n");
+			const sealedEntry: SwebenchTrancheEntry = {
+				...entry,
+				sealedFailToPassExclusions: [
+					{
+						id: "test_requests.py::T::test_history_is_saved",
+						cause: "hardcodes https://httpbin.org — impossible offline",
+					},
+				],
+			};
+			const sealedInstance: SwebenchInstanceMetadata = {
+				...instance,
+				failToPass: ["test_requests.py::T::test_history_is_saved", "test_requests.py::T::test_a"],
+				passToPass: ["test_requests.py::T::test_old"],
+			};
+			const sealed = planSealedGrade(sealedEntry, sealedInstance, dir);
+			expect(sealed.plan.failToPass).toEqual(["test_requests.py::T::test_a"]);
+			expect(sealed.excludedCount).toBe(1);
+			expect(sealed.sealedFailToPassExcluded.map((exclusion) => exclusion.id)).toEqual([
+				"test_requests.py::T::test_history_is_saved",
+			]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("only reports an exclusion the instance actually lists — a stale id is not counted", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-sealed-f2p-"));
+		try {
+			await writeFile(join(dir, "test_requests.py"), "");
+			const sealed = planSealedGrade(
+				{ ...entry, sealedFailToPassExclusions: [{ id: "test_requests.py::T::gone", cause: "x" }] },
+				{ ...instance, failToPass: ["test_requests.py::T::test_a"], passToPass: [] },
+				dir,
+			);
+			expect(sealed.plan.failToPass).toEqual(["test_requests.py::T::test_a"]);
+			expect(sealed.excludedCount).toBe(0);
+			expect(sealed.sealedFailToPassExcluded).toEqual([]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });
