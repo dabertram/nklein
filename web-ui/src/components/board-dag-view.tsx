@@ -9,6 +9,7 @@ import {
 	type DagFlowDirection,
 	type DagNode,
 	describeDagNode,
+	searchDagNodes,
 } from "@/components/board-dag-model";
 import { computeDagSchedule, formatDurationShort, formatEtaClock } from "@/components/board-dag-schedule";
 import { cn } from "@/components/ui/cn";
@@ -102,6 +103,46 @@ export function BoardDagView({
 		[columns, dependencies, sessions, flowDirection, satisfiedDependencies],
 	);
 	const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph.nodes]);
+	// F2.31b node search: title / id / prompt, every term must match; non-matches DIM (never hide — the edges
+	// are the point of the view); Enter walks the matches and centers the view on each in turn.
+	const [search, setSearch] = useState("");
+	const [searchCursor, setSearchCursor] = useState(0);
+	const promptById = useMemo(
+		() => new Map(columns.flatMap((column) => column.cards.map((card) => [card.id, card.prompt ?? ""] as const))),
+		[columns],
+	);
+	const searchResult = useMemo(
+		() => searchDagNodes(search, graph.nodes, promptById),
+		[search, graph.nodes, promptById],
+	);
+	const centerOnNode = useCallback(
+		(nodeId: string) => {
+			const position = graph.positions.get(nodeId);
+			if (!position) {
+				return;
+			}
+			setView((current) => ({
+				...current,
+				tx: size.width / 2 - (position.x + NODE_W / 2) * current.scale,
+				ty: size.height / 2 - (position.y + (graph.nodeHeights.get(nodeId) ?? NODE_H) / 2) * current.scale,
+			}));
+		},
+		[graph.positions, graph.nodeHeights, size.width, size.height],
+	);
+	const stepSearch = useCallback(
+		(direction: 1 | -1) => {
+			if (searchResult.ordered.length === 0) {
+				return;
+			}
+			const next = (searchCursor + direction + searchResult.ordered.length) % searchResult.ordered.length;
+			setSearchCursor(next);
+			const target = searchResult.ordered[next];
+			if (target) {
+				centerOnNode(target);
+			}
+		},
+		[searchResult.ordered, searchCursor, centerOnNode],
+	);
 	// Per-node heights: titles wrap instead of truncating (David 2026-09-05), so boxes grow with their text.
 	const heightOf = useCallback((id: string) => graph.nodeHeights.get(id) ?? NODE_H, [graph.nodeHeights]);
 	// Durations / ETAs / critical path (David 2026-09-04) — pure derivation over the graph + schedule facts.
@@ -222,6 +263,37 @@ export function BoardDagView({
 					<span className="text-status-red">— problem</span>
 					<span>— not started</span>
 				</span>
+				<span className="ml-auto flex items-center gap-1.5">
+					<input
+						type="search"
+						value={search}
+						onChange={(event) => {
+							setSearch(event.target.value);
+							setSearchCursor(0);
+						}}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.preventDefault();
+								stepSearch(event.shiftKey ? -1 : 1);
+							} else if (event.key === "Escape" && search) {
+								event.preventDefault();
+								setSearch("");
+								setSearchCursor(0);
+							}
+						}}
+						placeholder="Search cards…"
+						aria-label="Search cards by title, id or prompt"
+						data-testid="board-dag-search"
+						className="h-6 w-40 rounded-md border border-border bg-surface-2 px-2 text-[11px] text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none"
+					/>
+					{searchResult.active ? (
+						<span className="text-[10.5px] tabular-nums text-text-tertiary" data-testid="board-dag-search-count">
+							{searchResult.ordered.length === 0
+								? "no match"
+								: `${Math.min(searchCursor + 1, searchResult.ordered.length)} of ${searchResult.ordered.length}`}
+						</span>
+					) : null}
+				</span>
 				<button
 					type="button"
 					data-testid="board-dag-flow-toggle"
@@ -232,7 +304,7 @@ export function BoardDagView({
 							: "Early work on the left (click for early-right)"
 					}
 					onClick={() => setFlowDirection((current) => (current === "early-right" ? "early-left" : "early-right"))}
-					className="ml-auto rounded-md px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+					className="rounded-md px-2 py-1 text-[11px] text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
 				>
 					{flowDirection === "early-right" ? "early → right" : "early → left"}
 				</button>
@@ -470,10 +542,17 @@ export function BoardDagView({
 									return null;
 								}
 								const style = nodeStyle(node);
+								const searchMatch = !searchResult.active || searchResult.matchedIds.has(node.id);
+								const searchCurrent =
+									searchResult.active &&
+									searchResult.ordered[searchCursor % Math.max(1, searchResult.ordered.length)] === node.id;
 								return (
 									<g
 										key={node.id}
 										data-testid={`dag-node-${node.id}`}
+										data-dag-match={searchResult.active ? String(searchMatch) : undefined}
+										data-dag-search-current={searchCurrent ? "true" : undefined}
+										opacity={searchMatch ? 1 : 0.22}
 										aria-label={describeDagNode(node, {
 											onCriticalPath: dagSchedule.criticalNodeIds.has(node.id),
 										})}

@@ -7,6 +7,7 @@ import {
 	dagNodeHeight,
 	describeDagNode,
 	findCycleEdgeIds,
+	searchDagNodes,
 	wrapDagTitle,
 } from "@/components/board-dag-model";
 import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
@@ -343,5 +344,40 @@ describe("describeDagNode (P0.AUDIT0904 leg 23)", () => {
 			const described = describeDagNode(node({ columnId }), { onCriticalPath: false });
 			expect(described, columnId).not.toContain("undefined");
 		}
+	});
+});
+
+describe("searchDagNodes (F2.31b)", () => {
+	const node = (id: string, title: string): DagNode => ({
+		id,
+		title,
+		columnId: "backlog",
+		running: false,
+		failed: false,
+	});
+	const nodes = [
+		node("auth-login", "Add the login form"),
+		node("auth-ledger", "Ledger schema"),
+		node("ui-nav", "Navigation"),
+	];
+	const prompts = new Map([["ui-nav", "Wire the LOGIN link into the navigation bar"]]);
+
+	it("matches title, id and prompt, case-insensitively, keeping graph order", () => {
+		const result = searchDagNodes("login", nodes, prompts);
+		expect(result.active).toBe(true);
+		expect(result.ordered).toEqual(["auth-login", "ui-nav"]);
+		expect(searchDagNodes("AUTH", nodes, prompts).ordered).toEqual(["auth-login", "auth-ledger"]);
+	});
+
+	it("ANDs the terms — every word must be found somewhere in the card's text", () => {
+		expect(searchDagNodes("login form", nodes, prompts).ordered).toEqual(["auth-login"]);
+		expect(searchDagNodes("login nowhere", nodes, prompts).ordered).toEqual([]);
+	});
+
+	it("an empty query matches everything and is not active — nothing is dimmed", () => {
+		const result = searchDagNodes("   ", nodes, prompts);
+		expect(result.active).toBe(false);
+		expect(result.ordered).toEqual(["auth-login", "auth-ledger", "ui-nav"]);
+		expect(result.matchedIds.size).toBe(3);
 	});
 });

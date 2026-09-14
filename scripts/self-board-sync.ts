@@ -17,6 +17,7 @@
  */
 import type { RuntimeTaskTestability } from "../src/core/board-api-contract";
 import { applyDeclaredTodoDependencies } from "../src/core/todo-card-dependencies";
+import { type DonePackage, parseDoneMarkdownPackages } from "../src/core/done-md-packages";
 import { selfBoardCardStartDefaults } from "../src/core/self-board-card-defaults";
 import { deriveTodoCardTestability } from "../src/core/todo-card-testability";
 import { execFileSync } from "node:child_process";
@@ -38,11 +39,6 @@ const log = (message: string): void => {
 const PROMPT_BUDGET_CHARS = 2_400;
 const ITEM_ID_PATTERN = /\b(P\d+\.[A-Z0-9-]+[a-z]?|F\d+\.\d+[a-z]?|N\d+|§\d+\.[A-Z]+)\b/gu;
 
-interface DonePackage {
-	id: string;
-	title: string;
-	prompt: string;
-}
 interface OpenItem {
 	id: string;
 	itemId: string;
@@ -52,38 +48,10 @@ interface OpenItem {
 	text: string;
 }
 
-function slug(text: string): string {
-	return text
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/gu, "-")
-		.replace(/^-+|-+$/gu, "")
-		.slice(0, 80);
-}
-
+// F2.36 (a): one package per `## ` section AND per `### ` milestone inside it (the archive already names its
+// milestones that way; the 126-item Phase 0 section used to be one blob). Pure + tested in done-md-packages.ts.
 function parseDone(markdown: string): DonePackage[] {
-	const packages: DonePackage[] = [];
-	let current: { title: string; lines: string[] } | null = null;
-	for (const line of markdown.split("\n")) {
-		if (line.startsWith("## ")) {
-			if (current) {
-				packages.push(finishDone(current));
-			}
-			current = { title: line.slice(3).trim(), lines: [] };
-		} else if (current) {
-			current.lines.push(line);
-		}
-	}
-	if (current) {
-		packages.push(finishDone(current));
-	}
-	return packages;
-}
-
-function finishDone(section: { title: string; lines: string[] }): DonePackage {
-	const items = section.lines.filter((line) => /^- \[x\]/u.test(line));
-	const body = items.map((line) => line.replace(/^- \[x\]\s*/u, "- ")).join("\n");
-	const prompt = `${items.length} shipped item(s) — from done.md, section "${section.title}".\n\n${clampPrompt(body)}`;
-	return { id: `done:${slug(section.title)}`, title: section.title, prompt };
+	return parseDoneMarkdownPackages(markdown, clampPrompt);
 }
 
 function parseOpen(markdown: string): OpenItem[] {

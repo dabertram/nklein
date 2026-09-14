@@ -417,3 +417,39 @@ export function buildDagGraph(
 		height: Math.max(height, 200),
 	};
 }
+
+/**
+ * F2.31b — DAG node SEARCH. Pure so the matching rule is testable without a DOM.
+ *
+ * What it matches: the card's TITLE, its ID and its PROMPT (a decomposed card is often named by its leaf scope while
+ * the words you remember are in the brief). The query is split on whitespace and every term must appear somewhere
+ * in that text (case-insensitive substring) — an AND of terms, the least surprising rule for a "find that card" box.
+ * Non-matches are DIMMED, never hidden: hiding nodes breaks the edges' meaning, and the tree is the point of the
+ * view. The ordered match list drives Enter-to-next so the same query walks the graph in a stable order.
+ */
+export interface DagSearchResult {
+	/** Every matching node id, in the graph's node order. Empty query ⇒ every node matches. */
+	readonly matchedIds: ReadonlySet<string>;
+	readonly ordered: readonly string[];
+	/** True only for a non-empty query — the dimming applies only then. */
+	readonly active: boolean;
+}
+
+export function searchDagNodes(
+	query: string,
+	nodes: readonly DagNode[],
+	promptById: ReadonlyMap<string, string> = new Map(),
+): DagSearchResult {
+	const terms = query.trim().toLowerCase().split(/\s+/u).filter(Boolean);
+	if (terms.length === 0) {
+		const all = nodes.map((node) => node.id);
+		return { matchedIds: new Set(all), ordered: all, active: false };
+	}
+	const ordered = nodes
+		.filter((node) => {
+			const haystack = `${node.title}\n${node.id}\n${promptById.get(node.id) ?? ""}`.toLowerCase();
+			return terms.every((term) => haystack.includes(term));
+		})
+		.map((node) => node.id);
+	return { matchedIds: new Set(ordered), ordered, active: true };
+}

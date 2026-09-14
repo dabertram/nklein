@@ -183,6 +183,11 @@
 			"id": "project-initializer-flow",
 			"file": "tests/project-initializer-flow.spec.ts",
 			"runner": "playwright"
+		},
+		{
+			"id": "board-dag-search",
+			"file": "tests/board-dag-search.spec.ts",
+			"runner": "playwright"
 		}
 	]
 }
