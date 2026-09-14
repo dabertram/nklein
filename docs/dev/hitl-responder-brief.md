@@ -294,16 +294,25 @@ Two holes, both confirmed by actually exploiting them in a scratch copy (2026-09
 - **`test/frozen.json` is the trust anchor and is itself unhashed.** The frozen-check test recomputes digests of
   `service/`|`harness/`, `conformance/`, the test file and `scripts/run-tests.mjs`, and compares them to expected
   values read from `test/frozen.json` — which nothing verifies. Deleting a real assertion from a conformance case
-  and writing its new sha256 into `frozen.json` leaves the "untouched" test green.
+  and writing its new sha256 into `frozen.json` leaves the "untouched" test green. **Closed 2026-09-14
+  (P1.SELFGRADED):** the acceptance verifier reads the manifest from the task's BASE commit, so a rewritten copy
+  in the workspace is refused.
 - **`performance/budgets.json` is not in the frozen set at all** (72-76 digest only `harness/*`, `conformance/*`,
   the test file and the runner). With the original slow source untouched, raising `B1.maxReads` to 999999 takes the
-  suite to a full green pass.
+  suite to a full green pass. **Closed 2026-09-14 (`f91c06f6f`):** `budgets.json` and `refactor/goals.json` are
+  digested now.
+- **No in-tree guard can defend itself.** Swapping a fixture's test files for same-named no-ops passed 42 of 42
+  fixtures (2026-09-14), with the evidence doctored underneath. **Closed the same day (P1.SELFGRADED)**, host-side,
+  as below.
 
-So a card can "pass" by editing the scorer rather than doing the work, and the fixture will agree with it.
+Until those closures a card could "pass" by editing the scorer rather than doing the work, and the fixture would
+agree with it.
 
-**What this means for you:** never treat a project's own passing frozen/untouched test as evidence. When reviewing,
-diff `test/frozen.json`, `performance/budgets.json` and every frozen path against the SEED MIRROR's raw bytes. And
-never edit any of them yourself — a budget or digest you changed is the one thing that makes a green run worthless.
+**What this means for you:** the acceptance verifier now does the seed diff itself. A delivery that changes any path
+its base commit's manifest freezes — the manifest, `package.json` and `scripts/run-tests.mjs` included — fails
+acceptance as `frozen_evidence_modified`, naming each file, before `npm test` runs. When a card comes back with that
+failure, restore those files; never re-record a digest to make it pass. And never edit any of them yourself — a
+budget or digest you changed is the one thing that makes a green run worthless.
 
 ## The 71-76 families, in brief
 

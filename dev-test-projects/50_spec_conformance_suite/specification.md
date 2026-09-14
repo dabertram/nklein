@@ -38,12 +38,15 @@ Set `"complete": true` only when the specification states every rule and the sui
 
 ## What is frozen
 
-`input/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**. `npm test`
-recomputes their content digests on every run and fails if any of them moved.
+`input/`, `candidates/`, everything under `test/`, and `scripts/run-tests.mjs` are **evidence, not workspace**.
+`npm test` recomputes their content digests on every run and fails if any of them moved. Your deliverables are
+`spec/spec.json` and `conformance/suite.mjs`; nothing else in the tree is yours to change.
 
 This matters more here than it looks. The verifier DERIVES its truth from the evidence on every run, so deleting a
 problem from the input would shrink the truth set and let a short answer pass as complete. Editing the verifier
-would do the same in one line. Neither is a shortcut; both simply fail.
+would do the same in one line. And `candidates/conforming/` is the oracle every check you write is measured
+against, so an oracle you could edit would agree with any check at all — which would make the one gate that
+catches a wrong check useless. None of these is a shortcut; they simply fail.
 
 ## How your work is checked
 

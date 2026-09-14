@@ -1,0 +1,8 @@
+{
+	"frozen": {
+		"input/README.md": "ffc5e5076d775a7c626af3f4d576bef6942c920199b3ef0fbc5844a6be9c845d",
+		"input/specification.md": "cd9ee7c3e1340b4bca7eec8be1891b9518bb9f6591074aa0f6234ea473d4f027",
+		"scripts/run-tests.mjs": "aa3678ffb3849dbd2a1169c965ed71f8651f68e3b888539535ac9b67a0a295a0",
+		"test/plan.test.js": "333fb161fe67b030c7083db1b3414be10d1e0188643d302f72ec218fa511dfbe"
+	}
+}

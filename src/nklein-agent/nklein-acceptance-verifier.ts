@@ -1,8 +1,10 @@
 import type { RuntimeTaskAcceptanceResult } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
+import { describeFrozenEvidenceViolations } from "../core/frozen-evidence-guard";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { probeFrozenEvidence } from "../workspace/frozen-evidence-probe";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
-import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
+import { extractNKleinAcceptanceCommand, runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 import { verifyPropertiesInSandbox } from "./nklein-property-acceptance-verifier";
@@ -35,6 +37,64 @@ export interface AcceptanceVerifier {
 }
 
 /**
+ * P1.SELFGRADED — refuse a delivery that changes what its base commit declares frozen, before the sandbox run.
+ *
+ * The in-workspace suite is exactly what cannot be trusted to report this: an agent that rewrote the guard also
+ * rewrote the thing that would have complained. So the check runs host-side, against the base commit the runtime
+ * recorded before the agent started. A git read that fails fails OPEN and is recorded — the in-tree guard still runs,
+ * and acceptance must not be held hostage to a repository the runtime cannot read.
+ */
+async function refuseFrozenEvidenceChanges(
+	input: VerifyTaskAcceptanceInput & { resultCommit: string },
+): Promise<RuntimeTaskAcceptanceResult | null> {
+	const startedAt = Date.now();
+	const probe = await probeFrozenEvidence({
+		repoPath: input.projectRepoPath,
+		baseRef: input.baseRef,
+		resultCommit: input.resultCommit,
+	}).catch((error: unknown) => ({
+		status: "unavailable" as const,
+		reason: error instanceof Error ? error.message : String(error),
+	}));
+	if (probe.status === "no_manifest") {
+		return null;
+	}
+	const changed = probe.status === "checked" ? probe.violations.map((violation) => violation.path) : [];
+	const outcome = probe.status === "unavailable" ? "unavailable" : changed.length > 0 ? "refused" : "untouched";
+	const message =
+		probe.status === "unavailable"
+			? `Frozen-evidence guard could not read ${input.taskId}'s base or delivery (${probe.reason}); acceptance proceeds on the in-tree guard alone.`
+			: changed.length > 0
+				? `Frozen-evidence guard refused ${input.taskId}: the delivery changes frozen path(s) ${changed.join(", ")}.`
+				: `Frozen-evidence guard passed ${input.taskId}: ${probe.frozenPathCount} frozen path(s) untouched.`;
+	try {
+		recordSelfObservation({
+			signal: "custom",
+			severity: outcome === "untouched" ? "info" : "warning",
+			message,
+			taskId: input.taskId,
+			metadata: { category: "frozen_evidence_guard", outcome, frozenPathsChanged: changed.length },
+		});
+	} catch {
+		// Telemetry must never affect acceptance.
+	}
+	if (probe.status !== "checked" || probe.violations.length === 0) {
+		return null;
+	}
+	const refusal = describeFrozenEvidenceViolations(probe.violations);
+	return {
+		present: true,
+		command: extractNKleinAcceptanceCommand(input.taskPrompt),
+		passed: false,
+		exitCode: null,
+		output: refusal.output,
+		durationMs: Math.max(0, Date.now() - startedAt),
+		failureCategory: "frozen_evidence_modified",
+		failureHint: refusal.hint,
+	};
+}
+
+/**
  * The auxiliary ACCEPTANCE-verification session (first of the §5.U auxiliary-secondary-session runners). A thin
  * orchestrator over the already-extracted `runNKleinAcceptanceGateInSandbox`: it resolves the DELIVERED tree (the
  * task's result-branch commit, not the callers' base ref) and runs the acceptance gate against it in a sandbox.
@@ -59,6 +119,14 @@ export function createAcceptanceVerifier(deps: AcceptanceVerifierDeps): Acceptan
 					repoPath: input.projectRepoPath,
 					taskId: input.resultBranchTaskId ?? input.taskId,
 				}).catch(() => null));
+		// P1.SELFGRADED: acceptance from a delivery that rewrote its own frozen evidence is not evidence of anything.
+		if (resultCommit) {
+			const refusal = await refuseFrozenEvidenceChanges({ ...input, resultCommit });
+			if (refusal) {
+				forgetPropertyCheckEvidence(input.taskId);
+				return refusal;
+			}
+		}
 		const acceptance = await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,

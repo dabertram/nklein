@@ -4,15 +4,21 @@ const mocks = vi.hoisted(() => ({
 	resolveTaskResultBranchCommit: vi.fn(async () => "result-commit-abc" as string | null),
 	runNKleinAcceptanceGateInSandbox: vi.fn(async (_input: Record<string, unknown>) => ({ accepted: true }) as unknown),
 	verifyPropertiesInSandbox: vi.fn(),
+	probeFrozenEvidence: vi.fn(async (_input: Record<string, unknown>) => ({ status: "no_manifest" }) as unknown),
+	extractNKleinAcceptanceCommand: vi.fn((_prompt: string) => "npm test" as string | null),
 }));
 vi.mock("../../../src/workspace/task-result-branches", () => ({
 	resolveTaskResultBranchCommit: mocks.resolveTaskResultBranchCommit,
 }));
 vi.mock("../../../src/nklein-agent/nklein-acceptance-gate", () => ({
 	runNKleinAcceptanceGateInSandbox: mocks.runNKleinAcceptanceGateInSandbox,
+	extractNKleinAcceptanceCommand: mocks.extractNKleinAcceptanceCommand,
 }));
 vi.mock("../../../src/nklein-agent/nklein-property-acceptance-verifier", () => ({
 	verifyPropertiesInSandbox: mocks.verifyPropertiesInSandbox,
+}));
+vi.mock("../../../src/workspace/frozen-evidence-probe", () => ({
+	probeFrozenEvidence: mocks.probeFrozenEvidence,
 }));
 
 import {
@@ -44,6 +50,7 @@ const gateCall = () => mocks.runNKleinAcceptanceGateInSandbox.mock.calls.at(-1)?
 beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.resolveTaskResultBranchCommit.mockResolvedValue("result-commit-abc");
+	mocks.probeFrozenEvidence.mockResolvedValue({ status: "no_manifest" });
 });
 
 describe("createAcceptanceVerifier", () => {
@@ -137,5 +144,77 @@ describe("createAcceptanceVerifier", () => {
 			if (previous === undefined) delete process.env.NKLEIN_PROPERTY_GATE;
 			else process.env.NKLEIN_PROPERTY_GATE = previous;
 		}
+	});
+});
+
+describe("frozen-evidence guard (P1.SELFGRADED)", () => {
+	const refusedProbe = {
+		status: "checked",
+		manifests: ["test/frozen.json"],
+		frozenPathCount: 6,
+		violations: [
+			{ path: "input/order-service.mjs", change: "modified" },
+			{ path: "test/frozen.test.js", change: "modified" },
+		],
+	};
+
+	it("refuses a delivery that changed frozen evidence, without running the suite it rewrote", async () => {
+		mocks.probeFrozenEvidence.mockResolvedValueOnce(refusedProbe);
+		const result = await createAcceptanceVerifier(deps()).verify(input({ taskPrompt: "Acceptance check: npm test" }));
+		expect(result).toMatchObject({
+			present: true,
+			command: "npm test",
+			passed: false,
+			exitCode: null,
+			failureCategory: "frozen_evidence_modified",
+		});
+		expect(result.output).toContain("input/order-service.mjs");
+		expect(result.output).toContain("test/frozen.test.js");
+		expect(result.failureHint).toContain("base commit");
+		expect(mocks.extractNKleinAcceptanceCommand).toHaveBeenCalledWith("Acceptance check: npm test");
+		expect(mocks.runNKleinAcceptanceGateInSandbox).not.toHaveBeenCalled();
+		expect(mocks.verifyPropertiesInSandbox).not.toHaveBeenCalled();
+	});
+
+	it("measures the DELIVERED commit against the task's base", async () => {
+		await createAcceptanceVerifier(deps()).verify(input());
+		expect(mocks.probeFrozenEvidence).toHaveBeenCalledWith({
+			repoPath: "/repo",
+			baseRef: "main",
+			resultCommit: "result-commit-abc",
+		});
+		expect(mocks.runNKleinAcceptanceGateInSandbox).toHaveBeenCalled();
+	});
+
+	it("measures an explicit result commit (the ::spec candidate) when one is handed in", async () => {
+		await createAcceptanceVerifier(deps()).verify(input({ resultCommit: "spec-commit" }));
+		expect(mocks.probeFrozenEvidence).toHaveBeenCalledWith(expect.objectContaining({ resultCommit: "spec-commit" }));
+	});
+
+	it("never probes a base-tree run — the base is the reference, not a delivery", async () => {
+		await createAcceptanceVerifier(deps()).verify(input({ useBaseTree: true }));
+		expect(mocks.probeFrozenEvidence).not.toHaveBeenCalled();
+	});
+
+	it("has nothing to measure when there is no result commit", async () => {
+		mocks.resolveTaskResultBranchCommit.mockRejectedValueOnce(new Error("no branch"));
+		await createAcceptanceVerifier(deps()).verify(input());
+		expect(mocks.probeFrozenEvidence).not.toHaveBeenCalled();
+		expect(gateCall().baseRef).toBe("main");
+	});
+
+	it("lets an untouched delivery through to the ordinary acceptance run", async () => {
+		mocks.probeFrozenEvidence.mockResolvedValueOnce({ ...refusedProbe, violations: [] });
+		const result = await createAcceptanceVerifier(deps()).verify(input());
+		expect(mocks.runNKleinAcceptanceGateInSandbox).toHaveBeenCalled();
+		expect(result).toEqual({ accepted: true });
+	});
+
+	it("fails OPEN when git cannot be read or the probe throws — the in-tree guard still runs", async () => {
+		mocks.probeFrozenEvidence.mockResolvedValueOnce({ status: "unavailable", reason: "bad object" });
+		await createAcceptanceVerifier(deps()).verify(input());
+		mocks.probeFrozenEvidence.mockRejectedValueOnce(new Error("spawn git ENOENT"));
+		await createAcceptanceVerifier(deps()).verify(input());
+		expect(mocks.runNKleinAcceptanceGateInSandbox).toHaveBeenCalledTimes(2);
 	});
 });

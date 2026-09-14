@@ -13,9 +13,9 @@ import { fileURLToPath } from "node:url";
  * short, easy answer pass as complete. And the verifier itself ships with the task, so weakening its rules is a
  * one-line edit that turns every check green.
  *
- * So: `input/`, every file under `test/` and `scripts/run-tests.mjs` have their content digests recorded in
- * `test/frozen.json` and recomputed here on every run. This file is in its own frozen set, so editing the guard
- * changes the guard's digest and the guard fails.
+ * So: `input/`, `candidates/` (the conformance oracle and the candidate it must reject), every file under `test/`
+ * and `scripts/run-tests.mjs` have their content digests recorded in `test/frozen.json` and recomputed here on every
+ * run. This file is in its own frozen set, so editing the guard changes the guard's digest and the guard fails.
  *
  * Your deliverable is the artifact you were asked to write. Everything else is evidence, not workspace.
  */
@@ -35,7 +35,12 @@ function walk(dir) {
 const toPosix = (value) => value.split(sep).join("/");
 const digestOf = (file) => createHash("sha256").update(readFileSync(join(root, file))).digest("hex");
 
-const frozenPaths = [...walk(join(root, "input")), ...walk(join(root, "test")), join(root, "scripts", "run-tests.mjs")]
+const frozenPaths = [
+	...walk(join(root, "input")),
+	...walk(join(root, "candidates")),
+	...walk(join(root, "test")),
+	join(root, "scripts", "run-tests.mjs"),
+]
 	.map((file) => toPosix(relative(root, file)))
 	.filter((path) => path !== "test/frozen.json")
 	.sort();

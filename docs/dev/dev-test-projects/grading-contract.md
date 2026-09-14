@@ -66,9 +66,33 @@ hole: deleting a problem from the evidence shrinks the truth set, so a short ans
 `analysis-a1`: changing `parseInt(raw)` to `parseInt(raw, 10)` in the input made the unguarded verifier pass 3/3
 with that defect no longer required.
 
-So: `input/` (or whatever holds the evidence), everything under `test/`, and `scripts/run-tests.mjs` have their
-content digests recorded in `test/frozen.json` and recomputed on every run. The guard lives in its own
-`test/frozen.test.js` and is inside its own frozen set, so editing the guard changes the guard's digest.
+So: `input/` (or whatever holds the evidence — `spec-s4` also keeps its conformance oracle under `candidates/`,
+and an oracle that can be edited will agree with any check you write), everything under `test/`, and
+`scripts/run-tests.mjs` have their content digests recorded in `test/frozen.json` and recomputed on every run. The
+guard lives in its own `test/frozen.test.js` and is inside its own frozen set, so editing the guard changes the
+guard's digest.
+
+Keeping the guard in its own file is what lets it survive a *deleted* evidence file: the verifier dies on `ENOENT`
+while it is still importing, but `node --test` runs each file in its own process, so the guard still reports which
+path went missing.
+
+What no file in the workspace can do is defend itself. Everything `npm test` executes — the guard, the verifier,
+the runner, `package.json` — is writable by the agent, so replacing those files with no-ops passes: proven
+2026-09-14 on every contract fixture, 42 of 42, with the evidence doctored underneath. The in-tree digest catches an
+agent that edits the evidence and leaves the guard alone; it cannot catch one that rewrites the guard.
+
+So the anchor lives outside the workspace (P1.SELFGRADED). Before any acceptance command runs, the acceptance
+verifier reads the manifest — `test/frozen.json`, or test authoring's `test/frozen-digests.json` — **on the task's
+base commit**, and refuses a delivery that changes any path it lists, the manifest itself, `package.json` or
+`scripts/run-tests.mjs`, as `frozen_evidence_modified` (`src/core/frozen-evidence-guard.ts`). The runtime records
+that commit before the agent starts, and git objects are content-addressed, so nothing the agent does can move it.
+With the guard, the verifier and the runner provably untouched, the in-tree guard is trustworthy again, and it
+catches what no manifest can list: a file added under a frozen directory.
+
+That makes the manifest mandatory: **every contract fixture ships one naming each grader it ships and its runner,
+with current digests**, and `test/runtime/dev-fixture-frozen-manifests.test.ts` refuses a fixture without it. One
+residual stays open, and no file-level check pretends otherwise: a family that executes the agent's deliverable
+inside the grader cannot stop that code from subverting the grader in-process.
 
 State it in the brief, and say *why* — an agent who understands that the evidence is the thing being reasoned
 about will not want to edit it anyway.

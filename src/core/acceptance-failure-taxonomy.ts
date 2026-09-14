@@ -19,6 +19,8 @@ export const ACCEPTANCE_FAILURE_CATEGORIES = [
 	"compile_error",
 	"test_failure",
 	"timeout",
+	// Set by the acceptance verifier's frozen-evidence guard (P1.SELFGRADED), never by the output classifier below.
+	"frozen_evidence_modified",
 	"unknown",
 ] as const;
 
@@ -46,6 +48,7 @@ export const ACCEPTANCE_FAILURE_LABELS: Record<AcceptanceFailureCategory, string
 	compile_error: "Compile/syntax error",
 	test_failure: "Test failures",
 	timeout: "Timed out",
+	frozen_evidence_modified: "Frozen evidence modified",
 	unknown: "Unclassified failure",
 };
 

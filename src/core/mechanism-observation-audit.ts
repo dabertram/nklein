@@ -270,6 +270,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 8, 11),
 	},
 	{
+		// ── P1.SELFGRADED: a delivery may not change what its base commit declares frozen (2026-09-14) ──
+		category: "frozen_evidence_guard",
+		item: "P1.SELFGRADED",
+		observes:
+			"the acceptance verifier read a frozen-evidence manifest on a task's base commit and checked the delivered commit against it before any acceptance command ran: `untouched` lets acceptance proceed; `refused` fails it as frozen_evidence_modified, naming every frozen path the delivery changed — a grader, guard, runner, manifest or evidence file the agent rewrote, which the in-workspace suite cannot report because it is the thing rewritten (42 of 42 contract fixtures passed with their test files replaced, 2026-09-14); `unavailable` means a git read failed and acceptance proceeded on the in-tree guard alone",
+		enabledBy: null,
+		// `exceptional`: only a delivery whose base ships a frozen manifest (the dev-test contract fixtures) is checked; every other project is silent by design.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
+	{
 		// ── P1.STARTHANG2: release a single-flight start claim whose promise never settled (2026-09-10) ──
 		category: "start_in_flight_released_as_hung",
 		item: "P1.STARTHANG2",
