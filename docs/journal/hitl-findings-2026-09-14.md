@@ -66,6 +66,23 @@ Open P1s went 11 → 5 across the day. What remains needs something this session
 occurrence (STARTHANG2 (i)'s hung await, STARTHANG, REVIEWSANDBOX's now-instrumented remover), a design decision
 already taken (PARKEDINREVIEW: a park is a human hand-off), or an operator action (IMGREBUILD's image rebuild).
 
+## Fourth pass — two more root causes and the evidence campaigns
+
+- **Sandbox path collision (project 50's R-03, EACCES on every tool).** The workspace directory truncated the task
+  id to 80 chars while the owner uid hashed the full id; three cards of one plan collided onto one 0700 tree.
+  Proven against the recorded boards (21 ids past the bound). Path made injective; a foreign-owned workspace is
+  now refused by name instead of handed over.
+- **"Focused code span" is a decompose-time snapshot.** It never reflects the card's own writes; two sessions read
+  it as proof their writes vanished and looped identical `write_files`. It now says it is a snapshot. The
+  "two concurrent sessions" report was one session with a turn overwritten by a stolen claim (request 2036/2040).
+- **P21.6b's leaf: the per-task diff predictor** — 371 joined pairs from the batch; cell median beats the pooled
+  median 23 vs 38 lines (leave-one-out); the review half of the sizing gate can now actually fire.
+- **P15.3's first real-model verdict** — `tool_catalog_gate_observation: do_not_enforce` on 2,118 evaluable
+  outcomes (84% success on the objected cards), after lifting a 500-record read cap that had truncated it.
+  Provenance: Sonnet in every seat — the wrong population for a small-model toolset gate, so no default flipped.
+- Three premises corrected on evidence: project 47's "data loss" was a rejected edit plus a vacuous green test;
+  the "orphan proxy" was the idle-retired sandbox (twice confirmed); ticket 4's claim default was already fixed.
+
 Still open, evidence-only (not fixable without a fresh occurrence): P1.STARTHANG2 (i)'s actual hung await — the
 failing runtime's log was overwritten by the restart; the deadline observation now captures the pool state when it
 recurs — and the custodian `main-branch-custodian::review` re-prompt under P1.SETTLEDNUDGE (two later shifts saw 0

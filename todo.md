@@ -12244,6 +12244,23 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   `src/habit-score.ts` + `habit-insights.ts`). This is the same dschinn default-fixture lesson from 2026-07-11,
   now confirmed in the opposite direction — the scenario/fixture pairing is load-bearing BOTH ways.
   **▶ 2026-08-28 — FLASH-NEXT IS LIVE IN-RIG AND THE FEED PATTERN IS NOW KNOWN (the campaign's model bottleneck is broken).** The capability model this campaign waited on drives real cards through `scripts/flashnext-drain.mts` (served via llama.cpp PR#27742 at :8080; `--home` reuses one home so mechanism telemetry ACCUMULATES; the one wall is `context_floor_unmet`, cleared by a `saveNKleinModelContextWindowOverride` POST BEFORE seeding). Two real cards mapped the exact feed the mechanisms need: a SIMPLE card (slugify) DELIVERED green (reviewer-approved, my manual `node --test` 4/4) but yielded **0 mechanism observations** — clean cards trip no tool tier-transition / gate objection / drift; a MEDIUM card (cli-parser-medium) generated **3 tool_trust_decay observations but 0 evaluable** because it TIMED OUT at 60m (test-omission loop → no terminal ledger outcome). So the binding condition is confirmed empirically: `evaluable` needs BOTH a tool-heavy card AND a TERMINAL outcome. The feed that satisfies both without the test-omission trap is a **fix-the-bug card** (tests PRE-EXIST; run→fail→edit→re-run = tool churn → tier-transitions; tests-pass = clean terminal). Accumulation campaign underway on that shape against a persistent Flash-Next home; volume toward the 12-evaluable floor is now GPU time on a model that actually reaches terminal, not a capability dead-end. Full recipe + verdict in memory `flash-next-rig-integration-2026-08-28`.
+  **▶ FIRST REAL-MODEL VERDICT, 2026-09-14 — and the read cap it needed lifting.** Ran `dev mechanism-decision`
+  against the HITL drain home (`HOME=~/.nklein/factory-drains/hitl-drain/home`), the first home with real volume
+  from a real model. First run: `do_not_enforce` on the F12.18 tool-catalog gate — but READ SATURATED at 500, and
+  the report's own output correctly refused to let a truncated sample flip anything. `readSelfObservationEvents`
+  clamps every read to 500 (a UI protection); the report now reads `unbounded` (sanity cap 250,000).
+  **Untruncated verdict — `tool_catalog_gate_observation`: `do_not_enforce`. 2,918 observations, 2,918
+  disagreements (100%), 2,118 evaluable; the path actually taken succeeded 1,777/2,118 (84%)** — current
+  behaviour works on exactly the cards the gate objects to. **Provenance, per the 2026-09-14 rule:** every seat
+  was Claude Sonnet via the HITL bridge (`claude-hitl`). That is the wrong population for THIS gate's purpose
+  (trimming toolsets for weak local models), so the verdict says "do not enforce it on a strong seat" — which is
+  already the design (`NKLEIN_TOOL_GATE_ENFORCE` off by default) — and says nothing about a 9B worker. The
+  100% disagreement rate is itself worth a look: the gate objects to EVERY catalog on this seat, i.e. it
+  classifies a custom provider id as one to trim. No default flipped; a small-local-model drain is what produces
+  the verdict that matters.
+  `off_track_remedy_observed`: 0 observations — the HITL drain never set `NKLEIN_DRIFT_CRITIC=1` (only the bed
+  drains do), so P18.4b's stream got nothing from the batch; now set in the drain's resume script for the next
+  drive. `tool_trust_decay`: 13 of the 30 needed, all evaluable — volume.
 - [x] **P15.4 — Kill-list pass: the TRIAGE (P15.4b is David's keep/delete call).** Cores with no consumer and no path to one. The charter
   is explicit that effort disproportionate to LEARNING value is the real failure mode; a core that taught its
   lesson and has no consumer has already delivered its value and should not also be maintained forever.
@@ -13964,6 +13981,10 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   routine path, and it is not a wire — it is a dependency on SDK capability.**
   **Do not close this by wiring `decideOffTrackRemedy` somewhere harmless and calling it done** — that would
   produce a green item, a tested core, and a system that still launders drift.
+  **▶ 2026-09-14: the 40-project batch produced ZERO drift-critic observations — because the HITL drain's launcher
+  never set `NKLEIN_DRIFT_CRITIC=1` (only the bed drains do).** Found by running the mechanism-decision report on
+  that home (see P15.3). Set in `~/.nklein/factory-drains/bin/hitl-resume-server.sh` now, so the next drive
+  accrues flags; the flip stays gated on the verdict as before.
 
 ### Phase 19 — Prompt-cache discipline (prefill is the hidden cost on consumer hardware)
 
@@ -15890,7 +15911,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   60s window kept as the fallback for what liveness cannot settle. Note this made the ORIGINAL concern safer too: a
   live-but-slow owner is now protected by proof rather than by its refresh beating a deadline. The refresh < stale/2
   test still stands, and is now a backstop rather than the whole guarantee.
-- [ ] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
+- [x] **P21.6b — Enforce the sizing invariant at decompose time.** *(Split from P21.6 2026-07-20; David resolved
   the reviewer source 2026-07-21.)* Feed real diff-size estimates and a fleet-derived review capacity into
   `decideTaskSizing`, and split when it says to. Composes with F12.110's depth-target work, supplying the ceiling
   that work does not model.
@@ -15946,6 +15967,20 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   review the SPEC, review the PLAN (before any code), review the CODE — are unenforced discipline; !Klein can
   ENFORCE them. Sizing rule: **the TIGHTER of review-capacity and model-context wins.** Feeds F12.110's
   depth-target work, which currently optimizes only the model-context side.
+  **▶ THE LEAF SHIPPED 2026-09-14 (`771bce3d2`) — a per-task diff predictor, calibrated from the judged stream.**
+  The evidence the 2026-08-27 enrichment was recorded for finally arrived: the dev-test batch left 371 joined
+  predicted-vs-actual pairs. Measured on the 338 with a real diff: leave-one-out median absolute error against the
+  reviewed diff is 38 lines for the pooled median and **23** for a (complexity band × files-likely-touched) cell
+  median — `filesLikelyTouched` is the strongest signal (medians 24 / 46 / 81 / 132 lines for 0 / 1 / 2 / 3+
+  files), the complexity band second. `predictTaskDiffLines` climbs cell → files → band → pooled, each level
+  needing the same five-judgment floor the ceiling uses, and is null below it — calibrated at call time, never a
+  baked table, per this item's own policy. The evidence loader joins each judgment with its task's features by
+  board task id; `assessPlannedTaskSizing` takes the planned task's features and records `predictionBasis` so the
+  observe stream judges each ladder level separately. A task without features is assessed byte-identically to
+  before; with them the review half of the enforce gate can now fire (the test: a rare 3-file cell predicted at
+  620 lines against a ~149-line ceiling gets `mustSplit`, where the pooled median fits by construction).
+  Provenance of the calibration numbers: the HITL drain, Claude Sonnet in every seat — they describe what THAT
+  seat's cards produced; the predictor re-derives from whatever stream it is pointed at.
 - [x] **P21.7 — Never return NOTHING on timeout.** Goose's subagents default to 25 turns / 5-minute timeout and
   **on timeout you get no partial output at all.** At local-model speeds timeouts will be a dominant failure mode
   for us, so partial-result return is not a nicety. Audit !Klein's park/timeout paths for total-loss cases.

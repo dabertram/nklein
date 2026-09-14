@@ -13,7 +13,7 @@ import {
 } from "../core/tool-gate-observation-join";
 import { joinToolTrustObservations, toToolTrustRecord } from "../core/tool-trust-observation-join";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
-import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
+import { readSelfObservationEvents, UNBOUNDED_SELF_OBSERVATION_READ_CAP } from "../telemetry/self-observation-sink";
 
 /**
  * `nklein dev mechanism-decision` — P15.3's gate: is an observe-first mechanism right often enough to ENFORCE?
@@ -36,6 +36,11 @@ import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 export interface DevMechanismDecisionOptions {
 	json?: boolean;
 	/** Injected in tests; defaults to the real telemetry read. */
+	/**
+	 * Read cap for the observation streams (default: the whole ledger). Tests pin it low to exercise the
+	 * saturation warning with a small fixture; production never passes it.
+	 */
+	readLimit?: number;
 	readObservations?: () => Promise<
 		readonly { metadata?: Record<string, unknown> | undefined; taskId?: string | null }[]
 	>;
@@ -63,7 +68,9 @@ const TRUST_CATEGORY = "tool_trust_decay";
 /** Board lane moves — the outcome source for installs with no durable-scheduler events (the common case). */
 const LANE_CHANGE_CATEGORY = "card_lane_change";
 /** The reader's hard maximum. Asking for less would silently narrow the evidence a FLIP decision rests on. */
-const OBSERVATION_READ_LIMIT = 500;
+// P15.3: the report reads the WHOLE stream. At 500 the first real-model drain with volume (2026-09-14) saturated,
+// and the report correctly refused to let a truncated sample flip a default — a verdict nobody could act on.
+const OBSERVATION_READ_LIMIT = UNBOUNDED_SELF_OBSERVATION_READ_CAP;
 
 function defaultLedgerRoot(): string {
 	const override = process.env.NKLEIN_AGENT_LEDGER_ROOT?.trim();
@@ -90,26 +97,27 @@ export function toGateRecord(event: {
 export async function runDevMechanismDecisionCommand(options: DevMechanismDecisionOptions = {}): Promise<void> {
 	// The reader defaults to 50 events and hard-caps at 500 (`self-observation-sink` ~398). The default alone sits
 	// barely above the 30-observation floor, so it is raised deliberately rather than inherited.
+	const readLimit = options.readLimit ?? OBSERVATION_READ_LIMIT;
 	const events = await (options.readObservations
 		? options.readObservations()
-		: readSelfObservationEvents({ category: GATE_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+		: readSelfObservationEvents({ category: GATE_CATEGORY, limit: readLimit, unbounded: true }));
 	const ledger = await (options.readLedger
 		? options.readLedger()
 		: readAllAgentLedger({ rootDir: defaultLedgerRoot() }));
 
 	const remedyEvents = await (options.readRemedyObservations
 		? options.readRemedyObservations()
-		: readSelfObservationEvents({ category: REMEDY_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+		: readSelfObservationEvents({ category: REMEDY_CATEGORY, limit: readLimit, unbounded: true }));
 	const trustEvents = await (options.readTrustObservations
 		? options.readTrustObservations()
-		: readSelfObservationEvents({ category: TRUST_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+		: readSelfObservationEvents({ category: TRUST_CATEGORY, limit: readLimit, unbounded: true }));
 	// Scheduler events exist only under a durable run; ordinary dev-test/rig drains produce none, which left
 	// the outcome index EMPTY and every disagreement unjoinable (measured 2026-08-20: 44 disagreements, 0
 	// evaluable, on a home with 924 transitions and 0 scheduler events). Board lane changes carry the same
 	// fact with a task id, so they fill the gaps; the scheduler index still wins wherever it has an entry.
 	const laneChangeEvents = await (options.readLaneChangeObservations
 		? options.readLaneChangeObservations()
-		: readSelfObservationEvents({ category: LANE_CHANGE_CATEGORY, limit: OBSERVATION_READ_LIMIT }));
+		: readSelfObservationEvents({ category: LANE_CHANGE_CATEGORY, limit: readLimit, unbounded: true }));
 	const outcomeByTaskId = mergeTaskOutcomeIndexes(
 		buildTaskOutcomeIndex(ledger as never),
 		buildTaskOutcomeIndexFromLaneChanges(
@@ -140,9 +148,9 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 	// Hitting the reader's ceiling means the window is FULL, so there are probably older observations it never
 	// returned. A verdict computed on a truncated sample looks exactly like one computed on all of it — and this
 	// verdict's whole job is to license flipping a default. Saturation is therefore reported, not swallowed.
-	const saturated = events.length >= OBSERVATION_READ_LIMIT;
-	const remedySaturated = remedyEvents.length >= OBSERVATION_READ_LIMIT;
-	const trustSaturated = trustEvents.length >= OBSERVATION_READ_LIMIT;
+	const saturated = events.length >= readLimit;
+	const remedySaturated = remedyEvents.length >= readLimit;
+	const trustSaturated = trustEvents.length >= readLimit;
 
 	if (options.json) {
 		process.stdout.write(
@@ -191,7 +199,7 @@ export async function runDevMechanismDecisionCommand(options: DevMechanismDecisi
 		process.stdout.write(`  ${verdict.reason}\n`);
 		if (wasSaturated) {
 			process.stdout.write(
-				`\n⚠️  READ SATURATED at ${OBSERVATION_READ_LIMIT} observations — older ones were not returned, so this\n` +
+				`\n⚠️  READ SATURATED at ${readLimit} observations — older ones were not returned, so this\n` +
 					"verdict rests on a TRUNCATED sample and must not be used to flip a default as-is.\n",
 			);
 		}

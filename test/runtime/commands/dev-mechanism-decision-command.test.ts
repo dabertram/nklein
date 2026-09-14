@@ -131,12 +131,18 @@ describe("runDevMechanismDecisionCommand", () => {
 	it("WARNS when the read saturates — a truncated sample must not license a flip", async () => {
 		// The reader hard-caps at 500. A verdict computed on a full window looks identical to one computed on all
 		// the data, and this verdict's only job is to license flipping a default.
-		const out = await run({
+		const fixture = {
 			readObservations: async () => Array.from({ length: 500 }, (_, index) => observation(index % 2, `t${index}`)),
 			readLedger: async () =>
 				Array.from({ length: 500 }, (_, index) => completed(`t${index}`, "succeeded")) as never,
-		});
+		};
+		const out = await run({ ...fixture, readLimit: 500 });
 		expect(out).toMatch(/READ SATURATED at 500/u);
 		expect(out).toMatch(/must not be used to flip a default/u);
+		// 2026-09-14: the default read is the WHOLE ledger (the 500 clamp is a UI protection the report must not
+		// inherit — the first real-model drain with volume saturated and its verdict was unusable). The same 500
+		// observations under the default cap are a complete sample, and the warning must not fire.
+		const untruncated = await run(fixture);
+		expect(untruncated).not.toMatch(/READ SATURATED/u);
 	});
 });

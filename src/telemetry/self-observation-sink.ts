@@ -65,6 +65,11 @@ export interface ReadSelfObservationEventsOptions {
 	taskId?: string | null;
 	workspacePath?: string | null;
 	/**
+	 * Read the WHOLE ledger (up to `UNBOUNDED_SELF_OBSERVATION_READ_CAP`) instead of the 500-record UI clamp. For
+	 * reports whose verdict must rest on every observation — a truncated sample can only mislead them.
+	 */
+	unbounded?: boolean;
+	/**
 	 * Keep only records whose `metadata.category` matches. Applied BEFORE the limit, so the cap counts MATCHING
 	 * records rather than being consumed by unrelated traffic.
 	 *
@@ -391,11 +396,26 @@ export async function countSelfObservationsByCategory(
 	return counts;
 }
 
+/** Sanity cap for `unbounded` reads — a whole-ledger report, not a stream-forever. */
+export const UNBOUNDED_SELF_OBSERVATION_READ_CAP = 250_000;
+
 export async function readSelfObservationEvents(
 	options: ReadSelfObservationEventsOptions = {},
 ): Promise<SelfObservationEventRecord[]> {
 	const rootDir = resolveRootDir(options.rootDir);
-	const limit = Math.max(1, Math.min(500, Math.trunc(options.limit ?? 50)));
+	// The 500 clamp protects UI/API reads. A REPORT over the whole ledger opts out with `unbounded`: P15.3's
+	// mechanism-decision report saturated at 500 on the first real-model drain with volume (2026-09-14), and its
+	// own output correctly refused to let a truncated sample flip a default — so the campaign's first real verdict
+	// was unusable for want of a bigger read. Even unbounded reads stop at a sanity cap.
+	const limit = options.unbounded
+		? Math.max(
+				1,
+				Math.min(
+					UNBOUNDED_SELF_OBSERVATION_READ_CAP,
+					Math.trunc(options.limit ?? UNBOUNDED_SELF_OBSERVATION_READ_CAP),
+				),
+			)
+		: Math.max(1, Math.min(500, Math.trunc(options.limit ?? 50)));
 	const normalizedTaskId = normalizeOptionalString(options.taskId);
 	const workspacePathHash = hashWorkspacePath(normalizeRawOptionalString(options.workspacePath));
 	const normalizedCategory = normalizeOptionalString(options.category);
