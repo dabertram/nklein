@@ -43,7 +43,7 @@ EOF
 cat > "$D/responder.sh" <<EOF
 #!/bin/zsh
 # Claude responder for arm "$ARM": answers every queued request with \`claude -p --model $CLAUDE_MODEL\`.
-export HITL_ROOT="$D/queue" CLAUDE_MODEL="$CLAUDE_MODEL"
+export HITL_ROOT="$D/queue" CLAUDE_MODEL="$CLAUDE_MODEL" CLAUDE_RESPONDER_CONCURRENCY="${CLAUDE_RESPONDER_CONCURRENCY:-4}"
 cd "$REPO" && exec node scripts/hitl-claude-responder.mjs
 EOF
 cat > "$D/runtime.sh" <<EOF

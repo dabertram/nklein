@@ -346,6 +346,9 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		const message = execution.result.startMessage ?? "unknown";
 		log(`${instanceId}: session did not start — NOT counted: ${message}`);
 		await client.runtime.stopTaskSession.mutate({ taskId: runId }).catch(() => null);
+		for (const taskId of [runId, `${runId}::review`]) {
+			await client.runtime.retireTaskSession.mutate({ taskId, reason: "terminal_lane_card", detail: `swebench runner: ${instanceId} never started — attempt retired` }).catch(() => null);
+		}
 		await client.projects.remove.mutate({ projectId: workspaceId }).catch(() => null);
 		await writeFile(
 			join(options.out, `${instanceId}.start-failed.${Date.now()}.json`),
@@ -388,6 +391,18 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		log(`${instanceId}: result pin failed: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
 	}
 
+	// RETIRE the attempt's sessions (the task AND its review card) before the project goes: on the pinned pass-1
+	// runtime a `projects.remove` alone left the graded instance's session live — arm A's requests-1921 was still
+	// answering turns (and its review card queued for the seat) an hour after its receipt, competing with the live
+	// instance on a one-slot host (2026-09-15). The retirement ledger is what stops every recovery path.
+	for (const taskId of [runId, `${runId}::review`]) {
+		await client.runtime.retireTaskSession
+			.mutate({ taskId, reason: "terminal_lane_card", detail: `swebench runner: ${instanceId} graded — attempt retired` })
+			.then((retired) => {
+				if ((retired as { stopped?: boolean }).stopped) log(`${instanceId}: retired a still-live session for ${taskId}`);
+			})
+			.catch((error: unknown) => log(`${instanceId}: session retirement for ${taskId} failed: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`));
+	}
 	try {
 		const removal = (await client.projects.remove.mutate({ projectId: workspaceId })) as { ok?: boolean; error?: string };
 		if (!removal.ok) log(`${instanceId}: attempt workspace retirement refused: ${removal.error ?? "unknown"}`);
