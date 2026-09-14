@@ -12,7 +12,7 @@
  * Gated by NKLEIN_MAIN_CUSTODIAN=1 (rig opt-in first; default-flip is a P15.3-style evidence decision).
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { NKleinReviewResult } from "../nklein-agent/nklein-review-tool";
@@ -23,7 +23,42 @@ import { runGit } from "../workspace/git-utils";
 const MIN_NEW_COMMITS = 3;
 /** Cap the brief the custodian reads (log lines / diffstat lines) so the session prompt stays bounded. */
 const MAX_BRIEF_LINES = 120;
+/**
+ * The custodian's identity PREFIX. It is not a task id on its own: see {@link mainCustodianTaskId}.
+ * Kept exported for diagnostics that name the role rather than a sweep (model-selection purpose labels).
+ */
 export const MAIN_CUSTODIAN_TASK_ID = "main-branch-custodian";
+
+/**
+ * The task id for ONE sweep — scoped to the workspace AND the head it reviews.
+ *
+ * ── WHY NOT A CONSTANT (root-caused 2026-09-14; it was the responder hypothesis of 2026-09-09, now confirmed) ──
+ * Every sweep used the literal `main-branch-custodian`, so its review session was always `main-branch-custodian::review`
+ * and two facts followed, both measured in the drain:
+ *   · the single-flight guard is per WORKSPACE, and the rig drives several workspaces at once — so concurrent
+ *     sweeps shared one session id AND one sandbox placement (placements are keyed by task id). The stop-stack
+ *     instrumentation caught three `main-branch-custodian::review` stops inside the SAME SECOND
+ *     (2026-09-11 13:40:58, `AgentSandboxManager.onSessionUnusableHandler`): each sweep's dispose pulled the
+ *     workspace out from under its siblings, which is P1.REVIEWSANDBOX's "placement vanished with no release record".
+ *   · a later sweep RESUMED the earlier sweep's session, inheriting its transcript — which is exactly the reported
+ *     loop where a settled review comes back "with full conversation memory including its own acknowledgment",
+ *     is bare-stopped, is scored a `no_tool_call` failure and is reopened. It ate 36%, 45% and 9-10 turns of three
+ *     shifts, and it was never a board-lane problem, which is why the terminal-lane sweep could not end it.
+ * A sweep is a distinct piece of work over a distinct merge range, so it gets a distinct id: concurrent workspaces
+ * no longer collide, and a NEW sweep can never resume a settled one's session.
+ *
+ * Stable per (workspace, head): a retry of the same sweep reuses its own session rather than orphaning it.
+ * The shape keeps the `::`-free prefix property the board-less exemption relies on — it still names no board card.
+ */
+export function mainCustodianTaskId(input: { workspacePath: string; headCommit: string }): string {
+	const scope = createHash("sha256").update(input.workspacePath).digest("hex").slice(0, 8);
+	const head =
+		input.headCommit
+			.trim()
+			.slice(0, 12)
+			.replace(/[^0-9a-z]/gi, "") || "head";
+	return `${MAIN_CUSTODIAN_TASK_ID}-${scope}-${head}`;
+}
 
 const lastReviewedCommitByWorkspace = new Map<string, string>();
 const inFlightWorkspaces = new Set<string>();
@@ -125,6 +160,7 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 		if (last === head) {
 			return;
 		}
+		const sweepTaskId = mainCustodianTaskId({ workspacePath, headCommit: head });
 		const range = `${last}..${head}`;
 		const commitCount = Number((await runGit(workspacePath, ["rev-list", "--count", range])).stdout.trim() || "0");
 		if (!Number.isFinite(commitCount) || commitCount < MIN_NEW_COMMITS) {
@@ -141,7 +177,7 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 		deps.warn(`Main-branch custodian: reviewing ${commitCount} new commit(s) on ${branch} (${range.slice(0, 20)}…).`);
 		const result = await deps
 			.runReviewSession({
-				taskId: MAIN_CUSTODIAN_TASK_ID,
+				taskId: sweepTaskId,
 				projectRepoPath: workspacePath,
 				baseRef: branch,
 				seedPrompt: buildCustodianSeedPrompt({ branch, rangeLog, diffstat }),
@@ -161,7 +197,7 @@ export async function maybeRunMainBranchCustodian(deps: MainBranchCustodianDeps)
 				verdict === null
 					? `Main-branch custodian sweep over ${commitCount} commit(s) produced no verdict (session skipped/failed).`
 					: `Main-branch custodian ${verdict} for ${commitCount} commit(s) on ${branch}: ${(result?.summary ?? "").slice(0, 300)}`,
-			taskId: MAIN_CUSTODIAN_TASK_ID,
+			taskId: sweepTaskId,
 			workspacePath,
 			metadata: {
 				category: "main_custodian_review",

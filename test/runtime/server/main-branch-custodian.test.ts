@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	buildCustodianSeedPrompt,
+	mainCustodianTaskId,
 	maybeRunMainBranchCustodian,
 	resetMainBranchCustodianForTests,
 	resolveCustodianModel,
@@ -113,6 +114,25 @@ describe("main-branch custodian (F2.35)", () => {
 			},
 		};
 	}
+
+	it("gives each sweep its own task id — concurrent workspaces cannot share a session or a placement", () => {
+		// Confirmed 2026-09-14 from the stop-stack instrumentation: three `main-branch-custodian::review` stops in the
+		// SAME second (2026-09-11 13:40:58, onSessionUnusableHandler), i.e. concurrent sweeps on one id disposing each
+		// other's sandbox placement — and a later sweep resuming an earlier one's settled session.
+		const head = "0123456789abcdef0123456789abcdef01234567";
+		const a = mainCustodianTaskId({ workspacePath: "/tmp/ws-a", headCommit: head });
+		const b = mainCustodianTaskId({ workspacePath: "/tmp/ws-b", headCommit: head });
+		expect(a).not.toBe(b);
+		// A NEW head is a NEW sweep: it must not resume the previous sweep's session.
+		expect(mainCustodianTaskId({ workspacePath: "/tmp/ws-a", headCommit: "ffffffffffffffff" })).not.toBe(a);
+		// Stable for a retry of the SAME sweep.
+		expect(mainCustodianTaskId({ workspacePath: "/tmp/ws-a", headCommit: head })).toBe(a);
+		// Still board-less by shape (the terminal-lane exemption keys on the parent naming no card).
+		expect(a.startsWith("main-branch-custodian-")).toBe(true);
+		expect(a).not.toContain("::");
+		// Degenerate input still yields a usable id.
+		expect(mainCustodianTaskId({ workspacePath: "/tmp/ws-a", headCommit: "  " })).toContain("-head");
+	});
 
 	it("baselines silently on first sight, then reviews only when ≥3 new commits landed", async () => {
 		const { calls, deps: d } = deps();
