@@ -5,7 +5,8 @@
  *
  *   tsx scripts/swebench-tranche-run.mts --run-id <id> --model <modelId> --runtime-port 3507 --home <runtimeHome> \
  *       [--runtime-host 127.0.0.1] [--instances all|<id>,<id>] [--no-plan] [--max-wait-ms 2700000] \
- *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--public-acceptance] [--workspace-parent DIR] [--out DIR]
+ *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--public-acceptance] [--seat-kind lmstudio|hitl] [--seat-file FILE]
+ *       [--workspace-parent DIR] [--out DIR]
  *       [--runtime-launcher FILE]
  *
  * Hermetic: instances come from the sha256-pinned cache (`swebench-fetch.mts` is the only egress step; a missing
@@ -23,7 +24,7 @@ import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
 import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { createDevRuntimeClient, executeDevTestScenario } from "../src/commands/dev-project-execution";
 import { ensureRuntimeWorkspace } from "../src/commands/task/task-runtime-workspace";
@@ -52,6 +53,10 @@ interface Options {
 	cooldownMs: number;
 	/** Arm B: public acceptance (repro test in a new file + graded files' existing tests), visible test evidence, auto-review ON. */
 	publicAcceptance: boolean;
+	/** `lmstudio` (default: the model must be loaded per `lms ps`) or `hitl` (a Claude seat behind the HITL server). */
+	seatKind: "lmstudio" | "hitl";
+	/** For hitl seats: the responder's seat.json (CLI model + version), copied into every receipt. */
+	seatFile: string | null;
 	workspaceParent: string;
 	out: string;
 	runtimeLauncher: string | null;
@@ -108,6 +113,8 @@ function parseArgs(argv: readonly string[]): Options {
 		pollIntervalMs: integer("poll-interval-ms", 5_000),
 		cooldownMs: values.has("cooldown-ms") ? integer("cooldown-ms", 0) : 0,
 		publicAcceptance: flags.has("public-acceptance"),
+		seatKind: values.get("seat-kind") === "hitl" ? "hitl" : "lmstudio",
+		seatFile: values.get("seat-file") ? resolve(values.get("seat-file") as string) : null,
 		workspaceParent: resolve(values.get("workspace-parent") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId, "workspaces")),
 		out: resolve(values.get("out") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId)),
 		runtimeLauncher: values.get("runtime-launcher") ? resolve(values.get("runtime-launcher") as string) : null,
@@ -245,7 +252,14 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		return JSON.parse(await readFile(receiptPath, "utf8")) as Record<string, unknown>;
 	}
 	const startedAt = Date.now();
-	const loadedModel = await readLoadedModel(options.model);
+	const loadedModel =
+		options.seatKind === "hitl"
+			? {
+					kind: "hitl",
+					identifier: options.model,
+					...(options.seatFile && existsSync(options.seatFile) ? JSON.parse(await readFile(options.seatFile, "utf8")) : {}),
+				}
+			: await readLoadedModel(options.model);
 	const cacheRoot = swebenchCacheRoot(process.cwd());
 	const workspacePath = join(options.workspaceParent, runId);
 	log(`${instanceId}: materializing ${entry.repo} into ${workspacePath}`);
@@ -485,8 +499,15 @@ async function main(): Promise<void> {
 	if (!health || !health.ok) throw new Error(`runtime at ${runtimeOrigin} is not healthy — start it first (own HOME, roles pinned).`);
 	const nkleinCommit = await git(process.cwd(), ["rev-parse", "HEAD"]);
 	const launcher = options.runtimeLauncher ? await readFile(options.runtimeLauncher, "utf8") : null;
+	// The RUNTIME under test is the arm's worktree snapshot (`<arm dir>/src`), not the repo this runner runs from —
+	// the harness card must name the commit the model was actually driven by (arm setups run older commits).
+	const runtimeSrc = options.runtimeLauncher ? join(dirname(options.runtimeLauncher), "src") : null;
+	const runtimeCommit = runtimeSrc && existsSync(join(runtimeSrc, ".git"))
+		? await git(runtimeSrc, ["rev-parse", "HEAD"]).catch(() => null)
+		: null;
 	const harness = {
-		nkleinCommit,
+		nkleinCommit: runtimeCommit ?? nkleinCommit,
+		runnerCommit: nkleinCommit,
 		runtimeOrigin,
 		runtimeHome: options.home,
 		startInPlanMode: options.startInPlanMode,
@@ -502,7 +523,7 @@ async function main(): Promise<void> {
 	};
 	await mkdir(options.out, { recursive: true });
 	await mkdir(options.workspaceParent, { recursive: true });
-	log(`run ${options.runId}: ${options.instances.length} instance(s), model ${options.model}, runtime ${runtimeOrigin}, nklein ${nkleinCommit.slice(0, 9)}, plan mode ${options.startInPlanMode ? "ON" : "OFF"}`);
+	log(`run ${options.runId}: ${options.instances.length} instance(s), model ${options.model}, runtime ${runtimeOrigin}, nklein ${(runtimeCommit ?? nkleinCommit).slice(0, 9)} (runner ${nkleinCommit.slice(0, 9)}), plan mode ${options.startInPlanMode ? "ON" : "OFF"}`);
 	const receipts: Record<string, unknown>[] = [];
 	for (const [index, instanceId] of options.instances.entries()) {
 		if (index > 0 && options.cooldownMs > 0 && !existsSync(join(options.out, `${instanceId}.receipt.json`))) {
