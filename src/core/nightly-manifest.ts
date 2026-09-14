@@ -52,6 +52,55 @@ export interface NightlyManifest {
 	readonly crashRecoveryMatrix?: { readonly enabled: boolean };
 	/** N14: run the browser UI journey lanes (drained board + operator review-merge) after the cells. */
 	readonly uiJourneys?: { readonly enabled: boolean };
+	/**
+	 * F2.30 (d): standing mock-model e2e suites run after the cells — registration is DATA. Each suite owns its
+	 * full stack (a spawned backend + the mock LLM on free ports, isolated HOME), so it is hermetic like a cell;
+	 * every suite is named in the summary and a failing one fails the run.
+	 */
+	readonly e2eSuites?: readonly NightlyE2eSuiteEntry[];
+}
+
+export interface NightlyE2eSuiteEntry {
+	readonly id: string;
+	/** Repo-relative vitest file. */
+	readonly file: string;
+}
+
+export interface NightlyE2eSuiteResult {
+	readonly id: string;
+	readonly file: string;
+	readonly passed: boolean;
+	/** Why, when not a pass (the runner's error text); "pass" otherwise. */
+	readonly reason: string;
+}
+
+export interface NightlyLaneVerdict {
+	readonly outcome: "passed" | "failed" | "not_selected";
+	readonly reason: string;
+}
+
+/**
+ * The e2e-suite lane's verdict: `null` results mean the lane did not run (nothing registered, or a project/model
+ * filter selected — the standing lanes skip under filters exactly like the crash matrix); otherwise every suite
+ * is NAMED with its outcome, and a non-pass with no recorded reason gets the placeholder rather than silence.
+ */
+export function summarizeE2eSuiteLane(results: readonly NightlyE2eSuiteResult[] | null): NightlyLaneVerdict {
+	if (results === null) {
+		return { outcome: "not_selected", reason: "no e2e suites registered or a project/model filter selected" };
+	}
+	if (results.length === 0) {
+		return { outcome: "not_selected", reason: "no e2e suites registered" };
+	}
+	const failed = results.filter((result) => !result.passed);
+	return {
+		outcome: failed.length === 0 ? "passed" : "failed",
+		reason: results
+			.map(
+				(result) =>
+					`${result.id}: ${result.passed ? "pass" : result.reason.trim() || "a suite that is not a pass MUST say why"}`,
+			)
+			.join(" · "),
+	};
 }
 
 export interface NightlyPersistedStateEntry extends NightlyProjectEntry {
@@ -181,13 +230,16 @@ export function isNightlyOverallOk(input: {
 	readonly uiJourneysOk?: boolean;
 	/** F11.3g aider delta lane; defaults true — idle (no fresh campaign) is not a failure. */
 	readonly aiderDeltaOk?: boolean;
+	/** F2.30 (d) e2e-suite lane; defaults true so callers without the lane keep their verdict shape. */
+	readonly e2eSuitesOk?: boolean;
 }): boolean {
 	return (
 		input.cellsOk &&
 		input.crashRecoveryOk &&
 		input.invariantPacksOk &&
 		(input.uiJourneysOk ?? true) &&
-		(input.aiderDeltaOk ?? true)
+		(input.aiderDeltaOk ?? true) &&
+		(input.e2eSuitesOk ?? true)
 	);
 }
 

@@ -6,6 +6,7 @@ import {
 	type NightlyManifest,
 	nightlyCellKey,
 	nightlyCellName,
+	summarizeE2eSuiteLane,
 	summarizeNightlyRun,
 } from "../../src/core/nightly-manifest";
 
@@ -149,5 +150,37 @@ describe("summarizeNightlyRun", () => {
 		const result = summarizeNightlyRun([]);
 		expect(result.ok).toBe(false);
 		expect(result.summary).toContain("an empty nightly run is not a green one");
+	});
+});
+
+describe("e2e-suite lane (F2.30 d)", () => {
+	it("fails the top-level verdict when a registered e2e suite failed", () => {
+		expect(
+			isNightlyOverallOk({ cellsOk: true, crashRecoveryOk: true, invariantPacksOk: true, e2eSuitesOk: false }),
+		).toBe(false);
+		expect(isNightlyOverallOk({ cellsOk: true, crashRecoveryOk: true, invariantPacksOk: true })).toBe(true);
+	});
+
+	it("NAMES every suite with its outcome, and a non-pass without a reason gets the placeholder", () => {
+		const lane = summarizeE2eSuiteLane([
+			{
+				id: "chat-control-plane",
+				file: "test/integration/chat-control-plane.integration.test.ts",
+				passed: true,
+				reason: "pass",
+			},
+			{ id: "later-suite", file: "test/integration/later.test.ts", passed: false, reason: "  " },
+		]);
+		expect(lane.outcome).toBe("failed");
+		expect(lane.reason).toBe("chat-control-plane: pass · later-suite: a suite that is not a pass MUST say why");
+	});
+
+	it("is not selected when nothing is registered or a filter skipped the lane — never a silent pass", () => {
+		expect(summarizeE2eSuiteLane(null).outcome).toBe("not_selected");
+		expect(summarizeE2eSuiteLane([]).outcome).toBe("not_selected");
+		expect(summarizeE2eSuiteLane([{ id: "a", file: "a.ts", passed: true, reason: "pass" }])).toEqual({
+			outcome: "passed",
+			reason: "a: pass",
+		});
 	});
 });

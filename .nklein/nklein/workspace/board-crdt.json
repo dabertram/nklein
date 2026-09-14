@@ -322,16 +322,16 @@
           }
         },
         "title": {
-          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but",
+          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
         "prompt": {
-          "value": "Open backlog item P25.2b (todo.md §5).\n\n- [ ] **P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but\n  does not remove it).**\n  Auto-download means executing third-party artefacts. David's setup-time gate means a HUMAN approves each model,\n  which is a real mitigation — but consent does not make a pickle file safe, so the format rule below still holds.\n  The research is unambiguous:\n    · Pickle-based weights (`.bin`/`.pt`) execute arbitrary code on load. Real malicious models have been found on\n      Hugging Face repeatedly (JFrog, ReversingLabs).\n    · **`PickleScan` — the main open-source scanner — carried three bypass CVEs (CVE-2025-10155/10156/10157, all\n      CVSS 9.3, Dec 2025)**: extension renaming, ZIP CRC abuse, and subclassed module paths that dodge the\n      blocklist. So \"we scan them\" is NOT a sufficient answer on its own.\n    · **`safetensors` is safe BY DESIGN** — loading it executes no logic, and it passed independent audit with no\n      critical ACE findings.\n  ~~⇒ PROPOSED HARD RULE~~ **✅ THE HARD RULE SHIPPED 2026-08-11 (David unblocked the item by multiple\n  choice).** The download key alone does not reveal the artefact format, so the FORMAT now travels with the\n  consent: `ModelAcquisitionConsent.artifactFormat` is REQUIRED (the size stays recorded-not-enforced; the\n  format is a hard gate), and `downloadModel` refuses `pickle`/`unknown` with `UNSAFE_FORMAT_REFUSED` — after\n  the identity check, BEFORE any network call, and regardless of consent (\"consent does not make a pickle file\n  safe\"). Safe-by-design set: `safetensors`, `GGUF`, `MLX` (safetensors-based). An UNDECLARED format refuses\n  fail-closed. Any future setup-flow caller must declare the operator-shown format BY CONSTRUCTION (the type\n  demands it); the acquisition-boundary test still proves the autonomous runtime cannot reach the module at\n  all. 8 tests, incl. the pin that no request is ever made for an unsafe format.\n  **▶ RESOLVED 2026-08-20 — the request surface was probed FIRST, and it split the two asks:**\n  · **Publisher allow-listing: SHIPPED.** The live roster (59 entries) carries a first-class `publisher` field,\n    so the allow-list binds on catalogue data. **It must NEVER be parsed from the model key** — measured, not\n    assumed: only 31 of 59 keys carry a namespace at all, and where one exists it can disagree outright\n    (`qwen3.8-27b-mlx` is publi\n… (see the source file for the rest)\n\nCommits (newest first):\n- 0456f9c74 fix(security): clear the audit's dependency findings — fast-uri 3.1.5, ip-address, hono, nanoid (P25.2b)\n- 3cbef84aa feat(P25.2b): publisher allow-listing on model acquisition; revision pinning ruled out with evidence",
+          "value": "Open backlog item P25.2b (todo.md §5).\n\n- [ ] **P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but\n  does not remove it).**\n  Auto-download means executing third-party artefacts. David's setup-time gate means a HUMAN approves each model,\n  which is a real mitigation — but consent does not make a pickle file safe, so the format rule below still holds.\n  The research is unambiguous:\n    · Pickle-based weights (`.bin`/`.pt`) execute arbitrary code on load. Real malicious models have been found on\n      Hugging Face repeatedly (JFrog, ReversingLabs).\n    · **`PickleScan` — the main open-source scanner — carried three bypass CVEs (CVE-2025-10155/10156/10157, all\n      CVSS 9.3, Dec 2025)**: extension renaming, ZIP CRC abuse, and subclassed module paths that dodge the\n      blocklist. So \"we scan them\" is NOT a sufficient answer on its own.\n    · **`safetensors` is safe BY DESIGN** — loading it executes no logic, and it passed independent audit with no\n      critical ACE findings.\n  ~~⇒ PROPOSED HARD RULE~~ **✅ THE HARD RULE SHIPPED 2026-08-11 (David unblocked the item by multiple\n  choice).** The download key alone does not reveal the artefact format, so the FORMAT now travels with the\n  consent: `ModelAcquisitionConsent.artifactFormat` is REQUIRED (the size stays recorded-not-enforced; the\n  format is a hard gate), and `downloadModel` refuses `pickle`/`unknown` with `UNSAFE_FORMAT_REFUSED` — after\n  the identity check, BEFORE any network call, and regardless of consent (\"consent does not make a pickle file\n  safe\"). Safe-by-design set: `safetensors`, `GGUF`, `MLX` (safetensors-based). An UNDECLARED format refuses\n  fail-closed. Any future setup-flow caller must declare the operator-shown format BY CONSTRUCTION (the type\n  demands it); the acquisition-boundary test still proves the autonomous runtime cannot reach the module at\n  all. 8 tests, incl. the pin that no request is ever made for an unsafe format.\n  **▶ RESOLVED 2026-08-20 — the request surface was probed FIRST, and it split the two asks:**\n  · **Publisher allow-listing: SHIPPED.** The live roster (59 entries) carries a first-class `publisher` field,\n    so the allow-list binds on catalogue data. **It must NEVER be parsed from the model key** — measured, not\n    assumed: only 31 of 59 keys carry a namespace at all, and where one exists it can disagree outright\n    (`qwen3.8-27b-mlx` is publi\n… (see the source file for the rest)\n\nCommits (newest first):\n- 0456f9c74 fix(security): clear the audit's dependency findings — fast-uri 3.1.5, ip-address, hono, nanoid (P25.2b)",
           "stamp": {
-            "counter": 1789049482726,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -385,9 +385,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -409,7 +409,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -734,9 +734,9 @@
           }
         },
         "title": {
-          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.",
+          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own eviden…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -797,9 +797,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -821,7 +821,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -837,9 +837,9 @@
           }
         },
         "title": {
-          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST",
+          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -900,9 +900,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -924,7 +924,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -940,9 +940,9 @@
           }
         },
         "title": {
-          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the 2× play (researched",
+          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1003,9 +1003,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1027,7 +1027,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1043,9 +1043,9 @@
           }
         },
         "title": {
-          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runtime .. go online\" — researched",
+          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runti…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1106,9 +1106,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1130,7 +1130,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1146,9 +1146,9 @@
           }
         },
         "title": {
-          "value": "F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David directive 2026-09-02,",
+          "value": "F2.31 — DAG overview: layered tree layout with temporal flow, EARLY→RIGHT (David…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1209,9 +1209,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1233,7 +1233,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1249,9 +1249,9 @@
           }
         },
         "title": {
-          "value": "F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, verbatim: \"also add ui",
+          "value": "F2.32 — Welcome/setup dialog UI tests + UX pass (David directive 2026-09-02, ver…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1312,9 +1312,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1336,7 +1336,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1352,9 +1352,9 @@
           }
         },
         "title": {
-          "value": "F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: \"add ui ux tests that use the",
+          "value": "F2.30 — CHAT-AS-FULL-CONTROL-PLANE (David directive 2026-09-02, verbatim: \"add u…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1415,9 +1415,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1439,7 +1439,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1825,9 +1825,9 @@
           }
         },
         "title": {
-          "value": "P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).",
+          "value": "P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syn…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1888,9 +1888,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1912,7 +1912,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5274,9 +5274,9 @@
           }
         },
         "title": {
-          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed)",
+          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5337,9 +5337,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5361,7 +5361,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7430,16 +7430,16 @@
           }
         },
         "title": {
-          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the",
+          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nkle…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
         "prompt": {
-          "value": "Open backlog item F2.36 (todo.md §5).\n\n- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the\n  dag reflect everything that was already done in reasonable work packages which are set to finished … part of\n  git .. updated with each git commit … a soft switch\").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`\n  mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items\n  (PLANNING cards hanging off the newest done package; auto-completed when todo.md stops listing them) and the\n  git log (commits naming an item id land on that card's prompt; the rest on one rolling card) into the repo's\n  own board (`~/.nklein/nklein/workspaces/kanban`, the dev checkout's workspace) and exports the committed\n  portable CRDT `.nklein/nklein/workspace/board-crdt.json` (§14.2). The pre-commit hook runs the sync (0.5s)\n  and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under\n  `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:\n  (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item \"Phase 0\" package is\n  one card); (b) dependencies BETWEEN open items\n  *(2026-09-08, investigated and deliberately NOT built from text: 9 of the 15 open items reference another\n  item's id, but a MENTION is not a dependency — P25.3 and P23.5 reference each other, so inferring edges from\n  references produces a cycle on the very first pass. A wrong edge BLOCKS work, which is worse than the\n  current state where everything hangs off the spine. If this is built, it must be an explicit declaration in\n  the entry — the shape (c) settled on — plus a cycle guard that refuses the edge and says so)*\n  **SHIPPED 2026-09-14 (`a76cfe2e4`) exactly in that shape:** an entry declares `*(depends on: <ID>, <ID>)*`;\n  `core/todo-card-dependencies` resolves the ids to `todo:` cards and applies each through\n  `wouldCreateDependencyCycle` seeing the edges accepted so far (A→B then B→A refuses the second and SAYS so in\n  the sync log), refuses unknown ids and self-references, reports a shipped prerequisite as satisfied (no edge),\n  and owns its edges under the `self-declared:` id prefix so a withdrawn declaration removes exactly its edge.\n  A card with a declared prerequisite hangs off it instead of the s\n… (see the source file for the rest)\n\nCommits (newest first):\n- 043ef5d1b docs(todo): F2.36 (b) closed — declared dependencies through the cycle guard (a76cfe2e4)\n- a76cfe2e4 feat(self-board): explicit `*(depends on: …)*` declarations between open items through the board's cycle guard (F2.36 b); the portable export now tombstones removed edges; P0.POOLLOSS closed\n- c8bb10415 docs(todo): F2.36 (b) — inferring dependencies from mentions produces a cycle on the first pass\n- 755890682 docs(todo): F2.36 (c) shipped — backlog cards size themselves from a declared marker\n- b5e9b4581 feat(self-board): size the backlog cards from their own todo entries (F2.36 (c))\n- 3c6cc41d2 feat(self-board): !Klein's own project board mirrors done.md/todo.md/git and travels with the repo (F2.36 v1)",
+          "value": "Open backlog item F2.36 (todo.md §5).\n\n- [ ] **F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the\n  dag reflect everything that was already done in reasonable work packages which are set to finished … part of\n  git .. updated with each git commit … a soft switch\").** SHIPPED v1 the same night: `scripts/self-board-sync.ts`\n  mirrors done.md sections (COMPLETED work packages chained as the historical spine), todo.md §5 open items\n  (PLANNING cards hanging off the newest done package; auto-completed when todo.md stops listing them) and the\n  git log (commits naming an item id land on that card's prompt; the rest on one rolling card) into the repo's\n  own board (`~/.nklein/nklein/workspaces/kanban`, the dev checkout's workspace) and exports the committed\n  portable CRDT `.nklein/nklein/workspace/board-crdt.json` (§14.2). The pre-commit hook runs the sync (0.5s)\n  and stages the CRDT, so every commit carries the plan's state; `.gitignore` tracks exactly that one file under\n  `.nklein/`. The June default-fixture cards (habit-insights) were moved to trash. REMAINING for the soft switch:\n  (a) a `done.md` section per real milestone instead of the 15 coarse ones (the 126-item \"Phase 0\" package is\n  one card); (b) dependencies BETWEEN open items\n  *(2026-09-08, investigated and deliberately NOT built from text: 9 of the 15 open items reference another\n  item's id, but a MENTION is not a dependency — P25.3 and P23.5 reference each other, so inferring edges from\n  references produces a cycle on the very first pass. A wrong edge BLOCKS work, which is worse than the\n  current state where everything hangs off the spine. If this is built, it must be an explicit declaration in\n  the entry — the shape (c) settled on — plus a cycle guard that refuses the edge and says so)*\n  **SHIPPED 2026-09-14 (`a76cfe2e4`) exactly in that shape:** an entry declares `*(depends on: <ID>, <ID>)*`;\n  `core/todo-card-dependencies` resolves the ids to `todo:` cards and applies each through\n  `wouldCreateDependencyCycle` seeing the edges accepted so far (A→B then B→A refuses the second and SAYS so in\n  the sync log), refuses unknown ids and self-references, reports a shipped prerequisite as satisfied (no edge),\n  and owns its edges under the `self-declared:` id prefix so a withdrawn declaration removes exactly its edge.\n  A card with a declared prerequisite hangs off it instead of the s\n… (see the source file for the rest)\n\nCommits (newest first):\n- 86f5f4072 feat(self-board): todo cards start in plan mode — \"work this card with !Klein\" is the ordinary Start on the dev checkout's own board (F2.36 d); declarations accept only item-id shapes\n- 043ef5d1b docs(todo): F2.36 (b) closed — declared dependencies through the cycle guard (a76cfe2e4)\n- a76cfe2e4 feat(self-board): explicit `*(depends on: …)*` declarations between open items through the board's cycle guard (F2.36 b); the portable export now tombstones removed edges; P0.POOLLOSS closed\n- c8bb10415 docs(todo): F2.36 (b) — inferring dependencies from mentions produces a cycle on the first pass\n- 755890682 docs(todo): F2.36 (c) shipped — backlog cards size themselves from a declared marker\n- b5e9b4581 feat(self-board): size the backlog cards from their own todo entries (F2.36 (c))\n- 3c6cc41d2 feat(self-board): !Klein's own project board mirrors done.md/todo.md/git and travels with the repo (F2.36 v1)",
           "stamp": {
-            "counter": 1789379091923,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7499,9 +7499,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7523,7 +7523,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8341,9 +8341,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and…",
+          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8417,9 +8417,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8434,7 +8434,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8777,9 +8777,9 @@
           }
         },
         "title": {
-          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.",
+          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record…",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8853,9 +8853,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8870,7 +8870,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9213,9 +9213,9 @@
           }
         },
         "title": {
-          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture…",
+          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9289,9 +9289,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9306,7 +9306,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9431,9 +9431,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and…",
+          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard",
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9507,9 +9507,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379139691,
+          "value": 1789379536768,
           "stamp": {
-            "counter": 1789379139691,
+            "counter": 1789379536768,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9524,7 +9524,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10178,7 +10178,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10190,7 +10190,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10202,7 +10202,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10214,7 +10214,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10226,7 +10226,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10238,7 +10238,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10250,7 +10250,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10262,7 +10262,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10274,7 +10274,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10286,7 +10286,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10298,7 +10298,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10310,7 +10310,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10322,7 +10322,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10334,7 +10334,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10394,7 +10394,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10454,7 +10454,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10466,7 +10466,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10478,7 +10478,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10490,7 +10490,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10502,7 +10502,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10514,7 +10514,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10526,7 +10526,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10550,7 +10550,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10574,7 +10574,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10586,7 +10586,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10598,7 +10598,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10610,7 +10610,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10622,7 +10622,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10718,7 +10718,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10730,7 +10730,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10778,7 +10778,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10826,7 +10826,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10850,7 +10850,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789379139691,
+          "counter": 1789379536768,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }

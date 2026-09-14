@@ -32,9 +32,11 @@ import {
 	enumerateNightlyCells,
 	isNightlyOverallOk,
 	type NightlyCell,
+	type NightlyE2eSuiteResult,
 	type NightlyManifest,
 	nightlyCellKey,
 	nightlyCellName,
+	summarizeE2eSuiteLane,
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
 import { NIGHTLY_PACK_REGISTRY } from "../core/nightly-pack-registry";
@@ -95,6 +97,8 @@ const CELL_TIMEOUT_MS = 45 * 60 * 1000;
 const CRASH_RECOVERY_MATRIX_TIMEOUT_MS = 6 * CELL_TIMEOUT_MS;
 /** One browser journey lane (own sim/HOME + runtime + vite + playwright); generous for low-power boots. */
 const UI_JOURNEYS_TIMEOUT_MS = 10 * 60 * 1000;
+/** F2.30 (d): one e2e suite (spawned backend + mock model) must finish inside this. */
+const E2E_SUITE_TIMEOUT_MS = 10 * 60 * 1000;
 
 async function loadManifest(path: string): Promise<NightlyManifest | null> {
 	try {
@@ -646,6 +650,11 @@ export async function runDevNightlyCommand(options: {
 				"  ui-journeys            (N14 browser lanes: drained board + review-merge + review-bounce)\n",
 			);
 		}
+		if ((manifest.e2eSuites?.length ?? 0) > 0 && !options.project && !options.model) {
+			process.stdout.write(
+				`  e2e-suites             (F2.30 d mock-model e2e: ${(manifest.e2eSuites ?? []).map((suite) => suite.id).join(", ")})\n`,
+			);
+		}
 		return;
 	}
 
@@ -755,6 +764,35 @@ export async function runDevNightlyCommand(options: {
 			reason: laneReasons.join(" · "),
 		};
 	}
+
+	// F2.30 (d): standing e2e suites — the chat-control-plane e2e (a plain chat message really drives the board
+	// through the mock model) and any later suite registered in the manifest as DATA. Each suite owns its full
+	// stack (spawned backend + mock LLM on free ports, isolated HOME), so it is hermetic like a cell; every suite
+	// is named in the summary and a failing one fails the run. Skipped under project/model filters like the
+	// other standing lanes.
+	let e2eSuiteResults: NightlyE2eSuiteResult[] | null = null;
+	if ((manifest.e2eSuites?.length ?? 0) > 0 && !options.project && !options.model) {
+		process.stderr.write("== e2e suites (F2.30 d) ==\n");
+		e2eSuiteResults = [];
+		for (const suite of manifest.e2eSuites ?? []) {
+			try {
+				const { stderr } = await execFileAsync("npx", ["vitest", "run", suite.file], {
+					timeout: E2E_SUITE_TIMEOUT_MS,
+					maxBuffer: 20 * 1024 * 1024,
+				});
+				if (stderr) process.stderr.write(stderr);
+				e2eSuiteResults.push({ id: suite.id, file: suite.file, passed: true, reason: "pass" });
+			} catch (error) {
+				e2eSuiteResults.push({
+					id: suite.id,
+					file: suite.file,
+					passed: false,
+					reason: error instanceof Error ? error.message.slice(0, 400) : String(error),
+				});
+			}
+		}
+	}
+	const e2eSuites = summarizeE2eSuiteLane(e2eSuiteResults);
 
 	// F11.3g: the aider DELTA lane — grade the newest BANKED campaign against the pinned single-host baseline.
 	// Never runs GPU work (campaigns are operator/rig-launched; this only reads receipts). Idle when nothing
@@ -976,6 +1014,7 @@ export async function runDevNightlyCommand(options: {
 		invariantPacksOk,
 		uiJourneysOk: uiJourneys.outcome !== "failed",
 		aiderDeltaOk: aiderDelta.outcome !== "failed",
+		e2eSuitesOk: e2eSuites.outcome !== "failed",
 	});
 	const quarantineReport = formatQuarantineReport({ file: quarantine, newlyQuarantined });
 	if (quarantineReport && !options.json) {
@@ -1038,6 +1077,9 @@ export async function runDevNightlyCommand(options: {
 	if (uiJourneys.outcome !== "not_selected" && !options.json) {
 		process.stdout.write(`\nUI journeys: ${uiJourneys.outcome.toUpperCase()} — ${uiJourneys.reason}\n`);
 	}
+	if (e2eSuites.outcome !== "not_selected" && !options.json) {
+		process.stdout.write(`\nE2E suites (F2.30 d): ${e2eSuites.outcome.toUpperCase()} — ${e2eSuites.reason}\n`);
+	}
 	if (aiderDelta.outcome !== "not_selected" && !options.json) {
 		process.stdout.write(`\nAider delta lane (F11.3g): ${aiderDelta.outcome.toUpperCase()} — ${aiderDelta.reason}\n`);
 	}
@@ -1075,7 +1117,7 @@ export async function runDevNightlyCommand(options: {
 	}
 	if (options.json) {
 		process.stdout.write(
-			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, uiJourneys, aiderDelta, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
+			`${JSON.stringify({ ...summary, ok: overallOk, verdicts, failureReports, regressions, costRegressions, packVerdicts, crashRecoveryMatrix, uiJourneys, e2eSuites, aiderDelta, quarantine: { entries: quarantine.entries, newlyQuarantined: newlyQuarantined.map((entry) => entry.cellId) } }, null, 2)}\n`,
 		);
 	} else {
 		process.stdout.write(`\n${summary.summary}${overallOk ? "" : " Overall nightly verdict: FAILED."}\n`);
