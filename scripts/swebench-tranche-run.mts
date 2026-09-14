@@ -5,7 +5,7 @@
  *
  *   tsx scripts/swebench-tranche-run.mts --run-id <id> --model <modelId> --runtime-port 3507 --home <runtimeHome> \
  *       [--runtime-host 127.0.0.1] [--instances all|<id>,<id>] [--no-plan] [--max-wait-ms 2700000] \
- *       [--poll-interval-ms 5000] [--workspace-parent DIR] [--out DIR] [--runtime-launcher FILE]
+ *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--workspace-parent DIR] [--out DIR] [--runtime-launcher FILE]
  *
  * Hermetic: instances come from the sha256-pinned cache (`swebench-fetch.mts` is the only egress step; a missing
  * cache refuses and names it); the grade runs `python:3.9-slim` with the network namespace OFF from the prepared
@@ -47,6 +47,8 @@ interface Options {
 	startInPlanMode: boolean;
 	maxWaitMs: number;
 	pollIntervalMs: number;
+	/** Pause between instances (ms) — the m5max throttles under sustained load ("never benchmark hot"). */
+	cooldownMs: number;
 	workspaceParent: string;
 	out: string;
 	runtimeLauncher: string | null;
@@ -101,6 +103,7 @@ function parseArgs(argv: readonly string[]): Options {
 		startInPlanMode: !flags.has("no-plan"),
 		maxWaitMs: integer("max-wait-ms", 45 * 60_000),
 		pollIntervalMs: integer("poll-interval-ms", 5_000),
+		cooldownMs: values.has("cooldown-ms") ? integer("cooldown-ms", 0) : 0,
 		workspaceParent: resolve(values.get("workspace-parent") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId, "workspaces")),
 		out: resolve(values.get("out") ?? join(process.cwd(), ".real-runs", "swebench-tranche", runId)),
 		runtimeLauncher: values.get("runtime-launcher") ? resolve(values.get("runtime-launcher") as string) : null,
@@ -486,6 +489,7 @@ async function main(): Promise<void> {
 		agentSandboxImage: process.env.NKLEIN_AGENT_SANDBOX_IMAGE ?? "nklein/agent-sandbox:0.0.1 (default)",
 		graderImage: SWEBENCH_GRADER_IMAGE,
 		maxWaitMs: options.maxWaitMs,
+		cooldownMs: options.cooldownMs,
 		runtimeLauncher: launcher,
 		runnerEnv: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("NKLEIN_"))),
 	};
@@ -493,7 +497,13 @@ async function main(): Promise<void> {
 	await mkdir(options.workspaceParent, { recursive: true });
 	log(`run ${options.runId}: ${options.instances.length} instance(s), model ${options.model}, runtime ${runtimeOrigin}, nklein ${nkleinCommit.slice(0, 9)}, plan mode ${options.startInPlanMode ? "ON" : "OFF"}`);
 	const receipts: Record<string, unknown>[] = [];
-	for (const instanceId of options.instances) {
+	for (const [index, instanceId] of options.instances.entries()) {
+		if (index > 0 && options.cooldownMs > 0 && !existsSync(join(options.out, `${instanceId}.receipt.json`))) {
+			// Turn latency climbed 13 s → 96 s median across the first four instances of the 2026-09-14 tranche
+			// (thermal, sustained load) — a pause between instances keeps later cards from being measured hot.
+			log(`cooldown ${Math.round(options.cooldownMs / 1000)}s before ${instanceId}`);
+			await new Promise((resolveDelay) => setTimeout(resolveDelay, options.cooldownMs));
+		}
 		try {
 			receipts.push(await runInstance(options, instanceId, harness));
 		} catch (error) {
