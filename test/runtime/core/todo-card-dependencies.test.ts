@@ -30,6 +30,13 @@ describe("parseTodoCardDependencyDeclarations", () => {
 		).toEqual(["P1.A", "P1.B", "N8"]);
 		expect(parseTodoCardDependencyDeclarations("*(depends on: )*")).toEqual([]);
 	});
+
+	it("accepts only the backlog's item-id shapes — prose that shows the marker declares nothing", () => {
+		expect(parseTodoCardDependencyDeclarations("an entry declares `*(depends on: ID, ID)*`")).toEqual([]);
+		expect(parseTodoCardDependencyDeclarations("*(depends on: P0.POOLLOSS, P21.6b, F2.36, N8, §5.AB, foo)*")).toEqual(
+			["P0.POOLLOSS", "P21.6b", "F2.36", "N8", "§5.AB"],
+		);
+	});
 });
 
 describe("applyDeclaredTodoDependencies", () => {
@@ -62,11 +69,11 @@ describe("applyDeclaredTodoDependencies", () => {
 		expect(plan.refused).toEqual([{ dependent: "todo:P23.5", declared: "P25.3", reason: "would_create_cycle" }]);
 		// A longer loop through an edge that already exists on the board is refused the same way.
 		const viaExisting = applyDeclaredTodoDependencies({
-			board: board([{ id: "manual", fromTaskId: "todo:B", toTaskId: "todo:C", createdAt: 0 }]),
-			items: [item("A", "*(depends on: B)*"), item("B", ""), item("C", "*(depends on: A)*")],
+			board: board([{ id: "manual", fromTaskId: "todo:P1.B", toTaskId: "todo:P1.C", createdAt: 0 }]),
+			items: [item("P1.A", "*(depends on: P1.B)*"), item("P1.B", ""), item("P1.C", "*(depends on: P1.A)*")],
 			nowMs: 1,
 		});
-		expect(viaExisting.added).toEqual([{ dependent: "todo:A", prerequisite: "todo:B" }]);
+		expect(viaExisting.added).toEqual([{ dependent: "todo:P1.A", prerequisite: "todo:P1.B" }]);
 		expect(viaExisting.refused.map((refusal) => refusal.reason)).toEqual(["would_create_cycle"]);
 	});
 
@@ -88,22 +95,32 @@ describe("applyDeclaredTodoDependencies", () => {
 
 	it("keeps a still-declared edge, removes a withdrawn one, and never touches edges it did not create", () => {
 		const existing = board([
-			{ id: declaredTodoDependencyId("todo:A", "todo:B"), fromTaskId: "todo:A", toTaskId: "todo:B", createdAt: 5 },
-			{ id: declaredTodoDependencyId("todo:A", "todo:C"), fromTaskId: "todo:A", toTaskId: "todo:C", createdAt: 5 },
-			{ id: "self:todo:A->done:spine", fromTaskId: "todo:A", toTaskId: "done:spine", createdAt: 5 },
+			{
+				id: declaredTodoDependencyId("todo:P1.A", "todo:P1.B"),
+				fromTaskId: "todo:P1.A",
+				toTaskId: "todo:P1.B",
+				createdAt: 5,
+			},
+			{
+				id: declaredTodoDependencyId("todo:P1.A", "todo:P1.C"),
+				fromTaskId: "todo:P1.A",
+				toTaskId: "todo:P1.C",
+				createdAt: 5,
+			},
+			{ id: "self:todo:P1.A->done:spine", fromTaskId: "todo:P1.A", toTaskId: "done:spine", createdAt: 5 },
 		]);
 		const plan = applyDeclaredTodoDependencies({
 			board: existing,
-			items: [item("A", "*(depends on: B)*"), item("B", ""), item("C", "")],
+			items: [item("P1.A", "*(depends on: P1.B)*"), item("P1.B", ""), item("P1.C", "")],
 			nowMs: 9,
 		});
-		expect(plan.kept).toEqual([{ dependent: "todo:A", prerequisite: "todo:B" }]);
-		expect(plan.removed).toEqual([{ dependent: "todo:A", prerequisite: "todo:C" }]);
+		expect(plan.kept).toEqual([{ dependent: "todo:P1.A", prerequisite: "todo:P1.B" }]);
+		expect(plan.removed).toEqual([{ dependent: "todo:P1.A", prerequisite: "todo:P1.C" }]);
 		expect(plan.added).toEqual([]);
 		expect(plan.board.dependencies.map((edge) => edge.id)).toEqual([
-			declaredTodoDependencyId("todo:A", "todo:B"),
-			"self:todo:A->done:spine",
+			declaredTodoDependencyId("todo:P1.A", "todo:P1.B"),
+			"self:todo:P1.A->done:spine",
 		]);
-		expect([...plan.dependentsWithEdges]).toEqual(["todo:A"]);
+		expect([...plan.dependentsWithEdges]).toEqual(["todo:P1.A"]);
 	});
 });

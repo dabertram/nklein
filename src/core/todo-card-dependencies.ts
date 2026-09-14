@@ -20,7 +20,12 @@ import type { RuntimeBoardData, RuntimeBoardDependency } from "./board-api-contr
 import { wouldCreateDependencyCycle } from "./task-board-mutations";
 
 const DECLARATION = /\(depends on:\s*([^)]+)\)/giu;
-const ITEM_ID = /^[A-Za-z0-9§.-]+$/u;
+/**
+ * The backlog's item-id shapes (`P0.POOLLOSS`, `P21.6b`, `F2.36`, `N8`, `§5.AB`) — the same alternatives the
+ * self-board sync's `ITEM_ID_PATTERN` scans commit subjects with. Anchored here so prose that merely SHOWS the
+ * marker (`*(depends on: ID, ID)*` in a shipped note) does not become a declaration of an item called "ID".
+ */
+const ITEM_ID = /^(?:P\d+\.[A-Z0-9-]+[a-z]?|F\d+\.\d+[a-z]?|N\d+|§\d+\.[A-Z]+)$/u;
 export const DECLARED_TODO_DEPENDENCY_ID_PREFIX = "self-declared:";
 
 /** Every item id named by an explicit `*(depends on: …)*` declaration, in order, deduplicated. */

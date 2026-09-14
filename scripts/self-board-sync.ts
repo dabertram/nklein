@@ -17,6 +17,7 @@
  */
 import type { RuntimeTaskTestability } from "../src/core/board-api-contract";
 import { applyDeclaredTodoDependencies } from "../src/core/todo-card-dependencies";
+import { selfBoardCardStartDefaults } from "../src/core/self-board-card-defaults";
 import { deriveTodoCardTestability } from "../src/core/todo-card-testability";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -174,6 +175,9 @@ function upsertCard(
 	now: number,
 ): RuntimeBoardData {
 	const existing = findCard(board, input.id);
+	// F2.36 (d): a todo card starts in PLAN mode (a backlog entry is a work package the architect splits first);
+	// a done package never starts. Re-derived on every sync like testability, so the existing backlog is shaped too.
+	const startDefaults = selfBoardCardStartDefaults(input.columnId === "planning" ? "todo" : "done");
 	if (!existing) {
 		const created = addTaskToColumn(
 			board,
@@ -182,12 +186,8 @@ function upsertCard(
 				taskId: input.id,
 				title: input.title,
 				prompt: input.prompt,
-				startInPlanMode: false,
-				autoReviewEnabled: true,
-				autoReviewMode: "commit",
-				agentId: "nklein",
+				...startDefaults,
 				baseRef: input.baseRef,
-				trustedOrigin: "plan",
 				...(input.testability ? { testability: input.testability } : {}),
 				...(input.reason ? { testabilityReason: input.reason } : {}),
 			} as never,
@@ -213,7 +213,8 @@ function upsertCard(
 					card.title === input.title &&
 					card.prompt === input.prompt &&
 					(card.testability ?? "testable") === nextTestability &&
-					(card.testabilityReason ?? "") === nextReason;
+					(card.testabilityReason ?? "") === nextReason &&
+					(card.startInPlanMode ?? false) === startDefaults.startInPlanMode;
 				if (unchanged) {
 					return card;
 				}
@@ -223,6 +224,7 @@ function upsertCard(
 					prompt: input.prompt,
 					testability: nextTestability,
 					testabilityReason: nextReason,
+					startInPlanMode: startDefaults.startInPlanMode,
 					updatedAt: now,
 				};
 			}),

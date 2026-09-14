@@ -2747,7 +2747,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   references produces a cycle on the very first pass. A wrong edge BLOCKS work, which is worse than the
   current state where everything hangs off the spine. If this is built, it must be an explicit declaration in
   the entry — the shape (c) settled on — plus a cycle guard that refuses the edge and says so)*
-  **SHIPPED 2026-09-14 (`a76cfe2e4`) exactly in that shape:** an entry declares `*(depends on: ID, ID)*`;
+  **SHIPPED 2026-09-14 (`a76cfe2e4`) exactly in that shape:** an entry declares `*(depends on: <ID>, <ID>)*`;
   `core/todo-card-dependencies` resolves the ids to `todo:` cards and applies each through
   `wouldCreateDependencyCycle` seeing the edges accepted so far (A→B then B→A refuses the second and SAYS so in
   the sync log), refuses unknown ids and self-references, reports a shipped prerequisite as satisfied (no edge),
@@ -2762,7 +2762,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   costs one conversation. NOTE: card `difficulty` is NOT part of this — no such field exists on the board
   contract; numeric difficulty is F3.41's job)*; (d) a "work this card with !Klein" affordance that
   turns a todo card into a real worker run on this repo (dev-only, confirmation-gated — the existing
-  self-improvement project flow).
+  self-improvement project flow) *(SHIPPED 2026-09-14: the affordance IS the ordinary Start on a `todo:` card of
+  the repo's own board — that board exists only once the dev checkout was added as a project through the
+  self-improvement flow, which is dev-only (`NODE_ENV=development`) and confirmation-gated
+  (`confirmSelfProject`), so the gate sits at the project, not on every card; the dev checkout is registered in
+  `~/.nklein/nklein/workspaces/index.json` and the runtime reads the same repo-local `.nklein/nklein/workspace`
+  board the sync writes. What the sync now controls is the START SHAPE: `core/self-board-card-defaults` — a
+  todo card starts in PLAN mode (a backlog entry is a work package the architect splits into child cards on
+  the self board before any worker touches the checkout; the 2,400-char entry never lands on one worker), a
+  done package never starts; re-derived on every sync, so all 19 open cards carry it)*. **REMAINING: (a) only.**
 
 - [x] **P0.NOHUMAN — parks resolve themselves (David 2026-09-06: "why need me .. just make it brilliant").**
   SHIPPED 2026-09-06: (1) a completed `plan-gate-repair-<slug>` card re-runs the plan integration gate and, on
