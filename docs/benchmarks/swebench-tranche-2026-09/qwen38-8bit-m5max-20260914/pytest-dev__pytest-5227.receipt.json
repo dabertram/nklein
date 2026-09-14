@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-qwen38-8bit-m5max-20260914-pytest-dev__pytest-5227",
+  "instanceId": "pytest-dev__pytest-5227",
+  "repo": "pytest-dev/pytest",
+  "baseCommit": "2051e30b9b596e944524ccb787ed20f9f5be93e3",
+  "tarballSha256": "9852d5b7c4e2929368ada73c6bf27e707bc31c99fcefab71c6caa573d04cddef",
+  "harness": {
+    "nkleinCommit": "bbac2c004293e9d93484ed050dbcc4cc40567c83",
+    "runtimeOrigin": "http://127.0.0.1:3507",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench tranche benchmark 2026-09-14 — !Klein (worktree snapshot at 83c39fe71) driving qwen/qwen3.8-27b\n# (MLX 8-bit, 29.5 GB, ctx 262144) on the m5max. Own HOME + port, roles pinned in config.json, NO observe-first\n# experiment flags: this measures !Klein as shipped. Infrastructure env only.\nD=/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914\ncd $D/src || exit 1\nexport HOME=$D/home\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.8-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.8-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3507 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3507"
+    }
+  },
+  "model": {
+    "identifier": "qwen/qwen3.8-27b",
+    "modelKey": "qwen/qwen3.8-27b",
+    "status": "generating",
+    "contextLength": 262144,
+    "sizeBytes": 29528374513,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-14T14:46:28.763Z",
+  "finishedAt": "2026-09-14T16:01:05.045Z",
+  "durationMs": 4476282,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen/qwen3.8-27b": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 578,
+    "baseCommit": "8d6ee35a8d3303150af145f3066c67190d7bf3de",
+    "resultCommit": "3aecbd75e39b17cd687d886af6b8c9e13bf0cf37",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-qwen38-8bit-m5max-20260914-pytest-dev__pytest-5227-891a305613"
+  },
+  "changedFiles": [
+    ".nklein-venv/lib64",
+    ".nklein-venv/pyvenv.cfg"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      ".nklein-venv/lib64",
+      ".nklein-venv/pyvenv.cfg"
+    ]
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "testing/logging/test_reporting.py::test_log_cli_enabled_disabled[True]",
+      "testing/logging/test_reporting.py::test_log_cli_default_level",
+      "testing/logging/test_reporting.py::test_sections_single_new_line_after_test_outcome"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 3 fail-to-pass still failing (3 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "::test_log_cli_ini_level\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-file-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-cli-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_file_cli\nPASSED testing/logging/test_reporting.py::test_log_file_cli_level\nPASSED testing/logging/test_reporting.py::test_log_level_not_changed_by_default\nPASSED testing/logging/test_reporting.py::test_log_file_ini\nPASSED testing/logging/test_reporting.py::test_log_file_ini_level\nPASSED testing/logging/test_reporting.py::test_log_file_unicode\nPASSED testing/logging/test_reporting.py::test_collection_live_logging\nPASSED testing/logging/test_reporting.py::test_collection_logging_to_file\nPASSED testing/logging/test_reporting.py::test_log_in_hooks\nPASSED testing/logging/test_reporting.py::test_log_in_runtest_logreport\nPASSED testing/logging/test_reporting.py::test_log_set_path\n========================== 31 passed in 0.55 seconds ===========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": "3aecbd75e39b17cd687d886af6b8c9e13bf0cf37",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/workspaces/swebench-qwen38-8bit-m5max-20260914-pytest-dev__pytest-5227"
+}

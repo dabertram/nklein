@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-qwen38-8bit-m5max-20260914",
+  "model": "qwen/qwen3.8-27b",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runtimeOrigin": "http://127.0.0.1:3507",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 2700000,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench tranche benchmark 2026-09-14 — !Klein (worktree snapshot at 83c39fe71) driving qwen/qwen3.8-27b\n# (MLX 8-bit, 29.5 GB, ctx 262144) on the m5max. Own HOME + port, roles pinned in config.json, NO observe-first\n# experiment flags: this measures !Klein as shipped. Infrastructure env only.\nD=/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914\ncd $D/src || exit 1\nexport HOME=$D/home\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.8-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.8-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3507 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3507"
+    }
+  },
+  "instances": [
+    {
+      "instanceId": "pallets__flask-5014",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 582516,
+      "reason": "unresolved: 1 fail-to-pass still failing"
+    }
+  ],
+  "attempted": 1,
+  "resolved": 0,
+  "excluded": 0,
+  "resolvedRate": 0,
+  "finishedAt": "2026-09-14T12:37:50.305Z"
+}

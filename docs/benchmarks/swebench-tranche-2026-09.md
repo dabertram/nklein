@@ -57,9 +57,12 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 | psf__requests-1921 | yes | 45 (cap) | stagnant | 1-line `sessions.py` fix delivered at stop; 6/6 F2P, 105 P2P |
 | psf__requests-2317 | no | 31 | blocked_by_review_cards (delivered) | right files (`models.py`, `sessions.py`), 1 F2P still failing |
 | psf__requests-5414 | no | 45 (cap) | stagnant | no delivery — 18 turns, ~96 s median turn latency (shared seat) |
-| pytest-dev__pytest-5227 | … | | | restarted under the 120-min cap |
+| pytest-dev__pytest-5227 | no | 75 | blocked_by_review_cards (delivered) | 578-byte patch delivered; 3 F2P still failing (log-cli level defaults) |
 
-Running tally: **2 / 4 resolved**. Remaining: pytest-5227, pytest-6202, pytest-7521, pylint-4970, pylint-6903, pylint-7993.
+Running tally: **2 / 5 resolved**. Remaining: pytest-6202, pytest-7521, pylint-4970, pylint-6903, pylint-7993.
+**SUSPENDED 2026-09-14 17:50** on David's instruction ("suspend our use of qwen3.8 27b on m5max until i give a go
+again") — the model is his dschinn run's seat. Runner, runtime and the campaign orchestrator stopped; instance 6
+(pytest-6202) had just started and was discarded. Resumes on his go (the runner skips graded instances).
 
 ## Findings → improvements (treated as found)
 

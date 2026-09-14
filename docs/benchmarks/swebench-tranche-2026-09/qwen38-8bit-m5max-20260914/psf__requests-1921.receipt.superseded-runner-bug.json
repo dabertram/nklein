@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-qwen38-8bit-m5max-20260914-psf__requests-1921",
+  "instanceId": "psf__requests-1921",
+  "repo": "psf/requests",
+  "baseCommit": "3c88e520da24ae6f736929a750876e7654accc3d",
+  "tarballSha256": "0f6375a24b3322b74234f1a6c12d7759c304e9c4c4739ad059d30072deda8269",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runtimeOrigin": "http://127.0.0.1:3507",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 2700000,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench tranche benchmark 2026-09-14 — !Klein (worktree snapshot at 83c39fe71) driving qwen/qwen3.8-27b\n# (MLX 8-bit, 29.5 GB, ctx 262144) on the m5max. Own HOME + port, roles pinned in config.json, NO observe-first\n# experiment flags: this measures !Klein as shipped. Infrastructure env only.\nD=/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914\ncd $D/src || exit 1\nexport HOME=$D/home\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.8-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.8-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3507 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3507"
+    }
+  },
+  "model": {
+    "identifier": "qwen/qwen3.8-27b",
+    "modelKey": "qwen/qwen3.8-27b",
+    "status": "idle",
+    "contextLength": 262144,
+    "sizeBytes": 29528374513,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-14T12:41:54.856Z",
+  "finishedAt": "2026-09-14T13:27:13.195Z",
+  "durationMs": 2718339,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "stagnant",
+  "workflowSummary": "Stagnant: 1 card(s) remain, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen/qwen3.8-27b": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 0,
+    "baseCommit": "95f3b30e9c22429279e0437ea07a72292df4f6ce",
+    "resultCommit": "95f3b30e9c22429279e0437ea07a72292df4f6ce",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-qwen38-8bit-m5max-20260914-psf__requests-1921-7042ef14fb"
+  },
+  "changedFiles": [],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": []
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [
+      "test_requests.py::RequestsTestCase::test_DIGESTAUTH_WRONG_HTTP_401_GET",
+      "test_requests.py::RequestsTestCase::test_POSTBIN_GET_POST_FILES",
+      "test_requests.py::RequestsTestCase::test_basicauth_with_netrc",
+      "test_requests.py::RequestsTestCase::test_cookie_persists_via_api",
+      "test_requests.py::RequestsTestCase::test_uppercase_scheme_redirect"
+    ],
+    "failToPassFailed": [
+      "test_requests.py::RequestsTestCase::test_headers_on_session_with_None_are_not_sent"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing (2 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "ED test_requests.py::TestCaseInsensitiveDict::test_update\nPASSED test_requests.py::TestCaseInsensitiveDict::test_update_retains_unchanged\nPASSED test_requests.py::UtilsTestCase::test_address_in_network\nPASSED test_requests.py::UtilsTestCase::test_dotted_netmask\nPASSED test_requests.py::UtilsTestCase::test_get_auth_from_url\nPASSED test_requests.py::UtilsTestCase::test_get_environ_proxies\nPASSED test_requests.py::UtilsTestCase::test_get_environ_proxies_ip_ranges\nPASSED test_requests.py::UtilsTestCase::test_is_ipv4_address\nPASSED test_requests.py::UtilsTestCase::test_is_valid_cidr\nPASSED test_requests.py::UtilsTestCase::test_super_len_io_streams\nPASSED test_requests.py::TestMorselToCookieExpires::test_expires_invalid_int\nPASSED test_requests.py::TestMorselToCookieExpires::test_expires_invalid_str\nPASSED test_requests.py::TestMorselToCookieExpires::test_expires_none\nPASSED test_requests.py::TestMorselToCookieExpires::test_expires_valid_str\nPASSED test_requests.py::TestMorselToCookieMaxAge::test_max_age_invalid_str\nPASSED test_requests.py::TestMorselToCookieMaxAge::test_max_age_valid_int\n======================= 105 passed, 3 warnings in 0.22s ========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": null,
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/workspaces/swebench-qwen38-8bit-m5max-20260914-psf__requests-1921"
+}
