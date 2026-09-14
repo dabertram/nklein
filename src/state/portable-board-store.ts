@@ -8,7 +8,9 @@ import type { RuntimeBoardCard, RuntimeBoardData } from "../core/api-contract";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import {
 	boardToPortableBoardCrdt,
+	dependencyKey,
 	markCardDeleted,
+	markDependencyRemoved,
 	mergePortableBoardCrdt,
 	migratePortableBoardCrdt,
 	type PortableBoardCrdt,
@@ -126,6 +128,25 @@ export async function exportLocalBoardToPortableCrdt(input: {
 		for (const cardId of Object.keys(committed.cards)) {
 			if (!localCardIds.has(cardId) && !merged.cards[cardId]?.deleted.value) {
 				merged = markCardDeleted(merged, cardId, input.replicaId, Date.now());
+			}
+		}
+		// The same for EDGES (found 2026-09-14): an edge in the committed CRDT that the authoritative local board
+		// no longer carries — neither live nor retired as satisfied — was removed; tombstone it, or the next import
+		// resurrects the unlink. The satisfied set is grow-only and keeps its own record, so it is left alone.
+		const localEdgeKeys = new Set([
+			...Object.keys(local.dependencies),
+			...Object.keys(local.satisfiedDependencies ?? {}),
+		]);
+		for (const dependency of Object.values(committed.dependencies)) {
+			const key = dependencyKey(dependency.fromTaskId, dependency.toTaskId);
+			if (!localEdgeKeys.has(key) && merged.dependencies[key]?.present.value) {
+				merged = markDependencyRemoved(
+					merged,
+					dependency.fromTaskId,
+					dependency.toTaskId,
+					input.replicaId,
+					Date.now(),
+				);
 			}
 		}
 	}

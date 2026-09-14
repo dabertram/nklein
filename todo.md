@@ -2475,7 +2475,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   Two siblings fell out: the flag-coverage ratchet was blind to INJECTED-env reads (`input.env ?? process.env`)
   and, once widened, immediately surfaced an undeclared flag (`NKLEIN_LLMFIT_PRIOR`, now declared + excluded
   from the hermetic nightly lane).
-- [~] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
+- [x] **P0.POOLLOSS — A crashed pool model disappears silently; the operator learns by asking.** *(Live
   2026-09-03: dirk@iq4_xs crashed at 03:41 — one 500 then 400s — and the unpinned worker pool routed around it
   for 17h with no observation, no board banner; David noticed the idle m4 himself. The fleet-change resharder
   handles LOADED-set changes for running work but nothing SURFACES "a role-pool model vanished (last seen
@@ -2494,8 +2494,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   recovery): classifier now 1-token-probes a LISTED model (only a token-less TIMEOUT marks dead — a fast
   non-ok answer stays unclassified), start-path guard candidates filter through the ledger (exclusion
   observation), parked-card model-unavailable recovery clears the mark when the model serves again.**
-  REMAINING: the proactive fleet sweep + board banner + crash signature line (loss should surface without
-  waiting for a victim session to wedge).
+  **▶ 2026-09-14 CLOSED — the proactive sweep (`eb4a4a70c` + `901c2ef19`).** `core/fleet-pool-presence` (pure):
+  every minute the runtime diffs the GLOBAL role pools (primary + `additionalModels`, local providers only)
+  against each endpoint's loaded descriptors; two consecutive misses declare a loss, the first listing that has
+  it back declares recovery; an empty/failed probe is uncertainty, never a loss; un-configured members drop
+  silently. Loss → `markModelDead(absent_from_listing)` (routing excludes it at once) + warning
+  `model_pool_loss` (`reason: fleet_sweep`, roles, last seen, crash signature) + `deps.warn`; recovery →
+  mark cleared + `model_pool_recovered`. Crash signature: `core/model-wire-error-ledger`, fed by the F2.30(e)
+  wire tap (the model's last wire error, or "none recorded" — never invented). Board notice:
+  `runtime.getFleetPoolHealth` + web-ui `FleetPoolLossNotice` (beside the conflict notice) naming the model,
+  pool, when it went, its last error and what to do (reload in LM Studio — the runtime never loads). Kill
+  switch `NKLEIN_FLEET_POOL_SWEEP=0`. `model_pool_loss` promoted from the unregistered-emitter debt list to a
+  registered mechanism. **Found by the read-only live probe before the first commit was even done:**
+  `resolveLaunchConfig` REFUSES a live-only model that is not loaded (the residency gate) — the sweep's first
+  cut enumerated through it and saw zero members, i.e. skipped exactly the vanished ones; fixed with the
+  residency-free `resolveNKleinConfiguredModelEndpoint` (settings lookup only). Probe on m5max after the fix:
+  architect `qwopus3.5-9b-coder-mtp` and worker/reviewer `qwen/qwen2.5-coder-14b` are configured on
+  localhost:1234 whose loaded set is `qwen/qwen3.8-27b` + `dirk-qwen3.8-27b@m4mini` → two losses would be
+  declared, which is the truth of that config. Listing-based only by design: no 1-token probes (an agent-backed
+  seat answers in minutes; the HITL seat was falsely marked dead 14× by such probes) — "listed but dead" stays
+  the wedge classifier's served-token doctrine.
 
 - [x] **P1.WEBTESTGATE — the entire web-ui suite ran on nobody's machine.** *(2026-09-08: `web:typecheck` was in
   the pre-commit gate and `web:test` was not, so 1236 tests were ungated. THREE had been red since the behaviour
@@ -12371,6 +12389,7 @@ everywhere (LocalLlmClient's fail-closed cloud guard, the egress broker, the tru
   scan is text-level and can miss those).
 - [ ] **P15.5 — Settings-surface reduction driven by P15.3.** Every mechanism that gets a justified default is a
   setting that does NOT need to exist. Target: the pro/settings surface shrinks as proof accumulates.
+  *(depends on: P15.3)*
   **Unblock check 2026-08-11: correctly still waiting.** No mechanism has a justified default yet — the tool
   gate's verdict is corpus-dependent (do_not_enforce on normal traffic 2026-08-08; enforce-worth-trial on the
   adversarial drain corpus 2026-08-11 — a flip needs the paired A/B, not either rate), and the remedy/trust

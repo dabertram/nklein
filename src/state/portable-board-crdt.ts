@@ -147,7 +147,7 @@ function pickRegister<T>(a: CrdtRegister<T>, b: CrdtRegister<T>): CrdtRegister<T
 	return compareStamp(a.stamp, b.stamp) >= 0 ? a : b;
 }
 
-function dependencyKey(fromTaskId: string, toTaskId: string): string {
+export function dependencyKey(fromTaskId: string, toTaskId: string): string {
 	return `${fromTaskId}->${toTaskId}`;
 }
 
@@ -238,6 +238,48 @@ export function markCardDeleted(
 		cards: {
 			...crdt.cards,
 			[cardId]: { ...card, deleted: { value: true, stamp: { counter, replicaId } } },
+		},
+	};
+}
+
+/**
+ * Marks a dependency edge REMOVED with a stamp that dominates every stamp currently observed in the CRDT — the
+ * edge counterpart of {@link markCardDeleted}, and for the same reason.
+ *
+ * Found 2026-09-14 (F2.36 (b)): the export tombstoned a card that vanished from the local board but not an EDGE
+ * that vanished, so an edge deleted locally (an unlink, a trash clear, the self-board swapping a card from the
+ * spine onto its declared prerequisite) kept `present: true` in the committed CRDT forever and came back on the
+ * next import. Removal is a fact of this replica's board exactly as deletion is; it needs the same tombstone.
+ */
+export function markDependencyRemoved(
+	crdt: PortableBoardCrdt,
+	fromTaskId: string,
+	toTaskId: string,
+	replicaId: string,
+	/** Wall-clock ms of the removal (the caller's clock — this module stays pure). */
+	removedAtMs: number,
+): PortableBoardCrdt {
+	const key = dependencyKey(fromTaskId, toTaskId);
+	const dependency = crdt.dependencies[key];
+	if (!dependency || !dependency.present.value) {
+		return crdt;
+	}
+	let maxCounter = dependency.present.stamp.counter;
+	for (const other of Object.values(crdt.dependencies)) {
+		maxCounter = Math.max(maxCounter, other.present.stamp.counter);
+	}
+	for (const card of Object.values(crdt.cards)) {
+		maxCounter = Math.max(maxCounter, card.deleted.stamp.counter);
+		for (const register of Object.values(card.fields)) {
+			maxCounter = Math.max(maxCounter, register.stamp.counter);
+		}
+	}
+	const counter = Math.max(Number.isFinite(removedAtMs) ? removedAtMs : 0, maxCounter + 1);
+	return {
+		...crdt,
+		dependencies: {
+			...crdt.dependencies,
+			[key]: { ...dependency, present: { value: false, stamp: { counter, replicaId } } },
 		},
 	};
 }

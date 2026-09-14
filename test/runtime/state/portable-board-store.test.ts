@@ -74,6 +74,44 @@ describe("portable board store", () => {
 		expect(inProgress?.cards[0]?.prompt).toBe("new");
 	});
 
+	it("tombstones an EDGE the local board no longer carries, so an unlink survives the round trip (found 2026-09-14)", async () => {
+		const linked: RuntimeBoardData = {
+			...board([
+				{ columnId: "planning", card: card("a") },
+				{ columnId: "planning", card: card("b") },
+			]),
+			dependencies: [{ id: "a->b", fromTaskId: "a", toTaskId: "b", createdAt: 5 }],
+		};
+		await exportLocalBoardToPortableCrdt({ repoPath, board: linked, replicaId: "m1" });
+		const unlinked = await exportLocalBoardToPortableCrdt({
+			repoPath,
+			board: { ...linked, dependencies: [] },
+			replicaId: "m1",
+		});
+		expect(unlinked.crdt.dependencies["a->b"]?.present.value).toBe(false);
+		expect(unlinked.board.dependencies).toEqual([]);
+		const imported = await importPortableBoard({ repoPath, replicaId: "m2" });
+		expect(imported?.board.dependencies).toEqual([]);
+		// The tombstone dominates the edge's own stamp: a re-export of the OLD linked board (an older replica view)
+		// does not resurrect it.
+		const stale = await exportLocalBoardToPortableCrdt({ repoPath, board: linked, replicaId: "m3" });
+		expect(stale.board.dependencies).toEqual([]);
+	});
+
+	it("does not tombstone edges from an EMPTY local board (a not-yet-imported machine is not an authority)", async () => {
+		const linked: RuntimeBoardData = {
+			...board([
+				{ columnId: "planning", card: card("a") },
+				{ columnId: "planning", card: card("b") },
+			]),
+			dependencies: [{ id: "a->b", fromTaskId: "a", toTaskId: "b", createdAt: 5 }],
+		};
+		await exportLocalBoardToPortableCrdt({ repoPath, board: linked, replicaId: "m1" });
+		const fresh = await exportLocalBoardToPortableCrdt({ repoPath, board: board([]), replicaId: "m2" });
+		expect(fresh.crdt.dependencies["a->b"]?.present.value).toBe(true);
+		expect(fresh.board.dependencies.map((edge) => edge.id)).toEqual(["a->b"]);
+	});
+
 	it("strips machine-local nkleinSettings on import for local re-resolution", () => {
 		const withSettings = board([
 			{

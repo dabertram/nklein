@@ -16,6 +16,7 @@
  * Titles are never truncated (David 2026-09-05).
  */
 import type { RuntimeTaskTestability } from "../src/core/board-api-contract";
+import { applyDeclaredTodoDependencies } from "../src/core/todo-card-dependencies";
 import { deriveTodoCardTestability } from "../src/core/todo-card-testability";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -46,6 +47,8 @@ interface OpenItem {
 	itemId: string;
 	title: string;
 	prompt: string;
+	/** The entry's full, unclamped text — a `*(depends on: …)*` declaration may sit past the prompt budget. */
+	text: string;
 }
 
 function slug(text: string): string {
@@ -97,6 +100,7 @@ function parseOpen(markdown: string): OpenItem[] {
 			itemId: current.itemId,
 			title: `${current.itemId} — ${current.title}`,
 			prompt: `Open backlog item ${current.itemId} (todo.md §5).\n\n${clampPrompt(current.lines.join("\n").trim())}`,
+			text: current.lines.join("\n"),
 		});
 		current = null;
 	};
@@ -247,7 +251,8 @@ function ensureDependency(board: RuntimeBoardData, dependent: string, prerequisi
 async function main(): Promise<void> {
 	const now = Date.now();
 	const baseRef = currentBranch();
-	const done = parseDone(readFileSync(resolve(repoPath, "done.md"), "utf8"));
+	const doneMarkdown = readFileSync(resolve(repoPath, "done.md"), "utf8");
+	const done = parseDone(doneMarkdown);
 	const open = parseOpen(readFileSync(resolve(repoPath, "todo.md"), "utf8"));
 	const commits = gitLog();
 	const commitsByItem = new Map<string, { sha: string; subject: string }[]>();
@@ -293,7 +298,42 @@ async function main(): Promise<void> {
 				{ id: item.id, title: item.title, prompt, columnId: "planning", baseRef, ...testability },
 				now,
 			);
-			if (spineHead) {
+		}
+		// F2.36 (b): dependencies BETWEEN open items come only from an explicit `*(depends on: ID, ID)*` in the
+		// entry — a mention is not a dependency (P25.3 and P23.5 cite each other; edges inferred from references
+		// cycle on the first pass, and a wrong edge BLOCKS work). Every declaration passes the board's cycle guard;
+		// a refused, unknown or already-shipped one is SAID here, never silently dropped. A card with a declared
+		// prerequisite hangs off it instead of the spine head; everything else keeps hanging off the spine.
+		const declared = applyDeclaredTodoDependencies({
+			board,
+			items: open.map((item) => ({ cardId: item.id, itemId: item.itemId, text: item.text })),
+			isShipped: (itemId) =>
+				new RegExp(`\\*\\*${itemId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\b`, "u").test(doneMarkdown),
+			nowMs: now,
+		});
+		board = declared.board;
+		for (const edge of declared.added) {
+			log(`self-board: declared dependency ${edge.dependent} -> ${edge.prerequisite}`);
+		}
+		for (const edge of declared.removed) {
+			log(`self-board: declaration withdrawn, edge removed ${edge.dependent} -> ${edge.prerequisite}`);
+		}
+		for (const refusal of declared.refused) {
+			log(`self-board: REFUSED declared dependency ${refusal.dependent} -> ${refusal.declared} (${refusal.reason})`);
+		}
+		for (const done of declared.satisfied) {
+			log(`self-board: ${done.dependent} depends on ${done.declared}, which shipped — satisfied, no edge`);
+		}
+		for (const item of open) {
+			if (!spineHead) {
+				continue;
+			}
+			if (declared.dependentsWithEdges.has(item.id)) {
+				board = {
+					...board,
+					dependencies: board.dependencies.filter((edge) => edge.id !== `self:${item.id}->${spineHead}`),
+				};
+			} else {
 				board = ensureDependency(board, item.id, spineHead, now);
 			}
 		}
