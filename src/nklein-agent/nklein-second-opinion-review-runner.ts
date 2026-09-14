@@ -2,6 +2,7 @@ import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { fetchLoadedModelDescriptors, pickReviewFallbackDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { resolveDefaultLocalModelBaseUrl } from "../core/local-model-endpoint";
 import { isReasoningModel } from "../core/model-thinking-control";
+import { resolveReviewTimeBudgetMs } from "../core/review-time-budget";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
@@ -113,6 +114,13 @@ export interface SecondOpinionReviewRunnerDeps {
 	stopRuntimeSession(taskId: string): Promise<unknown>;
 	defaultTimeoutMs: number;
 	maxNudges: number;
+	/**
+	 * P1.REVIEWBUDGET: observed wall-clock turn latencies (ms) from the fleet's speed evidence, used to LENGTHEN a
+	 * starved review budget — see `resolveReviewTimeBudgetMs`. Absent ⇒ the configured budget is used unchanged.
+	 */
+	getObservedTurnLatenciesMs?: () =>
+		| Promise<readonly (number | null | undefined)[]>
+		| readonly (number | null | undefined)[];
 }
 
 export interface SecondOpinionReviewRunner {
@@ -391,6 +399,24 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			workspaceRoot: input.projectRepoPath,
 			...(reasoningSafeMaxTokensPerTurn !== null ? { maxTokensPerTurn: reasoningSafeMaxTokensPerTurn } : {}),
 		};
+		// P1.REVIEWBUDGET: an EXPLICIT per-session budget (the custodian's, say) is honoured as given; otherwise the
+		// configured default is LENGTHENED when the fleet's observed turn latency says four minutes of exploration
+		// cannot hold three or four turns. It can only lengthen — see `resolveReviewTimeBudgetMs` for why that
+		// asymmetry is the safe one.
+		const derivedBudget = input.timeoutMs
+			? null
+			: resolveReviewTimeBudgetMs({
+					observedTurnMs: (await deps.getObservedTurnLatenciesMs?.()) ?? [],
+					reserveMs: REVIEW_VERDICT_RESERVE_MS,
+					floorMs: deps.defaultTimeoutMs,
+					configuredMs:
+						Number(process.env.NKLEIN_REVIEW_TIMEOUT_MS ?? "") > 0
+							? Number(process.env.NKLEIN_REVIEW_TIMEOUT_MS)
+							: null,
+				});
+		if (derivedBudget?.derived) {
+			stamp(`session: review budget ${Math.round(derivedBudget.budgetMs / 60_000)} min — ${derivedBudget.reason}`);
+		}
 		const reviewTaskId = `${input.taskId}::review`;
 		const mergeTurnOutcome = (current: SecondaryTurnOutcome, next: SecondaryTurnOutcome): SecondaryTurnOutcome => {
 			if (current === "timeout" || next === "timeout") {
@@ -408,7 +434,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 				projectRepoPath: input.projectRepoPath,
 				baseRef: input.baseRef,
 				timeoutMs: input.timeoutMs,
-				defaultTimeoutMs: deps.defaultTimeoutMs,
+				defaultTimeoutMs: derivedBudget?.budgetMs ?? deps.defaultTimeoutMs,
 				errorLabel: "Second-opinion reviewer session",
 			},
 			async ({ workspace, runBoundedTurn, deadline }) => {

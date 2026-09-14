@@ -181,7 +181,11 @@ import {
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
 import { createModelFailoverController, type ModelFailoverCandidate } from "./nklein-model-failover-controller";
-import { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry";
+import {
+	buildNKleinModelRegistryKey,
+	buildSharedLocalEndpointId,
+	getDefaultNKleinModelRegistry,
+} from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
@@ -507,6 +511,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		stopRuntimeSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId, { suppressTaskEvents: true }),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+		// P1.REVIEWBUDGET: the fleet's own speed evidence. The registry records a wall-time EWMA per model from
+		// real turns, which is exactly what "can this seat finish three turns inside the budget?" needs. Read
+		// best-effort — no snapshot (fresh install, unreadable file) simply leaves the configured budget alone.
+		getObservedTurnLatenciesMs: async () => {
+			try {
+				const snapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot());
+				return Object.values(snapshot.models ?? {}).flatMap((entry) => [
+					entry.speed?.wallTimeMsEwma,
+					entry.speed?.lastWallTimeMs,
+				]);
+			} catch {
+				return [];
+			}
+		},
 	});
 	/** §5.U auxiliary secondary-session runner: the W4.3 pre-application plan-critique session. */
 	private readonly planCritiqueRunner = createPlanCritiqueRunner({

@@ -3449,7 +3449,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `mainCustodianTaskId({workspacePath, headCommit})` gives every sweep its own id: distinct workspaces cannot
   collide, and a NEW sweep can never resume a settled one. Together with the terminal-lane retirement fix
   (`b5d6d3bd4`, confirmed firing 2026-09-11 06:07:11 on completed dev-52) both halves of this item are closed.
-- [ ] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
+- [x] **P1.REVIEWBUDGET — derive the reviewer's time budget from observed turn latency instead of a constant.**
   *(Opened 2026-09-09 from a confirmed rig failure; the stop-gap knob shipped as `1f3183c7c`.)* The budget is a
   flat `DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 min` with a separately-configurable verdict RESERVE carved
   out of it. The drain sets the reserve to 6 minutes, leaving FOUR minutes of exploration — and a reviewer needs
@@ -3462,6 +3462,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   The fleet already records per-model turn timings, which is exactly the evidence this should read: budget =
   (expected turns × observed p90 turn latency for this reviewer model) + reserve, with a floor and a ceiling.
   Composes with P21.6b, which derives a review SIZE ceiling from the same fitness evidence.
+  **▶ SHIPPED 2026-09-14.** `resolveReviewTimeBudgetMs` (pure core) derives the budget the way this item asked:
+  `expectedTurns x observed turn latency + reserve`, clamped. The evidence is the model registry's own per-model
+  wall-time EWMA (plus the last observed turn), read best-effort by the session service — no snapshot leaves the
+  configured budget untouched.
+  **It can only LENGTHEN.** The configured budget is the FLOOR, so a derivation can never shorten a review. That
+  asymmetry is the whole safety argument: too much budget costs one seat some idle minutes on a review that stalls
+  (the nudge ladder and the stalled-review rescue still bound it), while too little costs the verdict itself and
+  re-runs the entire review — which is what this item measured 38 times. An explicit operator budget
+  (`NKLEIN_REVIEW_TIMEOUT_MS`) and an explicit per-session `timeoutMs` (the custodian's 20 minutes) both win
+  outright: evidence never overrides a named number.
+  **Known approximation, deliberate:** the bracket's deadline is fixed BEFORE the reviewer model is resolved (the
+  pick happens inside the bracket), so the budget uses the SLOWEST observed turn across models with observations
+  rather than the reviewer's own. It is never shorter than the reviewer's own latency, and generous is the safe
+  direction. Resolving the reviewer earlier would make it exact — worth doing only if a real review is ever seen
+  parking on the ceiling.
+  The rig knob (`1f3183c7c`, `NKLEIN_REVIEW_TIMEOUT_MS=40min` in the drain) stays valid and now reads as the
+  operator override it always was. P21.6b (review SIZE ceiling from the same evidence) is still open.
 - [ ] **P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.**
   *(Live 2026-09-08, evidence complete, cause NOT yet found.)* `dev-39-tests-interval-boundary-suite-decompose`
   had a session taking model turns while its sandbox workspace was never prepared.
