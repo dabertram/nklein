@@ -303,6 +303,17 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		addedOn: Date.UTC(2026, 8, 14),
 	},
 	{
+		// ── P0.POOLLOSS false positive: a slow-but-serving model is not dead (2026-09-14) ──
+		category: "model_dead_mark_withheld_recent_token",
+		item: "P0.POOLLOSS",
+		observes:
+			"the zero-token wedge classifier was about to probe (and possibly condemn) a listed model, and another session on the same (model, endpoint) had served a token inside the evidence window — so the mark was withheld and the probe skipped: the 12-second probe cannot tell a queue-for-a-corpse from an endpoint whose answer latency is long by design, and the HITL agent seat (~1.5 min/turn) was marked `listed_but_dead` 14 times, which excluded it from routing, failed every start with `pinned_model_unavailable` and paused 17 cards",
+		enabledBy: null,
+		// `exceptional`: it fires only when a session wedges token-less on a model that is demonstrably still serving.
+		expectation: "exceptional",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
+	{
 		// ── P0.DSTALL close-out: the watchdog's post-first-token liveness sweep (2026-09-07) ──
 		category: "silent_running_session_interrupted",
 		item: "P0.DSTALL",

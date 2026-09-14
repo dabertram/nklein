@@ -89,6 +89,7 @@ import { type MemoryAuditCandidate, readMemoryAuditCandidates } from "../core/me
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { clearModelDeadMark, isModelMarkedDead, markModelDead } from "../core/model-liveness-ledger";
+import { findRecentTokenEvidence } from "../core/model-recent-token-evidence";
 import { findActiveSameTaskModelTurn } from "../core/model-turn-admission";
 import { ModelTurnAdmissionWaitQueue } from "../core/model-turn-admission-wait-queue";
 import { planMutationAdequacy } from "../core/mutation-adequacy-plan";
@@ -1808,6 +1809,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Auto-healed unstartable pin on ${task.id}: cleared model override ${task.nkleinSettings.modelId}; retrying via Auto on the next sweep.`,
 							);
+							// The heal REMOVED the cause the climb was counting, so the climb no longer describes this card:
+							// its next start is a different proposition (Auto routing, no pin). Without this reset the
+							// pre-heal failures still count toward the five that pause the card — live 2026-09-11,
+							// dev-52-planning-receipt-ingest-cli-decompose was paused two minutes after its heal, on a
+							// climb whose first failure the heal had already made obsolete.
+							autoStartFailureGuard.reset(`${scope.workspaceId}:${task.id}`);
 							continue;
 						}
 					}
@@ -5177,6 +5184,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 									if (await isModelBusyPerLmsPs(wedgedModelId)) {
 										modelBusy = true;
 										listedState = "unknown";
+									}
+								}
+								// BUSY ≠ DEAD, generalized past `lms ps` (measured 2026-09-14). The probe below calls a listed
+								// model dead when it does not answer in twelve seconds — an assumption that is simply false
+								// for an endpoint whose answer latency is long BY DESIGN. The HITL model seat is an AGENT
+								// answering in ~1.5 minutes, so every probe timed out: `claude-hitl` was marked
+								// `listed_but_dead` 14 times over 2026-09-07..11, routing then excluded it, every start
+								// failed `pinned_model_unavailable`, and 17 cards were paused after five failures each —
+								// which reads from outside as "the model seat went idle" while it was answering steadily.
+								// The ledger's own doctrine names the decisive fact: a SERVED TOKEN. When another session on
+								// this (model, endpoint) served one inside the window, the endpoint is serving and this wedge
+								// is about the session, not the model — so do not probe it (that request is real work for an
+								// agent-backed seat) and do not condemn it. The wedge action itself is untouched: the wedged
+								// session is still token-less and is still interrupted below.
+								if (listedState === "present") {
+									const recentToken = findRecentTokenEvidence({
+										modelId: wedgedModelId,
+										endpoint: wedgedEndpoint,
+										witnesses: trackedService.listSummaries(),
+										excludeTaskId: wedge.taskId,
+										nowMs: Date.now(),
+									});
+									if (recentToken) {
+										listedState = "unknown";
+										recordSelfObservation({
+											signal: "custom",
+											severity: "info",
+											message: `Withheld a dead mark for ${wedgedModelId} at ${wedgedEndpoint}: ${recentToken.taskId} served a token ${Math.round((Date.now() - recentToken.servedAtMs) / 1000)}s ago, so the wedge of ${wedge.taskId} is this session's, not the model's.`,
+											taskId: wedge.taskId,
+											workspacePath: scope.workspacePath,
+											metadata: {
+												category: "model_dead_mark_withheld_recent_token",
+												modelId: wedgedModelId,
+												endpoint: wedgedEndpoint,
+												witnessTaskId: recentToken.taskId,
+												servedAgoMs: Date.now() - recentToken.servedAtMs,
+												endpointAssumed: recentToken.endpointAssumed,
+											},
+										});
 									}
 								}
 								if (listedState === "present") {
