@@ -154,6 +154,20 @@ async function loadProviderModelsWithFallbackForSettings(
 			lmsPsModels,
 		);
 		resolved = mergeProviderModelsWithContextWindowFallback(loadedModels, providerModels);
+	} else if (normalizedProviderId === "openai-compatible" && settings?.baseUrl?.trim()) {
+		// 2026-09-15 (SWE-bench Claude arms): the SDK's `openai-compatible` catalog is a STATIC placeholder roster
+		// (`gpt-4o`) — the endpoint the user actually configured was never asked. A model pinned there that is not in
+		// that placeholder list (a HITL seat, a proxy, any self-hosted server) therefore had NO context window, and the
+		// 32k admission floor refused every session start ("does not report a context window") until someone set a
+		// per-model override by hand. Probe the configured endpoint's own `/v1/models` roster and let its advertised
+		// window win (`preferFallbackContextWindow`); models it lists that the placeholder lacks are appended.
+		const endpointModels = await fetchLmStudioBaseUrlModels(settings, normalizedProviderId, ["/v1/models"]);
+		resolved = appendMissingModels(
+			mergeProviderModelsWithContextWindowFallback(providerModels, endpointModels, {
+				preferFallbackContextWindow: true,
+			}),
+			endpointModels,
+		);
 	} else {
 		resolved = providerModels;
 	}

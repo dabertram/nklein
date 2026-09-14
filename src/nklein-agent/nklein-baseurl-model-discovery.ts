@@ -105,6 +105,9 @@ export async function fetchLmStudioBaseUrlModels(
 	// P17.1 phase ②: the same probe ladder ends at plain `/v1/models`, so any OpenAI-compatible local runtime
 	// (mlx-serve) discovers through this fetcher — only the settings-resolution provider id differs.
 	providerId = "lmstudio",
+	// 2026-09-15: a GENERIC OpenAI-compatible endpoint (the `openai-compatible` provider) has no LM Studio `/api/v*`
+	// routes — probing them would only log two 404 warnings per discovery — so its caller restricts the ladder.
+	pathnames: readonly string[] = LMSTUDIO_MODEL_LIST_PATHNAMES,
 ): Promise<RuntimeNKleinProviderModel[]> {
 	const resolvedSettings = await resolveModelListSettings(providerId, settings, listSdkProviderCatalog);
 	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
@@ -119,7 +122,7 @@ export async function fetchLmStudioBaseUrlModels(
 			: DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS;
 	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
 	const normalizedBaseUrl = normalizeLmStudioModelListBaseUrl(baseUrl);
-	for (const pathname of LMSTUDIO_MODEL_LIST_PATHNAMES) {
+	for (const pathname of pathnames) {
 		const url = `${normalizedBaseUrl}${pathname}`;
 		try {
 			const response = await globalThis.fetch(url, {

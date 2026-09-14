@@ -4,6 +4,11 @@
  *
  *   HITL_ROOT=<queue dir> CLAUDE_MODEL=claude-sonnet-5 node scripts/hitl-claude-responder.mjs
  *
+ * Optional (2026-09-15, the dsh Claude rig): `CLAUDE_MODEL_MAP='{"claude-sonnet-5-rig":"claude-sonnet-5",…}'` picks the
+ * CLI model from the request's `model` (unmapped ids fall back to CLAUDE_MODEL); the request's `reasoning_effort`
+ * (low|medium|high|xhigh|max) becomes the CLI's `--effort`; `CLAUDE_RESPONDER_CONCURRENCY=N` answers up to N queued
+ * requests at once (an interactive harness fires side requests — titles, summaries — beside the agent turn).
+ *
  * The HITL server exposes an OpenAI-compatible endpoint whose completions are answered out of band: every request
  * lands in `$HITL_ROOT/pending/<seq>.json`, and whoever writes `$HITL_ROOT/answers/<seq>.json` IS the model. Earlier
  * drives had Claude answer that queue by hand or through canned deliveries; this responder answers it with a Claude
@@ -21,6 +26,28 @@ const ROOT = process.env.HITL_ROOT ?? join(process.env.HOME ?? "", ".nklein", "f
 const MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-5";
 const CALL_TIMEOUT_MS = Number(process.env.CLAUDE_CALL_TIMEOUT_MS ?? 15 * 60_000);
 const MAX_INPUT_CHARS = Number(process.env.CLAUDE_MAX_INPUT_CHARS ?? 600_000);
+const CONCURRENCY = Math.max(1, Number(process.env.CLAUDE_RESPONDER_CONCURRENCY ?? 1) || 1);
+const MODEL_MAP = (() => {
+	try {
+		const parsed = JSON.parse(process.env.CLAUDE_MODEL_MAP ?? "{}");
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
+})();
+const EFFORT_LEVELS = new Set(["low", "medium", "high", "xhigh", "max"]);
+
+/** The CLI seat for a request: its `model` through CLAUDE_MODEL_MAP, else the configured default. */
+function seatFor(request) {
+	const mapped = typeof request?.model === "string" ? MODEL_MAP[request.model] : undefined;
+	return typeof mapped === "string" && mapped ? mapped : MODEL;
+}
+
+/** The CLI effort for a request: a valid top-level `reasoning_effort`, else none (the CLI default). */
+function effortFor(request) {
+	const effort = typeof request?.reasoning_effort === "string" ? request.reasoning_effort.trim().toLowerCase() : "";
+	return EFFORT_LEVELS.has(effort) ? effort : null;
+}
 
 const ANSWER_SCHEMA = {
 	type: "object",
@@ -100,12 +127,13 @@ function buildPrompt(request) {
 	].join("\n");
 }
 
-function runClaude(prompt) {
+function runClaude(prompt, { model, effort }) {
 	return new Promise((resolve, reject) => {
 		const args = [
 			"-p",
 			"--model",
-			MODEL,
+			model,
+			...(effort ? ["--effort", effort] : []),
 			// NOT --bare: bare mode skips the keychain login and returns an empty answer (exit 1, 0 api ms).
 			"--no-session-persistence",
 			"--output-format",
@@ -172,11 +200,13 @@ async function answerOne(seq) {
 	if (existsSync(answerPath)) return;
 	const { request } = JSON.parse(await readFile(pendingPath, "utf8"));
 	const prompt = buildPrompt(request);
+	const model = seatFor(request);
+	const effort = effortFor(request);
 	const startedAt = Date.now();
-	log(`request ${seq}: ${request.messages?.length ?? 0} messages, ${request.tools?.length ?? 0} tools, ${prompt.length} chars → ${MODEL}`);
+	log(`request ${seq}: ${request.messages?.length ?? 0} messages, ${request.tools?.length ?? 0} tools, ${prompt.length} chars → ${model}${effort ? ` (effort ${effort})` : ""}`);
 	let answer;
 	try {
-		answer = extractAnswer(await runClaude(prompt));
+		answer = extractAnswer(await runClaude(prompt, { model, effort }));
 	} catch (error) {
 		log(`request ${seq}: FAILED (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — answering with an error message so the agent can recover`);
 		answer = { content: `The model seat failed to answer this turn: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`, tool_calls: [], finish_reason: "stop" };
@@ -186,7 +216,7 @@ async function answerOne(seq) {
 	await rename(tmp, answerPath);
 	await writeFile(
 		join(ROOT, "responder.jsonl"),
-		`${JSON.stringify({ seq, model: MODEL, durationMs: Date.now() - startedAt, toolCalls: answer.tool_calls.map((call) => call.name), contentChars: answer.content.length, usage: answer.usage, costUsd: answer.costUsd })}\n`,
+		`${JSON.stringify({ seq, model, effort, requestedModel: request.model ?? null, durationMs: Date.now() - startedAt, toolCalls: answer.tool_calls.map((call) => call.name), contentChars: answer.content.length, usage: answer.usage, costUsd: answer.costUsd })}\n`,
 		{ flag: "a" },
 	);
 	log(`request ${seq}: answered in ${Math.round((Date.now() - startedAt) / 1000)} s — ${answer.tool_calls.map((call) => call.name).join(",") || "text"}`);
@@ -205,8 +235,13 @@ async function main() {
 			child.on("close", () => resolve(out.trim()));
 		});
 	} catch {}
-	await writeFile(join(ROOT, "seat.json"), JSON.stringify({ kind: "claude-cli", model: MODEL, claudeVersion: version, startedAt: new Date().toISOString() }, null, 2));
-	log(`responder up: model ${MODEL}, claude ${version}, root ${ROOT}`);
+	await writeFile(
+		join(ROOT, "seat.json"),
+		JSON.stringify({ kind: "claude-cli", model: MODEL, modelMap: MODEL_MAP, concurrency: CONCURRENCY, claudeVersion: version, startedAt: new Date().toISOString() }, null, 2),
+	);
+	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, claude ${version}, root ${ROOT}`);
+	// Up to CONCURRENCY requests in flight at once; each is claimed exactly once (the in-flight set), answered, released.
+	const inFlight = new Set();
 	for (;;) {
 		const pending = (await readdir(join(ROOT, "pending")))
 			.filter((name) => /^\d+\.json$/u.test(name))
@@ -214,9 +249,13 @@ async function main() {
 			.sort((a, b) => a - b);
 		let did = false;
 		for (const seq of pending) {
-			if (existsSync(join(ROOT, "answers", `${seq}.json`))) continue;
-			await answerOne(seq);
+			if (inFlight.size >= CONCURRENCY) break;
+			if (inFlight.has(seq) || existsSync(join(ROOT, "answers", `${seq}.json`))) continue;
+			inFlight.add(seq);
 			did = true;
+			void answerOne(seq)
+				.catch((error) => log(`request ${seq}: responder error ${error instanceof Error ? error.message : String(error)}`))
+				.finally(() => inFlight.delete(seq));
 		}
 		if (!did) await new Promise((resolve) => setTimeout(resolve, 1500));
 	}
