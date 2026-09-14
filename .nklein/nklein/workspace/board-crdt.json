@@ -322,9 +322,9 @@
           }
         },
         "title": {
-          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent…",
+          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -385,9 +385,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -409,7 +409,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -535,9 +535,9 @@
           }
         },
         "prompt": {
-          "value": "Open backlog item P18.4b (todo.md §5).\n\n- [ ] **P18.4b — Wire the off-track remedy *(split from P18.4 2026-07-20)*.** *(2026-08-20: the acting half is\n  NOT flipped, deliberately — its evidence stream was structurally empty because the drift critic is opt-in and\n  deliberately OFF on David's real sessions, so flipping would mean destroying work (restart/park) on zero\n  observations. FLEET-FREE WORKAROUND APPLIED INSTEAD: the critic is now being exercised in the RIG\n  (`NKLEIN_DRIFT_CRITIC=1` on bed drains — not David's sessions), and the stream is alive for the first time\n  (`drift_critic_on_track` recording). The remedy only computes on FLAGGED cards, so accruing flags is the\n  gate; `dev mechanism-decision` reads that stream and now has a working outcome join (see P15.3). Flip only\n  on its verdict.)* Feed the drift verdict + live\n  context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for\n  belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing\n  them on paper would compare a design against a memory of a design.\n  ℹ️ **DECISION CORE DE-ORPHANED 2026-07-20 via `dev off-track` — but this does NOT close the finding below.**\n  The command exercises `decideOffTrackRemedy` and its `--matrix` mode makes the asymmetry visible: OFF-track\n  rows at 90% context restart or park, NEVER compact, while ON-track rows at 90% compact — \"compaction launders\n  drift\" as a printable table (3 wire tests pin it). **But a `dev` command is not the production wire, and the\n  real defect is that the LIVE path never calls this at all.** So the core is no longer STRUCTURALLY orphaned and\n  is now exercised, while P18.4b's actual work — getting a drift signal in front of the SDK's unconditional\n  compaction — is untouched. Recorded so the de-orphaning is not mistaken for the fix.\n  **🔴 CHECKED IMMEDIATELY (2026-07-20), AND IT IS THE BAD CASE: COMPACTION ALREADY FIRES ON CONTEXT PRESSURE\n  ALONE, UNCONDITIONALLY, WHERE P18.4 CANNOT SEE IT.**\n  `buildNKleinContextCompactionConfig(contextWindow)` (nklein-session-runtime.ts:118) takes **only** the context\n  window and returns `{ enabled: true, strategy: \"basic\", maxInputTokens, … }` on every session start. It is\n  handed to the SDK, which compacts on token pressure. **No drift signal reaches it, and no harness code sits\n  between the trigger and the compaction.**\n  **So a\n… (see the source file for the rest)\n\nCommits (newest first):\n- 4d685219d docs(P18.4b): record the root cause of the empty off_track_remedy stream + its fix\n- 805114372 fix(P18.4b): give the drift critic the distress signal it judges without — feed off_track_remedy evidence\n- 80d47e090 feat(P18.4b): act-half ON rig-only (David-authorized) + F11.3g arm-k completion — the pinned 0.0.1 baseline is a true zero floor\n- f5cc926f8 docs: dispositions for F11.3g / P15.3 / P18.4b under the work-around-the-fleet directive",
+          "value": "Open backlog item P18.4b (todo.md §5).\n\n- [ ] **P18.4b — Wire the off-track remedy *(split from P18.4 2026-07-20)*.** *(2026-08-20: the acting half is\n  NOT flipped, deliberately — its evidence stream was structurally empty because the drift critic is opt-in and\n  deliberately OFF on David's real sessions, so flipping would mean destroying work (restart/park) on zero\n  observations. FLEET-FREE WORKAROUND APPLIED INSTEAD: the critic is now being exercised in the RIG\n  (`NKLEIN_DRIFT_CRITIC=1` on bed drains — not David's sessions), and the stream is alive for the first time\n  (`drift_critic_on_track` recording). The remedy only computes on FLAGGED cards, so accruing flags is the\n  gate; `dev mechanism-decision` reads that stream and now has a working outcome join (see P15.3). Flip only\n  on its verdict.)* Feed the drift verdict + live\n  context utilisation into `decideOffTrackRemedy` and act on the result. **The reconciliation the item asks for\n  belongs HERE, where the existing bounce/re-work/park ladder and the new remedy are both visible** — comparing\n  them on paper would compare a design against a memory of a design.\n  ℹ️ **DECISION CORE DE-ORPHANED 2026-07-20 via `dev off-track` — but this does NOT close the finding below.**\n  The command exercises `decideOffTrackRemedy` and its `--matrix` mode makes the asymmetry visible: OFF-track\n  rows at 90% context restart or park, NEVER compact, while ON-track rows at 90% compact — \"compaction launders\n  drift\" as a printable table (3 wire tests pin it). **But a `dev` command is not the production wire, and the\n  real defect is that the LIVE path never calls this at all.** So the core is no longer STRUCTURALLY orphaned and\n  is now exercised, while P18.4b's actual work — getting a drift signal in front of the SDK's unconditional\n  compaction — is untouched. Recorded so the de-orphaning is not mistaken for the fix.\n  **🔴 CHECKED IMMEDIATELY (2026-07-20), AND IT IS THE BAD CASE: COMPACTION ALREADY FIRES ON CONTEXT PRESSURE\n  ALONE, UNCONDITIONALLY, WHERE P18.4 CANNOT SEE IT.**\n  `buildNKleinContextCompactionConfig(contextWindow)` (nklein-session-runtime.ts:118) takes **only** the context\n  window and returns `{ enabled: true, strategy: \"basic\", maxInputTokens, … }` on every session start. It is\n  handed to the SDK, which compacts on token pressure. **No drift signal reaches it, and no harness code sits\n  between the trigger and the compaction.**\n  **So a\n… (see the source file for the rest)\n\nCommits (newest first):\n- 4d685219d docs(P18.4b): record the root cause of the empty off_track_remedy stream + its fix\n- 805114372 fix(P18.4b): give the drift critic the distress signal it judges without — feed off_track_remedy evidence\n- 80d47e090 feat(P18.4b): act-half ON rig-only (David-authorized) + F11.3g arm-k completion — the pinned 0.0.1 baseline is a true zero floor",
           "stamp": {
-            "counter": 1789018010117,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -591,9 +591,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789379032076,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789379032076,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -615,7 +615,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789379032076,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -734,16 +734,16 @@
           }
         },
         "title": {
-          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own eviden…",
+          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
         "prompt": {
-          "value": "Open backlog item P15.3 (todo.md §5).\n\n- [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** *(2026-08-20:\n  THE OUTCOME JOIN WAS STRUCTURALLY STARVED AND IS NOW FIXED — `63a3bb2ca`. Ran the report on a real accrued\n  home: 44 tool-trust disagreements, 0 with a known outcome. Cause: `buildTaskOutcomeIndex` reads\n  `scheduler`/`completed` LEDGER events, which are written ONLY under a durable run — ordinary dev-test/rig\n  drains create none, so that home held 924 transitions, 89 attempts and ZERO scheduler events. The report\n  would have said `insufficient_data` forever, which READS as \"keep running\" while no volume could change it\n  (the third instance this campaign of \"no data yet\" vs \"no data possible\"). Board lane changes carry the same\n  fact with a task id and now fill the gaps (completed⇒success, trash⇒failure, any other lane⇒no entry);\n  the scheduler index still wins where present. Measured effect: evaluable 0 → 5. Still `insufficient_data`\n  (12 needed) — now an HONEST keep-running. Remaining: volume, which is GPU time, not fleet.)* Flip defaults ONLY\n  where P15.2 produced a verdict. Each flip carries: the evidence, the expected behaviour delta, and a named\n  rollback. Mechanisms whose evidence says \"this never fired / never disagreed\" get DELETED, not defaulted —\n  removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the\n  review correctly flagged.\n  **▶ 2026-08-01 — THIS IS BLOCKED ON TWO CONCRETE THINGS, neither of them judgement. Checked rather than assumed:**\n  1. **`mechanism-decision-report.ts` IS UNWIRED** — its only importer is its own test; no `dev` command, no\n     runtime caller. P15.2 shipped the core and its header says \"the per-mechanism data arrives with P15.3\", so\n     there is currently **no way to produce a verdict at all**, and P15.3's own rule is \"flip ONLY where P15.2\n     produced a verdict\". Wiring it to a `dev` command is the first step and is small; it also un-orphans a core\n     that P15.4's triage lists as TRACKED (named in the backlog ⇒ explicitly not a kill candidate).\n  2. **The verdicts need REAL-MODEL observation data.** A flip decided from simulated drains would be precisely the\n     over-reading `NIGHTLY_SIMULATION_SCOPE_NOTE` exists to prevent: a sim pass proves a MECHANISM FIRES, never that\n     it is RIGHT often enough to enforce — which is the exact question\n… (see the source file for the rest)\n\nCommits (newest first):\n- bc7072dab feat(mechanism-decision): read the whole ledger — P15.3's first real-model verdict was truncated at 500\n- f5cc926f8 docs: dispositions for F11.3g / P15.3 / P18.4b under the work-around-the-fleet directive",
+          "value": "Open backlog item P15.3 (todo.md §5).\n\n- [ ] **P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.** *(2026-08-20:\n  THE OUTCOME JOIN WAS STRUCTURALLY STARVED AND IS NOW FIXED — `63a3bb2ca`. Ran the report on a real accrued\n  home: 44 tool-trust disagreements, 0 with a known outcome. Cause: `buildTaskOutcomeIndex` reads\n  `scheduler`/`completed` LEDGER events, which are written ONLY under a durable run — ordinary dev-test/rig\n  drains create none, so that home held 924 transitions, 89 attempts and ZERO scheduler events. The report\n  would have said `insufficient_data` forever, which READS as \"keep running\" while no volume could change it\n  (the third instance this campaign of \"no data yet\" vs \"no data possible\"). Board lane changes carry the same\n  fact with a task id and now fill the gaps (completed⇒success, trash⇒failure, any other lane⇒no entry);\n  the scheduler index still wins where present. Measured effect: evaluable 0 → 5. Still `insufficient_data`\n  (12 needed) — now an HONEST keep-running. Remaining: volume, which is GPU time, not fleet.)* Flip defaults ONLY\n  where P15.2 produced a verdict. Each flip carries: the evidence, the expected behaviour delta, and a named\n  rollback. Mechanisms whose evidence says \"this never fired / never disagreed\" get DELETED, not defaulted —\n  removing an unproven mechanism is a legitimate and preferred outcome, and reduces the maintenance surface the\n  review correctly flagged.\n  **▶ 2026-08-01 — THIS IS BLOCKED ON TWO CONCRETE THINGS, neither of them judgement. Checked rather than assumed:**\n  1. **`mechanism-decision-report.ts` IS UNWIRED** — its only importer is its own test; no `dev` command, no\n     runtime caller. P15.2 shipped the core and its header says \"the per-mechanism data arrives with P15.3\", so\n     there is currently **no way to produce a verdict at all**, and P15.3's own rule is \"flip ONLY where P15.2\n     produced a verdict\". Wiring it to a `dev` command is the first step and is small; it also un-orphans a core\n     that P15.4's triage lists as TRACKED (named in the backlog ⇒ explicitly not a kill candidate).\n  2. **The verdicts need REAL-MODEL observation data.** A flip decided from simulated drains would be precisely the\n     over-reading `NIGHTLY_SIMULATION_SCOPE_NOTE` exists to prevent: a sim pass proves a MECHANISM FIRES, never that\n     it is RIGHT often enough to enforce — which is the exact question\n… (see the source file for the rest)\n\nCommits (newest first):\n- bc7072dab feat(mechanism-decision): read the whole ledger — P15.3's first real-model verdict was truncated at 500",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -797,9 +797,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -821,7 +821,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -837,9 +837,9 @@
           }
         },
         "title": {
-          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can…",
+          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -900,9 +900,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -924,7 +924,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -940,9 +940,9 @@
           }
         },
         "title": {
-          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the…",
+          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the 2× play (researched",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1003,9 +1003,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1027,7 +1027,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1043,9 +1043,9 @@
           }
         },
         "title": {
-          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runti…",
+          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runtime .. go online\" — researched",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1106,9 +1106,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1130,7 +1130,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1825,9 +1825,9 @@
           }
         },
         "title": {
-          "value": "P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syn…",
+          "value": "P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1888,9 +1888,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1912,7 +1912,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5274,9 +5274,9 @@
           }
         },
         "title": {
-          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed…",
+          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed)",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5337,9 +5337,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5361,7 +5361,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7430,9 +7430,9 @@
           }
         },
         "title": {
-          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nkle…",
+          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7499,9 +7499,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7523,7 +7523,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8341,9 +8341,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.",
+          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and…",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8417,9 +8417,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8434,7 +8434,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8777,9 +8777,9 @@
           }
         },
         "title": {
-          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record…",
+          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8853,9 +8853,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8870,7 +8870,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9213,9 +9213,9 @@
           }
         },
         "title": {
-          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board",
+          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture…",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9289,9 +9289,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9306,7 +9306,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9431,9 +9431,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard",
+          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and…",
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9507,9 +9507,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789381230414,
+          "value": 1789381337680,
           "stamp": {
-            "counter": 1789381230414,
+            "counter": 1789381337680,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9524,7 +9524,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10178,7 +10178,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10190,7 +10190,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10202,7 +10202,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10214,7 +10214,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10226,7 +10226,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10238,7 +10238,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10250,7 +10250,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10262,7 +10262,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10274,7 +10274,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10286,7 +10286,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10298,7 +10298,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10310,7 +10310,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10322,7 +10322,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10334,7 +10334,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10394,7 +10394,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10490,7 +10490,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10502,7 +10502,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10514,7 +10514,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10526,7 +10526,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10550,7 +10550,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10574,7 +10574,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10586,7 +10586,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10598,7 +10598,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10610,7 +10610,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10622,7 +10622,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10718,7 +10718,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10730,7 +10730,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10778,7 +10778,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10826,7 +10826,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10850,7 +10850,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789381230414,
+          "counter": 1789381337680,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }

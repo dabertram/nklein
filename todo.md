@@ -4512,7 +4512,9 @@ These are known defects or incomplete migrations. Clear them before widening cap
   fails the run (`isNightlyOverallOk.e2eSuitesOk`); `chat-control-plane` registered; `--dry-run` lists the lane
   and an e2e-only manifest run printed `E2E suites (F2.30 d): PASSED — chat-control-plane: pass` while the run
   itself FAILED on zero cells (an empty nightly is not green — the two verdicts compose as designed); (e) model
-  I/O transparency `5d6578f13`.
+  I/O transparency `5d6578f13`. Same day, `7fa7c12be`: the lane runs Playwright suites too (`runner:
+  "playwright"`, from `web-ui` whose config starts vite — as the N14 launchers do); the four F2.32 flow specs
+  are registered as nightly data; `--dry-run` tags each suite with its runner.
 
 
 - [x] **F2.35 — Main-branch CUSTODIAN (David directive 2026-09-04, verbatim: "architect should always keep
@@ -4558,7 +4560,8 @@ These are known defects or incomplete migrations. Clear them before widening cap
   same blur-first guard; (3) a typed context-window override was silently dropped on Done whenever the provider
   fields were untouched (the early return ran before validation) → a typed window counts as a change: validated,
   saved, or refused in words. The settings first-run paths stay covered by `settings.spec.ts`; the setup section's
-  pickers are driven through the carousel spec. The specs run under `npm run e2e` (default Playwright config).
+  pickers are driven through the carousel spec. The specs run under `npm run e2e` (default Playwright config)
+  and, since `7fa7c12be`, as nightly e2e-suite lane DATA (`nightly-manifest.json`, `runner: "playwright"`).
 
 - [x] **F2.33 — Active cards float to the top of their lanes (David directive 2026-09-02, verbatim: "show
   active cards to tp of their lanes..").** SHIPPED same night: BoardColumn partitions cards with a live
