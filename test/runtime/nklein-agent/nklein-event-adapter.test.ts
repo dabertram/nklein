@@ -77,6 +77,57 @@ function runtimeSnapshot(iteration = 1) {
 }
 
 describe("applyNKleinSessionEvent", () => {
+	it("stamps the served-token witness on a TOOL CALL — the shape an agent turn is supposed to have", () => {
+		// P0.POOLLOSS / P1.PHANTOMRUNNING root cause (2026-09-14): `lastTokenAt` is what the two liveness sweeps use
+		// to tell "never served" from "served and then quiet". Stamped only on prose, a turn that goes straight to a
+		// tool call left it null forever, and both sweeps mis-sorted the session.
+		for (const event of [
+			{
+				type: "tool-started",
+				snapshot: runtimeSnapshot(),
+				iteration: 1,
+				toolCall: { type: "tool-call", toolCallId: "tool-a", toolName: "read_files", input: {} },
+			},
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolCallId: "tool-b",
+				toolName: "read_files",
+				input: {},
+			},
+		]) {
+			const entry = createEntry("task-1");
+			const { summaries } = applyEvent({
+				entry,
+				event: { type: "agent_event", payload: { sessionId: "session-1", event } },
+			});
+			const latest = summaries[summaries.length - 1];
+			expect(latest?.lastTokenAt, `${event.type} must stamp lastTokenAt`).toEqual(expect.any(Number));
+		}
+	});
+
+	it("leaves a tool RESULT unstamped — that is the runtime answering, not the model", () => {
+		const entry = createEntry("task-1");
+		const { summaries } = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "tool-finished",
+						snapshot: runtimeSnapshot(),
+						iteration: 1,
+						toolCall: { type: "tool-call", toolCallId: "tool-a", toolName: "read_files", input: {} },
+						output: { type: "tool-result", toolCallId: "tool-a", toolName: "read_files", output: "ok" },
+					},
+				},
+			},
+		});
+		const latest = summaries[summaries.length - 1];
+		expect(latest?.lastTokenAt ?? null).toBeNull();
+	});
+
 	it("P0.DSTALL: a tool event after the run ended (heartbeat lost) does NOT revive the card to running", () => {
 		const entry = createEntry("task-1");
 		entry.summary = {

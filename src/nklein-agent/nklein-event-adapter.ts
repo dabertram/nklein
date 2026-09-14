@@ -658,7 +658,18 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, withHeartbeat(summaryPatch));
+		// A TOOL CALL IS SERVED CONTENT (root-caused 2026-09-14). `lastTokenAt` is the runtime's "the model has
+		// answered this session at least once" witness, and two liveness sweeps split the world on it: the zero-token
+		// wedge sweep owns sessions never served, the silent-running sweep owns sessions served and then gone quiet.
+		// Stamped only on prose/reasoning, it stayed null for the shape agents are SUPPOSED to produce — a turn that
+		// goes straight to a tool call — so such a session read as permanently "pre-first-token" and BOTH sweeps
+		// mis-sorted it. Measured in the drain: every HITL session carries `lastTokenAt: null` beside a healthy
+		// heartbeat and real tool activity, and the two defects that follow are one bug from opposite sides — the
+		// wedge sweep CLAIMED a 40-minute agent answer, interrupted it and probed the model (that probe's timeout
+		// marked `claude-hitl` dead 14 times and paused 17 cards, P0.POOLLOSS), while the silent sweep DISCLAIMED the
+		// same shape, leaving project 41's decompose `running` in Planning for 3h40m past 1,452 watchdog ticks
+		// (P1.PHANTOMRUNNING). A tool RESULT stays unstamped: that is the runtime answering, not the model.
+		emitSummary(input, withHeartbeat(summaryPatch, { token: true }));
 		return;
 	}
 
@@ -760,7 +771,18 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 			summaryPatch.state = "running";
 			summaryPatch.reviewReason = null;
 		}
-		emitSummary(input, withHeartbeat(summaryPatch));
+		// A TOOL CALL IS SERVED CONTENT (root-caused 2026-09-14). `lastTokenAt` is the runtime's "the model has
+		// answered this session at least once" witness, and two liveness sweeps split the world on it: the zero-token
+		// wedge sweep owns sessions never served, the silent-running sweep owns sessions served and then gone quiet.
+		// Stamped only on prose/reasoning, it stayed null for the shape agents are SUPPOSED to produce — a turn that
+		// goes straight to a tool call — so such a session read as permanently "pre-first-token" and BOTH sweeps
+		// mis-sorted it. Measured in the drain: every HITL session carries `lastTokenAt: null` beside a healthy
+		// heartbeat and real tool activity, and the two defects that follow are one bug from opposite sides — the
+		// wedge sweep CLAIMED a 40-minute agent answer, interrupted it and probed the model (that probe's timeout
+		// marked `claude-hitl` dead 14 times and paused 17 cards, P0.POOLLOSS), while the silent sweep DISCLAIMED the
+		// same shape, leaving project 41's decompose `running` in Planning for 3h40m past 1,452 watchdog ticks
+		// (P1.PHANTOMRUNNING). A tool RESULT stays unstamped: that is the runtime answering, not the model.
+		emitSummary(input, withHeartbeat(summaryPatch, { token: true }));
 		return;
 	}
 
