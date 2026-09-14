@@ -135,8 +135,11 @@ resolved flask-5014 seven minutes later.
 
 Second finding in the same hour, the shared-seat one: arm A's runtime still held a `psf__requests-1921::review` card
 (instance graded, project retired) waiting for the seat and a `pytest-6202` task from the suspended run, both
-competing with the live `pytest-7521` on a one-slot host. Retired by hand; the runner's retirement (`projects.remove`)
-evidently leaves the review card behind — to be traced.
+competing with the live `pytest-7521` on a one-slot host. Retired by hand; the runner now retires the task and its review card before `projects.remove`
+(`f941c80e9`). The first 22:00 launch also left six half-materialized `requests-1921`/`2317` workspaces (registered
+projects) behind when its runners were stopped — the relaunched runners skipped those instances with "materialize
+target already exists". Cleared by retiring + setting aside; while doing so the LIVE requests-1921 attempts on the
+Legion and m4 mini arms were retired by mistake (22:32) and both runners relaunched for a clean attempt (22:33).
 
 Also tonight: a Claude rig for DeepSeek Harness (dsh) — one HITL server on :8100 serving four seat ids, the responder
 now maps the request's model to the CLI seat, its `reasoning_effort` to `--effort`, and answers up to four requests

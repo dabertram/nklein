@@ -110,6 +110,13 @@ that keeps every pass-1 arm on the same !Klein commit.
    had been set by hand. → Discovery probes the endpoint's own `/v1/models` (only that route) and lets its
    advertised window win; four tests (`b1519dfad`). The four Claude arms lost one instance each to it (excluded, not
    counted) before the per-model override was seeded.
+6. **A graded instance's session lived on** — on the pinned pass-1 runtime `projects.remove` did not stop the
+   session: arm A's requests-1921 was still answering turns an hour after its receipt, its review card queued for
+   the one-slot host, competing with the live pytest-7521. → The runner writes the retirement ledger for the task
+   and its review card before removing the project (`f941c80e9`). Operator note: while clearing interrupted
+   first-launch leftovers (six half-materialized `requests-1921`/`2317` workspaces from the 22:00 launch) the LIVE
+   requests-1921 attempts on the Legion and m4 mini arms were retired by mistake at 22:32 UTC; both arms were
+   relaunched at 22:33 for a clean attempt (nothing from the retired attempt is counted).
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 
