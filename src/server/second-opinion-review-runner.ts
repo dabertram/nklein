@@ -286,6 +286,14 @@ export function formatAcceptanceSummaryForReview(
 	> | null,
 	// F12.60(a): the card-start BASE-tree probe, when one ran — turns a red acceptance into an ATTRIBUTED verdict.
 	baseline?: { present: boolean; passed: boolean | null } | null,
+	/**
+	 * P1.PASSEDBUTUNLANDED: what the capture actually took away. A PASSED acceptance is a true statement about the
+	 * worker's SANDBOX and says nothing about the branch under review — and the two were presented as one fact, so
+	 * a reviewer trusting the acceptance line would approve a card whose work never landed (project 42's
+	 * `unchecked-find-audit`: green in the sandbox, `git apply: patch does not apply` on the way out, PASSED shown
+	 * to the reviewer). Only `empty_patch` qualifies the line; absent status ⇒ byte-identical summary.
+	 */
+	artifactStatus?: "result_branch" | "empty_patch" | null,
 ): string | null {
 	if (acceptance === null) {
 		return "Acceptance evidence UNAVAILABLE (the check could not run). Treat completion claims skeptically — the delivery gate will fail closed without a passing acceptance run.";
@@ -304,9 +312,19 @@ export function formatAcceptanceSummaryForReview(
 				? "Baseline attribution: the BASE tree PASSED this check before the work — this failure is attributable to the change."
 				: "Baseline attribution: the BASE tree ALREADY FAILED this check before any work — the failure may be pre-existing; judge the diff on its own merits rather than holding the worker to a baseline that was never green."
 			: null;
+	// The green-signal-substitution pattern one layer out (§4A): the check ran where the work WAS, the review looks
+	// where the work ISN'T. Say which world each fact describes rather than letting one stand for the other.
+	const deliveryAttribution =
+		acceptance.passed === true && artifactStatus === "empty_patch"
+			? "Delivery attribution: this check PASSED inside the worker's SANDBOX, but the capture took away NOTHING" +
+				" (`empty_patch`) — the branch under review does not contain this work. A check that ran after a blocked" +
+				" or unlanded write can pass against the file as it already was, so it is not evidence the card did its" +
+				" job. Judge the claimed work's existence, not the green line."
+			: null;
 	return [
 		`Command: \`${acceptance.command ?? "?"}\` — ${verdict}.`,
 		...(attribution ? [attribution] : []),
+		...(deliveryAttribution ? [deliveryAttribution] : []),
 		...(acceptance.passed === true
 			? []
 			: [
@@ -1222,7 +1240,11 @@ export async function runSecondOpinionReviewForTask(
 	})();
 	stampPhase("review-resolution start");
 	// Hoisted: the same summary feeds the reviewer seed, the re-work brief, and the re-decompose card prompt.
-	const acceptanceSummaryForReview = formatAcceptanceSummaryForReview(acceptance, getBaselineProbe(input.taskId));
+	const acceptanceSummaryForReview = formatAcceptanceSummaryForReview(
+		acceptance,
+		getBaselineProbe(input.taskId),
+		input.primaryArtifactStatus ?? null,
+	);
 	// Autonomy directive 2026-09-01: objective evidence for the no-verdict FALLBACK — green delivers, red
 	// bounces, park only without evidence. `acceptance` here is this round's own sandbox acceptance run.
 	// Live 2026-09-05 (stripe-throws): a RED acceptance that fails identically on the BASE tree (offline sandbox,

@@ -3128,7 +3128,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   count is 66 unusable-session stops, then 7 on 09-11 and 2 on 09-13. The residual is not decompose cards at all:
   7 of those 9 are `main-branch-custodian::review`, which is the custodian's shared-task-id collision, fixed
   2026-09-14 (see P1.REVIEWSANDBOX).
-- [ ] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
+- [x] **P1.PASSEDBUTUNLANDED — a card can carry a green `Acceptance check: PASSED` line while its work never
   reached the trunk.**
   **▶ THIS NAME COVERS TWO DIFFERENT DEFECTS. Second one root-caused end to end 2026-09-10 (project 47,
   `record-returns-agent-requirements`, requests 1842-1846), and it is NOT the git-layer race below.**
@@ -3190,6 +3190,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   classification that identifies when it is needed, and a human-equivalent applying it by hand made the problem
   disappear. Second fix, still proposed: qualify the acceptance line shown to a reviewer with the patch-capture
   outcome, so a green sandbox cannot read as a green delivery.
+  **▶ CLOSED 2026-09-14 — BOTH defects fixed, each with the fix this item already specified.** The batch is
+  finished, so the "not mid-batch" deferral no longer applies.
+  1. **The blocked write is now evidence.** `summarizeBlockedWrites` (pure core) reads the session's recorded tool
+     calls and renders, into the review seed's `## No file changes` branch ONLY, which write tool was rejected, on
+     which path, with the recorded reason — plus the thing that makes the shape dangerous: an acceptance check that
+     ran AFTER a rejected write can pass vacuously. The reviewer no longer has to infer from an absent diff what
+     the tool log already stated in plain text. Evidence, not a gate.
+  2. **The acceptance line is qualified by the delivery.** `formatAcceptanceSummaryForReview` takes the capture's
+     artifact status (already plumbed into the runner as `primaryArtifactStatus`) and, when a PASSED check comes
+     back with `empty_patch`, says so: the check passed inside the worker's SANDBOX while the branch under review
+     contains none of the work. A delivered card, a failed check, or an unknown status leave the summary
+     byte-identical. That is the §4A green-signal substitution named and separated: two different worlds, two
+     facts, no longer reported as one.
+  Still true and still worth doing on the FIXTURE side (a separate, smaller job): an acceptance check that passes
+  when the card did nothing is not an acceptance check for that card — several dev-test projects share that shape.
 - [ ] **P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.** *(Live 2026-09-09,
   characterised by two responder shifts and the placement instrumentation.)* One shift hit
   `No Docker sandbox workspace is prepared for task <X>::review` four times — backoff-schedule, cancellation-timing

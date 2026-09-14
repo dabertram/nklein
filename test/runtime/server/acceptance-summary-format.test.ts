@@ -15,6 +15,33 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 		expect(summary).not.toContain("Output tail");
 	});
 
+	it("P1.PASSEDBUTUNLANDED: a PASSED check whose capture took nothing away is qualified, not presented bare", () => {
+		// Project 42's `unchecked-find-audit`: green inside the sandbox, `git apply: patch does not apply` on the way
+		// out, and the reviewer was shown PASSED with nothing on the branch. The check is a true statement about the
+		// SANDBOX and a false one about the DELIVERY; they were reported as one fact.
+		const passing = {
+			present: true,
+			command: "npm test",
+			passed: true,
+			exitCode: 0,
+			output: "4/4 passed",
+			failureHint: null,
+		} as const;
+		const unlanded = formatAcceptanceSummaryForReview(passing, null, "empty_patch");
+		expect(unlanded).toContain("`npm test` — PASSED");
+		expect(unlanded).toContain("Delivery attribution");
+		expect(unlanded).toContain("empty_patch");
+		// A delivered card, and an unknown status, keep the summary byte-identical.
+		const bare = formatAcceptanceSummaryForReview(passing, null);
+		expect(formatAcceptanceSummaryForReview(passing, null, "result_branch")).toBe(bare);
+		expect(formatAcceptanceSummaryForReview(passing, null, null)).toBe(bare);
+		expect(bare).not.toContain("Delivery attribution");
+		// A FAILED check is already request-changes grounds; the delivery note would only add noise.
+		expect(
+			formatAcceptanceSummaryForReview({ ...passing, passed: false, exitCode: 1 }, null, "empty_patch"),
+		).not.toContain("Delivery attribution");
+	});
+
 	it("frames a failing check as strong request-changes grounds with the output tail", () => {
 		const summary = formatAcceptanceSummaryForReview({
 			present: true,
