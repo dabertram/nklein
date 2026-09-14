@@ -211,3 +211,48 @@ describe("P21.6b enforce half (pure)", () => {
 		expect(message).toContain("Do not delete or thin the scope");
 	});
 });
+
+describe("assessPlannedTaskSizing with the P21.6b per-task predictor", () => {
+	// ONE reviewer's stream: fifty small 1-file cards (100-149 lines) and five 3-file cards (600-640 lines). The
+	// ceiling is that stream's p90 — inside the small population, ~149 — so the POOLED median (~124) fits by
+	// construction, which is why the review half was inert. The 3-file cell's median (620) does not fit.
+	const smallCell = { plannedComplexity: 15, filesLikelyTouchedCount: 1 };
+	const bigCell = { plannedComplexity: 40, filesLikelyTouchedCount: 3 };
+	const rows: ReviewCapacityEvidenceRow[] = [
+		...Array.from({ length: 50 }, (_, i) => ({ ...row("m", "delivered", 100 + i), ...smallCell })),
+		...[600, 610, 620, 630, 640].map((lines) => ({ ...row("m", "delivered", lines), ...bigCell })),
+	];
+
+	it("without task features it is the pooled median — byte-identical to the pre-predictor behaviour", () => {
+		const assessment = assessPlannedTaskSizing({ rows, modelContextTokens: 200_000, estimatedTaskTokens: 8_000 });
+		expect(assessment.predictionBasis).toBe("pooled");
+		expect(assessment.estimatedDiffLines).toBe(deriveTypicalDiffLines(rows));
+		expect(assessment.verdict?.mustSplit).toBe(false); // the inert half: the pooled median never crosses its own p90
+	});
+
+	it("with task features the estimate is the matching cell's median, and names the level", () => {
+		const assessment = assessPlannedTaskSizing({
+			rows,
+			modelContextTokens: 200_000,
+			estimatedTaskTokens: 8_000,
+			task: smallCell,
+		});
+		expect(assessment.predictionBasis).toBe("cell");
+		expect(assessment.estimatedDiffLines).toBe(125);
+		expect(assessment.verdict?.mustSplit).toBe(false);
+	});
+
+	it("ARMS the review half: a task whose cell is predicted past the proven ceiling gets a mustSplit verdict", () => {
+		const assessment = assessPlannedTaskSizing({
+			rows,
+			modelContextTokens: 200_000,
+			estimatedTaskTokens: 8_000,
+			task: bigCell,
+		});
+		expect(assessment.basis).toBe("verdict");
+		expect(assessment.predictionBasis).toBe("cell");
+		expect(assessment.estimatedDiffLines).toBe(620);
+		expect(assessment.reviewCeiling.ceilingLines).toBeLessThan(620);
+		expect(assessment.verdict?.mustSplit).toBe(true);
+	});
+});

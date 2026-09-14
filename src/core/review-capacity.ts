@@ -17,12 +17,19 @@
  * routine giants.
  */
 
+import { type DiffSizePredictionBasis, predictTaskDiffLines } from "./task-diff-size-predictor";
 import { decideTaskSizing, requiredSplitCount, type TaskSizingVerdict } from "./task-sizing-invariant";
 
 export interface ReviewCapacityEvidenceRow {
 	readonly reviewerModelId: string | null;
 	readonly outcome: string;
 	readonly diffLines: number;
+	/**
+	 * P21.6b per-task predictor: the task's own declared features, joined from its `plan_sizing_verdict` row.
+	 * Absent on rows recorded before the join existed — those still feed the ceiling and the pooled level.
+	 */
+	readonly plannedComplexity?: number | null;
+	readonly filesLikelyTouchedCount?: number | null;
 }
 
 export interface ReviewCapacityVerdict {
@@ -100,6 +107,8 @@ export interface PlannedTaskSizingAssessment {
 	readonly verdict: TaskSizingVerdict | null;
 	readonly reviewCeiling: ReviewCapacityVerdict;
 	readonly estimatedDiffLines: number | null;
+	/** Which ladder level produced the estimate (P21.6b predictor); `pooled` is the pre-predictor behaviour. */
+	readonly predictionBasis: DiffSizePredictionBasis;
 	/** Why there is (or is not) a verdict — the flip decision's denominator. */
 	readonly basis: "verdict" | "no_review_evidence" | "no_context_window" | "no_evidence_at_all";
 }
@@ -110,6 +119,12 @@ export function assessPlannedTaskSizing(input: {
 	readonly modelContextTokens: number | null;
 	/** Tokens the planned task will demand (the start guard's fit budget for its prompt). */
 	readonly estimatedTaskTokens: number;
+	/**
+	 * P21.6b per-task predictor: the planned task's own features. With them the diff estimate is the sharpest
+	 * calibrated level the evidence supports (cell → files → band → pooled); without them it is the pooled
+	 * median, exactly as before. Either way "no defensible sample" is null and the missing half is reported.
+	 */
+	readonly task?: { readonly plannedComplexity?: number | null; readonly filesLikelyTouchedCount?: number | null };
 }): PlannedTaskSizingAssessment {
 	const modelIds = [
 		...new Set(
@@ -119,7 +134,17 @@ export function assessPlannedTaskSizing(input: {
 		),
 	];
 	const reviewCeiling = deriveFleetReviewCapacity(input.rows, modelIds);
-	const estimatedDiffLines = deriveTypicalDiffLines(input.rows);
+	// The per-task predictor is what arms the review half: the pooled median can never exceed the same
+	// stream's p90 ceiling, so before it every card fit by construction. The ladder's `pooled` level IS
+	// `deriveTypicalDiffLines`, so a task without features is assessed exactly as before.
+	const prediction = predictTaskDiffLines({
+		plannedComplexity: input.task?.plannedComplexity ?? null,
+		filesLikelyTouchedCount: input.task?.filesLikelyTouchedCount ?? null,
+		rows: input.rows,
+	});
+	const estimatedDiffLines = prediction.lines ?? deriveTypicalDiffLines(input.rows);
+	const predictionBasis: DiffSizePredictionBasis =
+		prediction.lines !== null ? prediction.basis : estimatedDiffLines !== null ? "pooled" : "insufficient";
 	const contextWindow =
 		input.modelContextTokens !== null && input.modelContextTokens > 0 ? input.modelContextTokens : null;
 	if (reviewCeiling.ceilingLines !== null && estimatedDiffLines !== null && contextWindow !== null) {
@@ -132,6 +157,7 @@ export function assessPlannedTaskSizing(input: {
 			}),
 			reviewCeiling,
 			estimatedDiffLines,
+			predictionBasis,
 			basis: "verdict",
 		};
 	}
@@ -140,6 +166,7 @@ export function assessPlannedTaskSizing(input: {
 		verdict: null,
 		reviewCeiling,
 		estimatedDiffLines,
+		predictionBasis,
 		basis:
 			!reviewKnown && contextWindow === null
 				? "no_evidence_at_all"

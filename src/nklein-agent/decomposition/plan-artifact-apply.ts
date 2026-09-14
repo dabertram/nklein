@@ -78,7 +78,34 @@ function pluralizeCount(count: number, singular: string, plural = `${singular}s`
  */
 /** The empirical evidence stream both sizing consumers read — extracted so observe and enforce cannot drift. */
 async function readReviewCapacityEvidenceRows(): Promise<ReviewCapacityEvidenceRow[]> {
-	return (await readSelfObservationEvents({ category: "review_capacity_evidence", limit: 500 })).flatMap((record) => {
+	// P21.6b per-task predictor: the judged diff (`review_capacity_evidence`) and the task's declared features
+	// (`plan_sizing_verdict`, recorded at apply time beside the prediction) are two rows keyed by the same board
+	// task id. Joining them here is what lets the predictor tell tasks apart; a judgment whose verdict row is
+	// outside the read window (or predates the features) still counts, feature-less, at the pooled level.
+	const [capacityRecords, verdictRecords] = await Promise.all([
+		readSelfObservationEvents({ category: "review_capacity_evidence", limit: 500 }),
+		readSelfObservationEvents({ category: "plan_sizing_verdict", limit: 500 }),
+	]);
+	const featuresByTaskId = new Map<
+		string,
+		{ plannedComplexity: number | null; filesLikelyTouchedCount: number | null }
+	>();
+	for (const record of verdictRecords) {
+		const taskId = typeof record.taskId === "string" ? record.taskId : null;
+		const metadata = record.metadata as
+			| { plannedComplexity?: unknown; filesLikelyTouchedCount?: unknown }
+			| undefined;
+		if (!taskId || featuresByTaskId.has(taskId)) {
+			continue; // newest first: the first row seen for a task is its latest apply
+		}
+		const complexity = Number(metadata?.plannedComplexity);
+		const files = Number(metadata?.filesLikelyTouchedCount);
+		featuresByTaskId.set(taskId, {
+			plannedComplexity: Number.isFinite(complexity) ? complexity : null,
+			filesLikelyTouchedCount: Number.isFinite(files) ? files : null,
+		});
+	}
+	return capacityRecords.flatMap((record) => {
 		const metadata = record.metadata as
 			| { outcome?: unknown; diffLines?: unknown; reviewerModelId?: unknown }
 			| undefined;
@@ -86,11 +113,13 @@ async function readReviewCapacityEvidenceRows(): Promise<ReviewCapacityEvidenceR
 		if (typeof metadata?.outcome !== "string" || !Number.isFinite(diffLines)) {
 			return [];
 		}
+		const features = typeof record.taskId === "string" ? featuresByTaskId.get(record.taskId) : undefined;
 		return [
 			{
 				reviewerModelId: typeof metadata.reviewerModelId === "string" ? metadata.reviewerModelId : null,
 				outcome: metadata.outcome,
 				diffLines,
+				...(features ?? {}),
 			},
 		];
 	});
@@ -125,6 +154,7 @@ export async function assessPlannedTaskSizingForGraph(input: {
 				rows: evidenceRows,
 				modelContextTokens: largestContextWindow,
 				estimatedTaskTokens: sizing.fitBudgetTokens,
+				task: { plannedComplexity: task.complexity, filesLikelyTouchedCount: task.filesLikelyTouched?.length ?? 0 },
 			}),
 		};
 	});
@@ -154,6 +184,7 @@ async function recordPlanSizingObservations(input: {
 			rows: evidenceRows,
 			modelContextTokens: largestContextWindow,
 			estimatedTaskTokens: sizing.fitBudgetTokens,
+			task: { plannedComplexity: task.complexity, filesLikelyTouchedCount: task.filesLikelyTouched?.length ?? 0 },
 		});
 		recordSelfObservation({
 			signal: "custom",
@@ -171,6 +202,8 @@ async function recordPlanSizingObservations(input: {
 				overshoot: assessment.verdict?.overshoot ?? null,
 				mustSplit: assessment.verdict?.mustSplit ?? null,
 				predictedDiffLines: assessment.estimatedDiffLines,
+				// Which ladder level made the prediction — the predicted-vs-actual join judges each level separately.
+				predictionBasis: assessment.predictionBasis,
 				// P21.6b — the per-task FEATURES a future diff predictor calibrates on. The pooled-median estimate is
 				// structurally inert (median ≤ p90 always), so the review ceiling only arms once a PER-TASK predictor
 				// exists; a predictor needs to tell tasks apart. These are the canonical inputs, straight from the task's
