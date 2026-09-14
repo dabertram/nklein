@@ -22,7 +22,7 @@
 
 import { execFile as execFileCallback } from "node:child_process";
 import { existsSync } from "node:fs";
-import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -311,7 +311,9 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 				externallySupervised: true,
 				autoReviewMode: "commit",
 				testEvidencePolicy: options.publicAcceptance ? "agent_visible" : "externally_held_out",
-				nkleinSettings: { providerId: "lmstudio", modelId: options.model },
+				// A hitl seat is an OpenAI-compatible endpoint, not an LM Studio model — the pin must say so, or the
+				// runtime refuses the start as "not currently loaded" (four Claude arms, 2026-09-14).
+				nkleinSettings: { providerId: options.seatKind === "hitl" ? "openai-compatible" : "lmstudio", modelId: options.model },
 				pollIntervalMs: options.pollIntervalMs,
 				maxWaitMs: options.maxWaitMs,
 			});
@@ -338,7 +340,19 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		stop.stopped = true;
 	}
 	if (execution && !execution.result.started) {
-		log(`${instanceId}: session did not start: ${execution.result.startMessage ?? "unknown"}`);
+		// Not a model attempt at all — the harness refused the start. Write NO immutable receipt (the next pass
+		// retries), set the workspace aside so materialize can run again, and say why. Counting this as
+		// "unresolved" would score the harness's refusal against the model (sonnet5 flask-5014, 2026-09-14).
+		const message = execution.result.startMessage ?? "unknown";
+		log(`${instanceId}: session did not start — NOT counted: ${message}`);
+		await client.runtime.stopTaskSession.mutate({ taskId: runId }).catch(() => null);
+		await client.projects.remove.mutate({ projectId: workspaceId }).catch(() => null);
+		await writeFile(
+			join(options.out, `${instanceId}.start-failed.${Date.now()}.json`),
+			`${JSON.stringify({ runId, instanceId, startMessage: message, startAttempts, startedAt: new Date(startedAt).toISOString() }, null, 2)}\n`,
+		);
+		await rename(workspacePath, `${workspacePath}.start-failed-${Date.now()}`).catch(() => null);
+		return { instanceId, resolved: false, excludedFromScore: `session never started: ${message.slice(0, 120)}`, startFailed: true };
 	}
 
 	// Stop the seed's session before capture (a capped wait ABANDONS a still-live session), then retire the
@@ -444,6 +458,8 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	const resolved = verdict?.resolved === true;
 	const excludedFromScore = seatViolation
 		? `seat violation: attempt on ${seatViolation.modelId ?? "(unknown)"} (${seatViolation.taskId ?? "?"})`
+		: attempts.length === 0
+			? "no model attempt was recorded for this run (the seat never answered a turn)"
 		: execution?.result.classification.outcome === "runtime_down" || execution?.result.infrastructureFailure
 			? `infrastructure: ${execution.result.infrastructureFailure ?? execution.result.classification.summary}`
 			: null;
