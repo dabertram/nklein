@@ -3514,6 +3514,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   parking on the ceiling.
   The rig knob (`1f3183c7c`, `NKLEIN_REVIEW_TIMEOUT_MS=40min` in the drain) stays valid and now reads as the
   operator override it always was. P21.6b (review SIZE ceiling from the same evidence) is still open.
+- [x] **P1.CTXINFLATE — one large-window model made every ≤44k model infeasible for every card; a pinned 32k
+  alias auto-healed to Auto and the work landed on the operator-idled m5max.** *(Live 2026-09-14, evidence drain:
+  roles pinned to `dirk-qwen3.8-27b@m4mini`, `lms ps` showed the m5max-local `qwen/qwen3.8-27b` GENERATING while the
+  pin sat idle; the start path said "pinned_model_unavailable … Load that model" although the model was loaded.)*
+  **Root cause:** `requiredContextTokens` carved its reserves from the fleet's LARGEST loaded window — with a 262,144
+  window present a 79-token decompose prompt "required" 44,079 tokens (12,271 when only 32k windows are loaded) —
+  and the swarm role pick compared every candidate's own window against that single number, so the pin was
+  infeasible, dropped before the pin lookup, refused by the mismatch guard, cleared by the P0.POOLLOSS auto-heal
+  (built for a VANISHED pin) and replaced by Auto's best fit: the idled model. The main router already judged
+  context per candidate; the swarm pick did not. The v31 factory never hit it because its tee proxy reported 32k
+  for everything. **FIXED `f2c9cd75f`:** `selectRoleModel`/`selectSwarmRoleModel` take
+  `requiredContextTokensFor(contextWindow)` and judge each candidate against the requirement for ITS OWN window;
+  the pin bridge checks the pin against its own window; the role-pin refusal now carries the selection reason
+  ("Selection said: …"). Same day, `c7c363b71`: the dev-test rail's `--model` was only a provider default (the
+  router auto-discovers every loaded model on the endpoint and ranks) — it now pins architect/worker/reviewer
+  with `modelSelectionMode: "pinned"` and restores the roles on cleanup. Drain-launch rule (§4A material): pin the
+  roles, set `workerUseAllLoadedHosts` to the intended host's `lms ps` deviceIdentifier, and read
+  `attempt_started.modelId` + `lms ps` BEFORE letting a drain run.
+
 - [ ] **P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.**
   *(Live 2026-09-08, evidence complete, cause NOT yet found.)* `dev-39-tests-interval-boundary-suite-decompose`
   had a session taking model turns while its sandbox workspace was never prepared.
@@ -3548,7 +3567,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   supplying what its own timeout means (the owner abandons and cleans up; a joiner only gives up its wait). The
   double-start this item warns about is still prevented downstream — the join and the per-task workspace lifecycle
   lock mean two starts never provision two sandboxes.
-- [ ] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).** *(not testable: an operational image rebuild on a real connection — consent-gated multi-GB pulls, nothing here to assert)*
+- [x] **P1.IMGREBUILD — the sandbox container's `tool-runner.cjs` predates the shell-syntax coercion (`eae3e89a5`).** *(not testable: an operational image rebuild on a real connection — consent-gated multi-GB pulls, nothing here to assert)*
   The fix ships INSIDE the sandbox image (`docker/agent-sandbox/Dockerfile` copies the esbuild bundle) and the
   running container's rootfs is read-only (strict isolation — `docker cp` is refused), so it is live only after
   `node scripts/build-agent-sandbox.mjs` + fresh containers. 2026-09-05: the rebuild stalled 76 min on
@@ -3556,6 +3575,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   and David is on an Android hotspot. Killed it (downloads are consent-gated). Run the rebuild on a real connection,
   or export `NKLEIN_AGENT_SANDBOX_{RUST,GO,GRADLE,MAVEN}_IMAGE` to locally-present images for a hotspot build.
   Until then models keep working around the dead `pwd && ls` shape (they fall back to argv form on the next turn).
+  **▶ 2026-09-14 CLOSED via the OFFLINE path (`870fb38ff`).** Docker Hub was unreachable from this uplink (a
+  `hello-world` pull did not finish in 3 min), so `docker/agent-sandbox/Dockerfile.refresh` overlays the freshly
+  bundled tool-runner + LSP server onto the last good, fully pinned image
+  (`NKLEIN_AGENT_SANDBOX_REFRESH_FROM=<image> node scripts/build-agent-sandbox.mjs`) — 0.6 s, no network. Proven
+  in the new image under `--network none`: `{"command":"pwd && echo coerced-ok"}` runs through the coercion.
+  Toolchains verified in the image: node 22.23, tsx 4.22.4, pnpm/yarn/bun, rustc 1.88 + cargo, go 1.24.13 + gopls,
+  temurin 21, Gradle 8.14.5, Maven 3.9.9, uv 0.11.26; container start 163 ms; JS/Rust/Go fixture tests green,
+  `javac`/`java` ok. **Gaps (F12.84b):** no `pytest` in the image and PyPI is not on the egress allowlist, so
+  Python fixtures cannot test offline; Maven/Gradle test runs need dependency downloads. A networked rebuild (or a
+  PyPI egress allowlist decision) is what closes those — the pinned digests themselves are unchanged.
 
 - [x] **P1.ACCEPT-ORPHAN — an acceptance-verify timeout leaves the command running inside the sandbox.**
   *(Live 2026-09-05: two `npm install` processes from 22:34 were still alive in the review sandbox 50+ min
@@ -4716,10 +4745,17 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `floorGap`; "no persisted floor" is itself recorded) — registered `every_run`/`attempt_started`. **Nothing
   routes on the floor yet, deliberately:** the mapping is a researched prior; routing on it before the fitness
   store has judged it would be a plausible number standing in for a fact never established. The flip is (c)'s
-  outcome, decided from the `floorBinds` stream. **REMAINING:** (c) calibration loop from the fitness store
-  (per-class pass rate by complexity band → measured floors replacing priors; then flip routing onto the
-  persisted floor); (e) validate live that decompose output shrinks under the granularity line (compare child
-  complexity distributions — the persisted facts now make that comparison a board query).
+  outcome, decided from the `floorBinds` stream.
+  **▶ 2026-09-14 (c) SHIPPED (`870fb38ff`):** `core/complexity-floor-calibration` — judged cards
+  (`review_capacity_evidence`) × the worker attempt that did them (ledger) × their declared complexity
+  (`plan_sizing_verdict`), joined by task id → per class and band a pass rate; the measured floor is the highest
+  band still passing at 70% with ≥5 judgments, walked up from the easiest and capped by the first defensible
+  failing band; thin bands are skipped, never inferred. `complexity-floor-evidence` reads the three streams on a
+  fleet-aware decompose start; the granularity line uses the MEASURED floor and says so (with its sample), else
+  the prior; `granularity_floor_calibrated` records prior vs measured per target class. **REMAINING:** (e) validate
+  live that decompose output shrinks under the granularity line — the 2026-09-14 evidence drain (roles pinned to
+  dirk-qwen3.8-27b@m4mini) produces the first judged rows; compare child complexity distributions once ≥5 cards per
+  band are judged. The routing flip onto the persisted floor waits on the same evidence.
 
 #### 3A. Adaptive recovery controller *(legacy §5.O, §5.AA)*
 
@@ -4881,6 +4917,14 @@ These are known defects or incomplete migrations. Clear them before widening cap
   `buildConsultObservation` under the single `model_consult` category, REGISTERED in `MECHANISM_REGISTRY`
   (P15.1b) in the same wire commit so `dev mechanism-registry` reports firing-vs-silent from day one.
 - [~] **F3.36 — Wire the mid-turn reasoning-budget breach (adopted from little-coder; docs/attributions.md).**
+  **▶ 2026-09-14 (b) SWARM PATH SHIPPED (`c7c363b71`):** `nklein-agent/reasoning-breach-model` wraps the
+  provider model beside the runaway interrupt (under the recovery wrapper) — reasoning deltas feed the shared
+  tracker, a breach aborts on a derived signal with a typed `ReasoningBudgetBreachError`; the ladder classifies it
+  `aborted` with `thinking_disable` as the ONLY rung (a bigger budget beside it would just buy more reasoning) and
+  the thinking-off retry carries the commit-to-implementation nudge. A REQUEST-parameter switch (qwen3.8's
+  `reasoning_effort:"none"`) now counts as a verified switch across the ladder and thinking-off sets
+  `options.reasoningEffort`. Armed behind `NKLEIN_REASONING_BREACH` (on in the evidence drain); the default flip
+  stays on the P15.3 evidence bar (`reasoning_budget_breach` rows with `path: "session"`).
   **CHAT-PATH WIRE SHIPPED 2026-07-23:** `completeStream` now surfaces `reasoning_content` deltas mid-stream with a
   clean deliberate-stop path (`finishReason:"reasoning_budget"` — never the abort/transient-retry machinery); the
   chat stream ladder feeds the tracker for reasoning models WITH a verified thinking switch, and on breach emits

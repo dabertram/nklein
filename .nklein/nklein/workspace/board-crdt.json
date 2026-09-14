@@ -322,9 +322,9 @@
           }
         },
         "title": {
-          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent…",
+          "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -385,9 +385,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -409,7 +409,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -734,9 +734,9 @@
           }
         },
         "title": {
-          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own eviden…",
+          "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -797,9 +797,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -821,7 +821,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -837,9 +837,9 @@
           }
         },
         "title": {
-          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can…",
+          "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -900,9 +900,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -924,7 +924,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -940,9 +940,9 @@
           }
         },
         "title": {
-          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the…",
+          "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the 2× play (researched",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1003,9 +1003,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1027,7 +1027,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1043,9 +1043,9 @@
           }
         },
         "title": {
-          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runti…",
+          "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runtime .. go online\" — researched",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1106,9 +1106,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1130,7 +1130,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1818,9 +1818,9 @@
       "id": "todo:P1.IMGREBUILD",
       "fields": {
         "__column": {
-          "value": "planning",
+          "value": "completed",
           "stamp": {
-            "counter": 1788644305964,
+            "counter": 1789385143241,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1888,9 +1888,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143241,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143241,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1912,7 +1912,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143241,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -4377,9 +4377,9 @@
           }
         },
         "prompt": {
-          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 376):\n- 16ffc2edf chore: gitignore the generated sandbox-image bundles\n- 038b99ae0 fix(focused span): say it is a SNAPSHOT — an unchanged snippet was read as proof that writes were vanishing\n- 3b2771e8e fix(sandbox): the workspace path must be INJECTIVE — a truncation collision handed one card another's 0700 tree\n- 137b48d83 docs: close DEVTEST30's header and record the review-evidence pass — open P1s 11 → 5\n- 7c1b5be00 feat(review): the reviewer's time budget is derived from observed turn latency, and can only lengthen\n- d690dcbce fix(review): a PASSED acceptance is qualified by what the capture actually took away\n- 3a7c0e0f7 feat(review): a no-changes review says WHY — the runtime's rejected writes become evidence\n- 6846cf38c fix(sandbox): a caller that JOINS an in-flight preparation gets the deadline too; close the liveness-family findings\n- 1ff2110b9 fix(sandbox): every container-removal path names itself — the retire-only record refuted its own hypothesis\n- 7ad3e32c1 fix(custodian): one task id per SWEEP — concurrent sweeps no longer share a session and a sandbox placement\n- 6bf2f1c85 fix(liveness): a tool call is served content — stamp the token witness, so an agent turn is not \"pre-first-token\" forever\n- cf25b8ee8 fix(liveness): a slow-but-serving model is not dead — a served token withholds the wedge classifier's condemnation\n- 8fb8b6261 docs(todo): close the treated findings with their evidence — ZOMBIEBOARD, FIXTUREINTEGRITY, UNSATGATE, NOWRITETOOL; STARTHANG2/SETTLEDNUDGE/PARKEDINREVIEW treated\n- 9d88e22d2 fix(redecompose): the re-decompose card states its own nature up front — no write tools, begin_implementation refused by design\n- 0299f9096 docs(hitl): the \"orphan egress proxy\" was the idle-retired sandbox — brief corrected with the ledger; the BI shift's additions; the 2026-09-14 findings journal\n- 373e782a7 fix(test-driven gate): a write scope that cannot hold a test file is inferred not_testable — and the gate steps aside on it\n- 5287b0b9a feat(runtime-api): `retireTaskSession` — abandoning a board retires its sessions instead of merely trashing cards\n- 1f6a6386d fix(router): a simulator replay model satisfies any difficulty — its capability is its recording\n- f91c06f6f fix(dev-fixtures): freeze performance/budgets.json and refactor/goals.json — the bar is evidence, not workspace\n- 754870837 fix(sandbox): a workspace preparation gets a provisioning deadline — a hung start fails and reports, it no longer latches\n- fb877f3ad test(web-ui): pin the intervention clock in the six exact-0 `interventionHumanSeconds` assertions\n- 5e8126adf docs(todo): two standing rules from David — scores carry model provenance, findings are treated when found\n- 4a7191dad docs(hitl-brief): correcting my own complexity advice — omitting the field lands you ON 50, not below it\n- 1516dee3a docs(todo): DEVTEST30 driving+recording is DONE — 40 of 40 replay-verified\n- c6132adc5 feat(aimock): commit the 76_performance_incremental_aggregate scenario set — replay verified\n- 578bb70b3 feat(aimock): commit the 75_performance_stream_instead_of_materialise scenario set — replay verified\n- de574b8b7 feat(aimock): commit the 74_performance_batch_the_n_plus_one scenario set — replay verified\n- 4fc45f055 feat(aimock): commit the 73_performance_memoise_repeated_lookups scenario set — replay verified\n- e364e96e2 feat(aimock): commit the 72_performance_single_pass_reporting scenario set — replay verified\n- 01aa4fd2a feat(aimock): commit the 71_integration_two_service_saga scenario set — replay verified\n- 35a264721 feat(aimock): commit the 57_repair_ticket_triage_defects scenario set — replay verified\n- a50280ed0 docs(hitl-brief): a nested decompose_project needs `plan`, not just `spec` — go incremental instead of guessing\n- fce4d7ac9 feat(aimock): commit the 56_planning_fleet_telemetry_platform scenario set — replay verified\n- 8ef1a7760 docs: a fixture's own \"frozen and untouched\" test can be satisfied by editing the checker\n- 90a0d4cfd docs(hitl-brief): the coverage gate scans task prompts, not the top-level spec — written by the responder that found it\n- 9e28a21dc feat(aimock): commit the 55_planning_payments_reconciliation scenario set — replay verified\n- 96dabd373 feat(aimock): commit the 54_planning_encrypted_backup_restore scenario set — replay verified\n- ef989ff32 feat(aimock): commit the 53_planning_warehouse_stock_ledger scenario set — replay verified\n- d853c7187 feat(aimock): commit the 52_planning_receipt_ingest_cli scenario set — replay verified\n- 787b89b2a feat(aimock): commit the 50_spec_conformance_suite scenario set — replay verified",
+          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 377):\n- f2c9cd75f fix(routing): a candidate's context feasibility is judged against the requirement for ITS OWN window — one 262k model no longer makes every 32k model infeasible\n- 16ffc2edf chore: gitignore the generated sandbox-image bundles\n- 038b99ae0 fix(focused span): say it is a SNAPSHOT — an unchanged snippet was read as proof that writes were vanishing\n- 3b2771e8e fix(sandbox): the workspace path must be INJECTIVE — a truncation collision handed one card another's 0700 tree\n- 137b48d83 docs: close DEVTEST30's header and record the review-evidence pass — open P1s 11 → 5\n- 7c1b5be00 feat(review): the reviewer's time budget is derived from observed turn latency, and can only lengthen\n- d690dcbce fix(review): a PASSED acceptance is qualified by what the capture actually took away\n- 3a7c0e0f7 feat(review): a no-changes review says WHY — the runtime's rejected writes become evidence\n- 6846cf38c fix(sandbox): a caller that JOINS an in-flight preparation gets the deadline too; close the liveness-family findings\n- 1ff2110b9 fix(sandbox): every container-removal path names itself — the retire-only record refuted its own hypothesis\n- 7ad3e32c1 fix(custodian): one task id per SWEEP — concurrent sweeps no longer share a session and a sandbox placement\n- 6bf2f1c85 fix(liveness): a tool call is served content — stamp the token witness, so an agent turn is not \"pre-first-token\" forever\n- cf25b8ee8 fix(liveness): a slow-but-serving model is not dead — a served token withholds the wedge classifier's condemnation\n- 8fb8b6261 docs(todo): close the treated findings with their evidence — ZOMBIEBOARD, FIXTUREINTEGRITY, UNSATGATE, NOWRITETOOL; STARTHANG2/SETTLEDNUDGE/PARKEDINREVIEW treated\n- 9d88e22d2 fix(redecompose): the re-decompose card states its own nature up front — no write tools, begin_implementation refused by design\n- 0299f9096 docs(hitl): the \"orphan egress proxy\" was the idle-retired sandbox — brief corrected with the ledger; the BI shift's additions; the 2026-09-14 findings journal\n- 373e782a7 fix(test-driven gate): a write scope that cannot hold a test file is inferred not_testable — and the gate steps aside on it\n- 5287b0b9a feat(runtime-api): `retireTaskSession` — abandoning a board retires its sessions instead of merely trashing cards\n- 1f6a6386d fix(router): a simulator replay model satisfies any difficulty — its capability is its recording\n- f91c06f6f fix(dev-fixtures): freeze performance/budgets.json and refactor/goals.json — the bar is evidence, not workspace\n- 754870837 fix(sandbox): a workspace preparation gets a provisioning deadline — a hung start fails and reports, it no longer latches\n- fb877f3ad test(web-ui): pin the intervention clock in the six exact-0 `interventionHumanSeconds` assertions\n- 5e8126adf docs(todo): two standing rules from David — scores carry model provenance, findings are treated when found\n- 4a7191dad docs(hitl-brief): correcting my own complexity advice — omitting the field lands you ON 50, not below it\n- 1516dee3a docs(todo): DEVTEST30 driving+recording is DONE — 40 of 40 replay-verified\n- c6132adc5 feat(aimock): commit the 76_performance_incremental_aggregate scenario set — replay verified\n- 578bb70b3 feat(aimock): commit the 75_performance_stream_instead_of_materialise scenario set — replay verified\n- de574b8b7 feat(aimock): commit the 74_performance_batch_the_n_plus_one scenario set — replay verified\n- 4fc45f055 feat(aimock): commit the 73_performance_memoise_repeated_lookups scenario set — replay verified\n- e364e96e2 feat(aimock): commit the 72_performance_single_pass_reporting scenario set — replay verified\n- 01aa4fd2a feat(aimock): commit the 71_integration_two_service_saga scenario set — replay verified\n- 35a264721 feat(aimock): commit the 57_repair_ticket_triage_defects scenario set — replay verified\n- a50280ed0 docs(hitl-brief): a nested decompose_project needs `plan`, not just `spec` — go incremental instead of guessing\n- fce4d7ac9 feat(aimock): commit the 56_planning_fleet_telemetry_platform scenario set — replay verified\n- 8ef1a7760 docs: a fixture's own \"frozen and untouched\" test can be satisfied by editing the checker\n- 90a0d4cfd docs(hitl-brief): the coverage gate scans task prompts, not the top-level spec — written by the responder that found it\n- 9e28a21dc feat(aimock): commit the 55_planning_payments_reconciliation scenario set — replay verified\n- 96dabd373 feat(aimock): commit the 54_planning_encrypted_backup_restore scenario set — replay verified\n- ef989ff32 feat(aimock): commit the 53_planning_warehouse_stock_ledger scenario set — replay verified\n- d853c7187 feat(aimock): commit the 52_planning_receipt_ingest_cli scenario set — replay verified",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4433,9 +4433,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4457,7 +4457,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5274,9 +5274,9 @@
           }
         },
         "title": {
-          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed…",
+          "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed)",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5337,9 +5337,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5361,7 +5361,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -7444,9 +7444,9 @@
           }
         },
         "title": {
-          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nkle…",
+          "value": "F2.36 — !Klein's OWN project board (David 2026-09-05: \"create a project for nklein itself … make the",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7513,9 +7513,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -7537,7 +7537,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8355,9 +8355,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.",
+          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and…",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8431,9 +8431,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8448,7 +8448,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8791,9 +8791,9 @@
           }
         },
         "title": {
-          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record…",
+          "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8867,9 +8867,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8884,7 +8884,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9227,9 +9227,9 @@
           }
         },
         "title": {
-          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board",
+          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture…",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9303,9 +9303,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9320,7 +9320,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9445,9 +9445,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard",
+          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and…",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9521,9 +9521,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9538,7 +9538,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9990,9 +9990,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — Phase 3 — model learning, ro…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — Phase 3 — model learning, routing, and recovery",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10059,9 +10059,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10083,7 +10083,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10099,9 +10099,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.BD — Schema-tolerance swee…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.BD — Schema-tolerance sweep across ALL SDK tool boundaries ✅ COMPLETE — moved from todo.md 2026-07-05",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10168,9 +10168,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10192,7 +10192,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10208,9 +10208,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM — Surfaced test-failure…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM — Surfaced test-failure debts (all discharged) ✅ COMPLETE — moved from todo.md 2026-07-05",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10277,9 +10277,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10301,7 +10301,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10317,9 +10317,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM + 5.BD — moved from tod…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM + 5.BD — moved from todo.md 2026-07-05 (belated migrations: fully-shipped sections that never got moved in their delivering commits)",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10386,9 +10386,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10410,7 +10410,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10426,9 +10426,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/config/runtime-co…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/config/runtime-config.ts` decomposition ✅ COMPLETE (2026-06-27) *(another finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the \"move finished sub-trees early\" rule)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10495,9 +10495,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10519,7 +10519,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10535,9 +10535,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/commands/task.ts`…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/commands/task.ts` CLI decomposition ✅ COMPLETE (2026-06-27) *(a finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the \"move finished sub-trees early\" rule)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10604,9 +10604,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10628,7 +10628,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10644,9 +10644,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.13 Recovery, artifact appl…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.13 Recovery, artifact application, review actions, settings clarity & diagnostics *(follow-up-2 hardening)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10713,9 +10713,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10737,7 +10737,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10753,9 +10753,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.12 SDK vendoring & repo in…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.12 SDK vendoring & repo integration *(2026-06-22)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10822,9 +10822,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10846,7 +10846,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10862,9 +10862,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.11 Runtime control, chat U…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.11 Runtime control, chat UX, self-improvement, security, portability baseline",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10931,9 +10931,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10955,7 +10955,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10971,9 +10971,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.10 Polyglot core, native a…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11040,9 +11040,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11064,7 +11064,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11080,9 +11080,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.9 Strict Docker agent isol…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.9 Strict Docker agent isolation",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11149,9 +11149,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11173,7 +11173,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11189,9 +11189,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.8 Operator UI & observabil…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.8 Operator UI & observability (swarm cockpit)",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11258,9 +11258,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11282,7 +11282,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11393,9 +11393,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.6 Autonomous decomposition…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.6 Autonomous decomposition & planning",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11462,9 +11462,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11486,7 +11486,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11502,9 +11502,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.5 Parallel local swarm exe…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.5 Parallel local swarm executor",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11571,9 +11571,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11595,7 +11595,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11611,9 +11611,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.4 Model Capability & Speed…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.4 Model Capability & Speed Registry (MCSR)",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11680,9 +11680,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11704,7 +11704,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11720,9 +11720,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.3 Context budget visualiza…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.3 Context budget visualization",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11789,9 +11789,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11813,7 +11813,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11924,9 +11924,9 @@
           }
         },
         "title": {
-          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.1 Local-only platform & cl…",
+          "value": "6. SHIPPED — already implemented (do not rebuild) — 6.1 Local-only platform & cloud lockdown",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11993,9 +11993,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12017,7 +12017,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12033,9 +12033,9 @@
           }
         },
         "title": {
-          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Y — Security hardening backlog *(rais…",
+          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12102,9 +12102,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12126,7 +12126,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12142,9 +12142,9 @@
           }
         },
         "title": {
-          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.T — Settings/UI polish *(raised 2026-…",
+          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.T — Settings/UI polish *(raised 2026-06-23, from a Swarm/Settings review)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12211,9 +12211,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12235,7 +12235,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12251,9 +12251,9 @@
           }
         },
         "title": {
-          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Q — Model telemetry & performance-sta…",
+          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12320,9 +12320,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12344,7 +12344,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12360,9 +12360,9 @@
           }
         },
         "title": {
-          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.K — Second-opinion reviewer workflow…",
+          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12429,9 +12429,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12453,7 +12453,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12564,9 +12564,9 @@
           }
         },
         "title": {
-          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.A — Finish strict-isolation reconcili…",
+          "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.A — Finish strict-isolation reconciliation & live verification (completed items)",
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12633,9 +12633,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789384964206,
+          "value": 1789385143171,
           "stamp": {
-            "counter": 1789384964206,
+            "counter": 1789385143171,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12657,7 +12657,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13307,7 +13307,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789384964206,
+          "counter": 1789385143171,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
