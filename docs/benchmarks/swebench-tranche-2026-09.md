@@ -81,6 +81,18 @@ again") — the model is his DeepSeek Harness (dsh) run's seat. Runner, runtime 
    public acceptance (`7e13720e8`): repro test in a new file + graded files' existing tests as the acceptance command,
    visible test evidence, auto-review on.
 
+## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
+
+| arm | seat | where the model runs | runtime | state |
+|---|---|---|---|---|
+| qwen38-8bit-m5max-20260914 | `qwen/qwen3.8-27b` MLX 8-bit, ctx 262k | m5max LM Studio | :3507 | resumed after David's go; 5 left |
+| legion-qwen36-35b-a3b-q4 | `qwen3.6-35b-a3b@legion` GGUF Q4_K_M, ctx 32k | Legion 5 Pro (RTX 4070 8 GB + 32 GB RAM, experts in RAM) via LM Link | :3513 | running |
+| m4mini-dirk-qwen38-iq4xs | `dirk-qwen3.8-iq4xs@m4mini` GGUF IQ4_XS, ctx 32k | m4 mini (24 GB) via LM Link — replaced the q2 quant, which needed 10–13 min per turn | :3514 | running |
+| sonnet5 / opus5 / fable51 / haiku45 | `claude-<model>-hitl` — the HITL model server (:8096–8099) answered by `scripts/hitl-claude-responder.mjs` (`claude -p --model …`, tools disallowed, JSON-schema output) | Anthropic (David's Claude account via the CLI) | :3515–3518 | prepared; blocked on `claude` CLI login on the m5max |
+
+The Claude seats are the same harness with a different model behind the OpenAI-compatible endpoint; their
+receipts carry `queue/seat.json` (CLI model id + Claude Code version) instead of `lms ps` facts.
+
 ## Plan
 
 1. Finish arm A for `qwen/qwen3.8-27b`.
