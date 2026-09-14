@@ -3047,6 +3047,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   line that it is a planning card with no write tools, that `begin_implementation` is refused on purpose, and that
   add_task / add_dependency / decompose_project is the only way forward — one turn instead of twenty-two.
 
+- [ ] **P1.SANDBOXPACKS — the sandbox is READY for Python and extensible per ecosystem (David 2026-09-14: "the
+  sandbox shall be ready for python .. and also it shall be possible to extend the sandbox as-needed in general ..
+  for reasonable ecosystems").** Found on the first SWE-bench tranche (!Klein `83c39fe71` + qwen/qwen3.8-27b 8-bit on
+  the m5max): every Lite/Verified repo is a `setup.py` project, the toolchain detector produced NO toolchain for it,
+  the image had no pytest and no era interpreter, so each worker improvised — a full Python 3.8 fetched by hand
+  (2,791–5,275 junk files in the delivered commits, ~10 min of every card) — and it only worked because the
+  `fully_open` capability tier (the documented 2026-06-22 product default) grants the sandbox full egress.
+  **(a) Python ecosystem pack — SHIPPED (overlay):** `docker/agent-sandbox/Dockerfile.python-pack` +
+  `scripts/build-agent-sandbox-pack.mjs <pack> [--from] [--tag]` — CPython 3.8–3.12 baked offline under
+  `/opt/uv/python` + a per-interpreter wheelhouse of pytest/coverage (`UV_FIND_LINKS`), pack build asserts an OFFLINE
+  3.8 venv with pytest. A pack is an overlay on the pinned base image (the Dockerfile.refresh pattern), so extending
+  the sandbox never re-pulls toolchains. Built as `nklein/agent-sandbox:0.0.1-python` while the tranche measures the
+  unchanged `0.0.1`; retag after the run. **(b) Ecosystem egress packs — SHIPPED:** `core/sandbox-egress-ecosystems`
+  — `ecosystem:<name>` (npm, python, python-toolchain, rust, go, java, ruby; role-scoped `worker:ecosystem:python`
+  too) expands to the canonical registry hosts inside the canonical `parseEgressAllowlist`; unknown names stay
+  plain (fail-safe-narrow). **(c) Python toolchain through uv — SHIPPED:** `setup.py`/`setup.cfg` detected
+  (buildSystem `setuptools`); pip-family installs are `uv venv --seed .nklein-venv && uv pip install … -e . pytest
+  coverage` (uv honours `.python-version`, resolves era interpreters from the pack, consults the wheelhouse first;
+  tools unpinned on this path because an era interpreter needs the last release that supports it).
+  **REMAINING:** (d) Settings hint + trust-center line for the packs (which ecosystems, what they open); (e) the
+  SWE-bench materializer writes `.python-version` from the tranche's era (3.9) so the prime picks it; (f) further
+  packs on demand (rust/go/java already have base toolchains; ruby, dotnet, php when a project needs them) — each an
+  overlay Dockerfile + an egress pack entry; (g) arm B of the tranche on the packed image with a PUBLIC acceptance
+  (repro test + the instance's pass-to-pass selection) enforced by the delivery gate and auto-review ON — compare
+  against arm A per the P20.8 Harness Card. *(not testable: image overlays and egress reach need Docker and a live
+  uplink — the pure parts (b)(c) are unit-tested)*
 - [ ] **P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard
   then refuses every retry for the life of the runtime.** *(Live 2026-09-10, four occurrences across projects 41,
   50 and 51 — the dominant blocker of the afternoon.)*

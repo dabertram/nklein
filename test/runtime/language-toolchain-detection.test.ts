@@ -53,11 +53,13 @@ describe("language toolchain detection (F12.84)", () => {
 		});
 		expect(detectToolchains(["pyproject.toml"])[0]).toMatchObject({
 			buildSystem: "pip",
-			install: expect.stringContaining("python3 -m venv .nklein-venv"),
+			install: expect.stringContaining(
+				"uv venv --seed .nklein-venv && uv pip install --python .nklein-venv/bin/python -e .",
+			),
 			test: ".nklein-venv/bin/pytest",
 		});
 		expect(detectToolchains(["requirements.txt"])[0]).toMatchObject({
-			install: expect.stringContaining(".nklein-venv/bin/pip install -r requirements.txt"),
+			install: expect.stringContaining("uv pip install --python .nklein-venv/bin/python -r requirements.txt"),
 			test: ".nklein-venv/bin/pytest",
 		});
 		expect(detectToolchains(["requirements.txt", "mypy.ini"])[0]?.typecheck).toBe(".nklein-venv/bin/mypy .");
@@ -86,5 +88,21 @@ describe("language toolchain detection (F12.84)", () => {
 		expect(plan.runtimeExecutables).toEqual(["npm", "cargo"]);
 		expect(plan.reason).toContain("javascript/npm");
 		expect(plan.reason).toContain("rust/cargo");
+	});
+
+	it("recognises the setuptools era (setup.py / setup.cfg) and installs it editable through uv", () => {
+		// P1.SANDBOXPACKS (c): every SWE-bench Lite/Verified repo is a setup.py project; before this the detector
+		// produced NO toolchain for them and the worker improvised a Python 3.8 by hand (2026-09-14 tranche).
+		expect(detectToolchains(["setup.py", "README.rst"])[0]).toMatchObject({
+			language: "python",
+			buildSystem: "setuptools",
+			manifest: "setup.py",
+			install: "uv venv --seed .nklein-venv && uv pip install --python .nklein-venv/bin/python -e . pytest coverage",
+			test: ".nklein-venv/bin/pytest",
+			runtimeExecutable: "uv",
+		});
+		expect(detectToolchains(["setup.cfg"])[0]?.manifest).toBe("setup.cfg");
+		// pyproject wins over a legacy setup.py sitting beside it.
+		expect(detectToolchains(["pyproject.toml", "setup.py"])[0]?.buildSystem).toBe("pip");
 	});
 });

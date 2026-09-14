@@ -6,6 +6,7 @@ import {
 	resolveCapabilityTier,
 } from "../core/agent-rulesets";
 import type { EgressProxyRoleSnapshot } from "../core/egress-proxy-verdict";
+import { expandSandboxEgressEcosystems } from "../core/sandbox-egress-ecosystems";
 
 /**
  * Pure resolver for the per-role policy snapshot the I2a egress-proxy server binds to each listener
@@ -72,7 +73,9 @@ export function parseEgressAllowlist(raw: string | null | undefined): string[] {
 	}
 	const seen = new Set<string>();
 	const hosts: string[] = [];
-	for (const entry of raw.split(/[,\n]/)) {
+	// P1.SANDBOXPACKS (b): `ecosystem:<name>` (or `<role>:ecosystem:<name>`) expands to that ecosystem's registry
+	// hosts BEFORE role parsing, so a pack behaves exactly like the hosts written out by hand.
+	for (const entry of expandSandboxEgressEcosystems(raw.split(/[,\n]/))) {
 		const host = entry.trim();
 		if (host.length === 0 || seen.has(host)) {
 			continue;

@@ -1,0 +1,46 @@
+# P1.SANDBOXPACKS (a) — the PYTHON ecosystem pack: an overlay on the base sandbox image (never a rebuild of it).
+#
+# David 2026-09-14: "the sandbox shall be ready for python .. and it shall be possible to extend the sandbox
+# as-needed in general .. for reasonable ecosystems". A pack is a small overlay Dockerfile applied on top of the
+# pinned base image (same pattern as Dockerfile.refresh), so extending the sandbox never re-pulls the toolchains and
+# stays possible on a hotspot uplink. Build: `node scripts/build-agent-sandbox-pack.mjs python`.
+#
+# What this pack adds, and why:
+#   - CPython 3.8–3.12 from python-build-standalone, installed OFFLINE-READY under /opt/uv/python (world-readable, the
+#     sandbox execs as an unprivileged uid). The toolchain prime runs `uv venv`, which honours a repo's
+#     `.python-version`; a 2014-era repo (SWE-bench requests/pylint/pytest) needs the interpreter of its era, and
+#     before this pack the worker fetched one by hand mid-task (2026-09-14 tranche, ~10 min per card).
+#   - A wheelhouse of the test tools (pytest + coverage and their dependencies) for every interpreter, consulted first
+#     via UV_FIND_LINKS / PIP_FIND_LINKS, so `pytest` is installable even at the `none`/`allowlist` network tiers.
+#     Project dependencies still come from the network (ecosystem:python in the allowlist at the medium tier).
+ARG NKLEIN_AGENT_SANDBOX_PACK_FROM=nklein/agent-sandbox:0.0.1
+FROM ${NKLEIN_AGENT_SANDBOX_PACK_FROM}
+
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+	UV_TOOL_DIR=/opt/uv/tools \
+	UV_TOOL_BIN_DIR=/usr/local/bin
+
+RUN uv python install 3.8 3.9 3.10 3.11 3.12 \
+	&& chmod -R a+rX /opt/uv \
+	&& for v in 3.8 3.9 3.10 3.11 3.12; do uv run --no-project --python "$v" python -c "import sys; print(sys.version)"; done
+
+# Wheelhouse: each interpreter downloads the newest pytest/coverage IT supports (an era interpreter needs the last
+# release that still targets it — pinning one version for all five would exclude 3.8). Pure + binary wheels only.
+RUN mkdir -p /opt/nklein/wheels \
+	&& for v in 3.8 3.9 3.10 3.11 3.12; do \
+		uv venv --python "$v" --seed "/tmp/wheelhouse-$v" \
+		&& "/tmp/wheelhouse-$v/bin/python" -m pip download --quiet --dest /opt/nklein/wheels pytest coverage \
+		&& rm -rf "/tmp/wheelhouse-$v"; \
+	done \
+	&& chmod -R a+rX /opt/nklein/wheels \
+	&& ls /opt/nklein/wheels | grep -c '\.whl$'
+ENV UV_FIND_LINKS=/opt/nklein/wheels \
+	PIP_FIND_LINKS=/opt/nklein/wheels
+
+# Fail the PACK BUILD when the readiness it advertises is absent: an offline venv with pytest for the oldest era.
+RUN cd /tmp && uv venv --python 3.8 --seed /tmp/pack-check \
+	&& uv pip install --python /tmp/pack-check/bin/python --offline pytest coverage \
+	&& /tmp/pack-check/bin/pytest --version \
+	&& rm -rf /tmp/pack-check
+
+WORKDIR /workspaces

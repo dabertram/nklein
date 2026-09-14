@@ -32,6 +32,15 @@ export interface Toolchain {
 }
 
 const PYTHON_TEST_TOOLS = "pytest==8.4.1 coverage==7.9.2 mypy==1.16.1";
+/**
+ * P1.SANDBOXPACKS (c): the pip-family installs go through `uv` — it honours a repo's `.python-version`, resolves an
+ * era interpreter from the image's offline `/opt/uv/python` store (the Python pack bakes 3.8–3.12), and consults the
+ * image's wheelhouse (`UV_FIND_LINKS`) before the network. The test tools stay UNPINNED on this path on purpose: a
+ * 2014-era repo needs the last pytest/coverage that still support its interpreter, and uv's resolver knows which.
+ */
+const UV_PYTHON_TEST_TOOLS = "pytest coverage";
+const UV_VENV = "uv venv --seed .nklein-venv";
+const UV_PIP = "uv pip install --python .nklein-venv/bin/python";
 
 function has(files: ReadonlySet<string>, name: string): boolean {
 	return files.has(name);
@@ -139,25 +148,38 @@ export function detectToolchains(rootFileNames: readonly string[]): Toolchain[] 
 			manifest: "pyproject.toml",
 			install: poetry
 				? `poetry install && poetry run pip install ${PYTHON_TEST_TOOLS}`
-				: `python3 -m venv .nklein-venv && .nklein-venv/bin/pip install -e . ${PYTHON_TEST_TOOLS}`,
+				: `${UV_VENV} && ${UV_PIP} -e . ${UV_PYTHON_TEST_TOOLS}`,
 			test: poetry ? "poetry run pytest" : ".nklein-venv/bin/pytest",
 			coverage: poetry
 				? "poetry run coverage run -m pytest && poetry run coverage report"
 				: ".nklein-venv/bin/coverage run -m pytest && .nklein-venv/bin/coverage report",
 			// Python has no universally-present type gate; only claim one when the repo opted in.
 			typecheck: has(files, "mypy.ini") ? (poetry ? "poetry run mypy ." : ".nklein-venv/bin/mypy .") : null,
-			runtimeExecutable: poetry ? "poetry" : "python3",
+			runtimeExecutable: poetry ? "poetry" : "uv",
+		});
+	} else if (has(files, "setup.py") || has(files, "setup.cfg")) {
+		// The setuptools era (every SWE-bench Lite/Verified repo): an editable install is the only honest setup, and
+		// the interpreter it needs is whatever `.python-version` names — uv resolves it from the image's offline store.
+		toolchains.push({
+			language: "python",
+			buildSystem: "setuptools",
+			manifest: has(files, "setup.py") ? "setup.py" : "setup.cfg",
+			install: `${UV_VENV} && ${UV_PIP} -e . ${UV_PYTHON_TEST_TOOLS}`,
+			test: ".nklein-venv/bin/pytest",
+			coverage: ".nklein-venv/bin/coverage run -m pytest && .nklein-venv/bin/coverage report",
+			typecheck: has(files, "mypy.ini") ? ".nklein-venv/bin/mypy ." : null,
+			runtimeExecutable: "uv",
 		});
 	} else if (has(files, "requirements.txt")) {
 		toolchains.push({
 			language: "python",
 			buildSystem: "pip",
 			manifest: "requirements.txt",
-			install: `python3 -m venv .nklein-venv && .nklein-venv/bin/pip install -r requirements.txt ${PYTHON_TEST_TOOLS}`,
+			install: `${UV_VENV} && ${UV_PIP} -r requirements.txt ${UV_PYTHON_TEST_TOOLS}`,
 			test: ".nklein-venv/bin/pytest",
 			coverage: ".nklein-venv/bin/coverage run -m pytest && .nklein-venv/bin/coverage report",
 			typecheck: has(files, "mypy.ini") ? ".nklein-venv/bin/mypy ." : null,
-			runtimeExecutable: "python3",
+			runtimeExecutable: "uv",
 		});
 	}
 	return toolchains;
