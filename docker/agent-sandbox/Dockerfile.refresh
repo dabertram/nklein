@@ -1,0 +1,10 @@
+# P1.IMGREBUILD — the OFFLINE refresh path: overlay a freshly built tool-runner / LSP bundle onto a previously built,
+# fully pinned sandbox image. The full Dockerfile needs Docker Hub for its five pinned base digests plus npm, Playwright
+# and JDT.LS downloads; on a hotspot that stalls for hours (2026-09-05: 76 min on `load metadata`, killed). The
+# toolchains a rebuild would copy are ALREADY in the last good image at the same pinned versions, so a bundle-only
+# refresh makes a host-side fix in `src/nklein-agent/agent-sandbox/` live without any network at all.
+# Used by `scripts/build-agent-sandbox.mjs` when NKLEIN_AGENT_SANDBOX_REFRESH_FROM names the image to overlay.
+ARG NKLEIN_AGENT_SANDBOX_REFRESH_FROM=nklein/agent-sandbox:0.0.1
+FROM ${NKLEIN_AGENT_SANDBOX_REFRESH_FROM}
+COPY tool-runner.cjs /opt/nklein/tool-runner.cjs
+COPY lsp-symbol-mcp-server.cjs /opt/nklein/lsp-symbol-mcp-server.cjs

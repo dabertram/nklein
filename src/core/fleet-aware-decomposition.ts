@@ -39,6 +39,14 @@ export interface FleetModelClassInput {
 	readonly workerCapability: number | null;
 	/** Quality-effective context tokens (learned knee or loaded context); null when unknown. */
 	readonly effectiveContextTokens: number | null;
+	/**
+	 * F3.41 (c): the highest decomposition complexity this class is MEASURED to complete (the calibration loop
+	 * over judged cards, `complexity-floor-calibration.ts`); null/absent when no band has a defensible sample —
+	 * then the granularity line falls back to the researched prior and says so.
+	 */
+	readonly measuredMaxComplexity?: number | null;
+	/** Judged cards behind `measuredMaxComplexity` (for the guidance line's own honesty). */
+	readonly measuredSample?: number;
 }
 
 export interface FleetCapabilitySummary {
@@ -73,6 +81,15 @@ function classCapabilityForSizing(entry: FleetModelClassInput): number | null {
 function granularityLine(target: FleetModelClassInput | null): string[] {
 	if (!target) {
 		return [];
+	}
+	// F3.41 (c): a MEASURED floor replaces the prior outright — the prior's job was to stand in until the
+	// fleet's own judged cards could speak. The line names its basis so a reader never mistakes one for the other.
+	if (typeof target.measuredMaxComplexity === "number" && Number.isFinite(target.measuredMaxComplexity)) {
+		const measured = Math.max(0, Math.round(target.measuredMaxComplexity));
+		const twoFilesMeasured = Math.max(0, measured - 7); // the prior's own two-file discount (5 capability ≈ 7 complexity)
+		return [
+			`Granularity target (F3.41, MEASURED on ${target.measuredSample ?? 0} judged card(s) for ${target.modelKey}): keep every child at complexity ≤ ${measured} for a single-file change (≤ ${twoFilesMeasured} when it touches two files); above that this class did not clear review at the fleet's own pass-rate bar — split it.`,
+		];
 	}
 	const capability = classCapabilityForSizing(target);
 	if (capability === null) {

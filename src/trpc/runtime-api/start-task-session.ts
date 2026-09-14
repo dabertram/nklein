@@ -64,6 +64,7 @@ import { DEFAULT_MODEL_IDLE_TTL_MS } from "../../core/model-load-policy";
 import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
+import { maxComplexityForCapability } from "../../core/model-size-tier-capability";
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { deriveMonorepoTaskScope } from "../../core/monorepo-task-scope";
@@ -78,6 +79,7 @@ import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
 import { selectAutoPoolCandidates, widenWorkerPoolWithAutoPool } from "../../core/worker-auto-pool";
+import { readCalibratedComplexityFloors } from "../../nklein-agent/complexity-floor-evidence";
 import { buildLedgerExemplarMessages } from "../../nklein-agent/ledger-exemplar-messages";
 import { findLocalRuntimeCapability } from "../../nklein-agent/local-runtime-capability-registry";
 import { recordBaselineProbe } from "../../nklein-agent/nklein-baseline-probe-registry";
@@ -2247,20 +2249,41 @@ async function handleStartTaskSessionInner(
 		const fleetDecompositionSettings = resolvedFleetDecomposition.value;
 		const fleetDecompositionMode = fleetDecompositionSettings.mode;
 		const fleetAwareDecomposeOn = fleetDecompositionMode !== "off";
+		// F3.41 (c): the calibration loop — measured complexity floors per class from the fleet's own judged cards
+		// (review judgment × worker attempt × declared complexity, joined by task id). Read only on a fleet-aware
+		// decompose start; a class without a defensible sample keeps the researched prior, and the guidance line says
+		// which basis it used. Recorded below as `granularity_floor_calibrated`.
+		const complexityFloorEvidence =
+			isDecomposePlanTask && fleetAwareDecomposeOn
+				? await readCalibratedComplexityFloors({
+						workspacePath: workspaceScope.workspacePath,
+						classKeyByModelId: new Map(
+							roleScopedSelectionCandidates.map(
+								(candidate) => [candidate.entry.modelId, candidate.entry.key] as const,
+							),
+						),
+					}).catch(() => null)
+				: null;
 		const fleetCapabilitySummary =
 			isDecomposePlanTask && fleetAwareDecomposeOn
 				? buildFleetCapabilitySummary(
-						roleScopedSelectionCandidates.map((candidate) => ({
-							modelKey: candidate.entry.key,
-							paramB: parseModelAttributes(candidate.entry.modelId).paramB ?? null,
-							workerCapability: blendedCapabilityForKey(
-								candidate.entry.key,
-								candidate.entry.capability.effectiveScore,
-								candidate.role,
-								candidate.entry.modelId,
-							),
-							effectiveContextTokens: candidate.entry.contextWindow.effective,
-						})),
+						roleScopedSelectionCandidates.map((candidate) => {
+							const floor = complexityFloorEvidence?.floors.get(candidate.entry.key);
+							return {
+								modelKey: candidate.entry.key,
+								paramB: parseModelAttributes(candidate.entry.modelId).paramB ?? null,
+								workerCapability: blendedCapabilityForKey(
+									candidate.entry.key,
+									candidate.entry.capability.effectiveScore,
+									candidate.role,
+									candidate.entry.modelId,
+								),
+								effectiveContextTokens: candidate.entry.contextWindow.effective,
+								...(floor?.basis === "measured"
+									? { measuredMaxComplexity: floor.measuredMaxComplexity, measuredSample: floor.sample }
+									: {}),
+							};
+						}),
 					)
 				: null;
 		const supportedFloorClass =
@@ -2290,6 +2313,42 @@ async function handleStartTaskSessionInner(
 					supportedFloorClass,
 				)
 			: null;
+		if (fleetCapabilitySummary && complexityFloorEvidence) {
+			// F3.41 (c) observe: the target class's prior vs its measured floor, with the evidence base — the record a
+			// reader needs to see the prior being replaced (or not yet) instead of trusting the guidance line.
+			try {
+				const target = fleetDepthTargetClass;
+				const targetFloor = target ? complexityFloorEvidence.floors.get(target.modelKey) : undefined;
+				const priorCapability = target?.workerCapability ?? null;
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: target
+						? `Granularity floor for ${target.modelKey}: ${targetFloor?.basis === "measured" ? `MEASURED ≤ ${targetFloor.measuredMaxComplexity} on ${targetFloor.sample} judged card(s)` : `prior (${targetFloor ? `${targetFloor.sample} judged card(s), no defensible band` : "no judged cards for this class"})`}; ${complexityFloorEvidence.joinedRows} judged card(s) joined across the fleet.`
+						: `Granularity floor: no depth-target class; ${complexityFloorEvidence.joinedRows} judged card(s) joined across the fleet.`,
+					taskId: body.taskId,
+					workspacePath: workspaceScope.workspacePath,
+					metadata: {
+						category: "granularity_floor_calibrated",
+						targetClass: target?.modelKey ?? null,
+						basis: targetFloor?.basis ?? "no_evidence",
+						measuredMaxComplexity: targetFloor?.measuredMaxComplexity ?? null,
+						sample: targetFloor?.sample ?? 0,
+						priorCapability,
+						priorMaxComplexity:
+							priorCapability === null
+								? null
+								: maxComplexityForCapability(priorCapability, { likelyFileCount: 1, difficulty: "medium" }),
+						joinedRows: complexityFloorEvidence.joinedRows,
+						classesWithFloors: [...complexityFloorEvidence.floors.values()].filter(
+							(floor) => floor.basis === "measured",
+						).length,
+					},
+				});
+			} catch {
+				// Observation only — never disturbs a start.
+			}
+		}
 		// F4.38 — for an explicit decompose-in-plan task, derive the AUTO decomposition depth from the card's difficulty
 		// estimate × the effective context, so the planning prompt steers breakdown granularity to what the task hardness
 		// + model capacity warrant. null for non-decompose tasks ⇒ no prompt change.

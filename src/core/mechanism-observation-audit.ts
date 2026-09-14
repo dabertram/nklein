@@ -1305,6 +1305,19 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 		addedOn: Date.UTC(2026, 8, 14),
 	},
+	{
+		// F3.41 (c) 2026-09-14: the calibration loop. On every fleet-aware decompose start the depth-target class's
+		// researched prior is compared with its MEASURED floor (judged cards × worker attempt × declared complexity,
+		// joined by task id); the guidance line uses the measured one when a band has a defensible sample.
+		category: "granularity_floor_calibrated",
+		item: "F3.41",
+		observes:
+			"per fleet-aware decompose start: the depth-target class's prior max complexity vs its measured floor (basis, judged sample), and how many judged cards joined across the fleet",
+		enabledBy: null,
+		expectation: "every_run",
+		firesWhen: "fleet_aware_decompose",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
 ];
 
 /**

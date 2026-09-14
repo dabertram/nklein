@@ -11,6 +11,10 @@ const dockerContextDir = join(rootDir, "docker", "agent-sandbox");
 const bundledToolRunnerPath = join(dockerContextDir, "tool-runner.cjs");
 const bundledLspSymbolServerPath = join(dockerContextDir, "lsp-symbol-mcp-server.cjs");
 const imageName = process.env.NKLEIN_AGENT_SANDBOX_IMAGE?.trim() || `nklein/agent-sandbox:${packageJson.version}`;
+// P1.IMGREBUILD offline refresh: overlay ONLY the freshly bundled tool-runner / LSP server onto a previously built,
+// fully pinned image (docker/agent-sandbox/Dockerfile.refresh). No registry, npm, Playwright or JDT.LS traffic — the
+// toolchains are already in the base image at the pinned versions. Use when the host has no usable uplink.
+const refreshFrom = process.env.NKLEIN_AGENT_SANDBOX_REFRESH_FROM?.trim() || null;
 
 await mkdir(dockerContextDir, { recursive: true });
 await esbuild.build({
@@ -42,7 +46,7 @@ await esbuild.build({
 
 try {
 	await runDockerBuild(imageName);
-	console.log(`Built ${imageName}`);
+	console.log(refreshFrom ? `Refreshed ${imageName} (bundle overlay on ${refreshFrom})` : `Built ${imageName}`);
 } finally {
 	await Promise.all([
 		rm(bundledToolRunnerPath, { force: true }),
@@ -62,9 +66,12 @@ function runDockerBuild(tag) {
 			const value = process.env[name]?.trim();
 			return value ? ["--build-arg", `${name}=${value}`] : [];
 		});
+		const refreshArgs = refreshFrom
+			? ["-f", join(dockerContextDir, "Dockerfile.refresh"), "--build-arg", `NKLEIN_AGENT_SANDBOX_REFRESH_FROM=${refreshFrom}`]
+			: [];
 		const child = spawn(
 			"docker",
-			["build", "--pull=false", "--progress=plain", ...buildArgs, "-t", tag, dockerContextDir],
+			["build", "--pull=false", "--progress=plain", ...refreshArgs, ...buildArgs, "-t", tag, dockerContextDir],
 			{
 			cwd: rootDir,
 			stdio: "inherit",

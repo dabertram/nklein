@@ -114,3 +114,24 @@ describe("fleet guidance threading (F12.110 wire)", () => {
 		expect(withFleet).not.toBe(plain);
 	});
 });
+
+describe("F3.41 (c) measured granularity floor", () => {
+	it("states the MEASURED floor and its evidence base instead of the researched prior when a class has one", () => {
+		const measuredWeakest: FleetModelClassInput = {
+			...unmeasured7b,
+			workerCapability: 40,
+			measuredMaxComplexity: 35,
+			measuredSample: 12,
+		};
+		const lines = buildFleetDecompositionGuidance(buildFleetCapabilitySummary([gemma, measuredWeakest]), "auto");
+		const granularity = lines.find((line) => line.includes("Granularity target"));
+		expect(granularity).toContain("MEASURED on 12 judged card(s) for tiny-7b");
+		expect(granularity).toContain("complexity ≤ 35 for a single-file change (≤ 28 when it touches two files)");
+		// Without a measured floor the same class reads from the prior, and the line does not claim otherwise.
+		const priorLines = buildFleetDecompositionGuidance(
+			buildFleetCapabilitySummary([gemma, { ...unmeasured7b, workerCapability: 40 }]),
+			"auto",
+		);
+		expect(priorLines.find((line) => line.includes("Granularity target"))).not.toContain("MEASURED");
+	});
+});
