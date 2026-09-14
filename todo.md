@@ -3066,12 +3066,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   (buildSystem `setuptools`); pip-family installs are `uv venv --seed .nklein-venv && uv pip install … -e . pytest
   coverage` (uv honours `.python-version`, resolves era interpreters from the pack, consults the wheelhouse first;
   tools unpinned on this path because an era interpreter needs the last release that supports it).
-  **REMAINING:** (d) Settings hint + trust-center line for the packs (which ecosystems, what they open); (e) the
-  SWE-bench materializer writes `.python-version` from the tranche's era (3.9) so the prime picks it; (f) further
-  packs on demand (rust/go/java already have base toolchains; ruby, dotnet, php when a project needs them) — each an
-  overlay Dockerfile + an egress pack entry; (g) arm B of the tranche on the packed image with a PUBLIC acceptance
-  (repro test + the instance's pass-to-pass selection) enforced by the delivery gate and auto-review ON — compare
-  against arm A per the P20.8 Harness Card. *(not testable: image overlays and egress reach need Docker and a live
+  **(d) SHIPPED** (`e3e9aa9de`): Settings hint on the allowlist field, trust-center + egress design notes. **(e)
+  SHIPPED** (same commit): the materializer commits `.python-version` (the tranche's 3.9) INTO the sealed root commit —
+  the sandbox `git clone`s the workspace, so an untracked marker never reaches it. **(g) BUILT** (`7e13720e8`):
+  `buildSwebenchCard(instance, { publicAcceptance: true })` demands a repro test in a NEW file (never the graded
+  files — that makes the delivery ungradable) and declares `Acceptance command: .nklein-venv/bin/pytest -q <graded
+  test files>` (their EXISTING tests; the hidden fail-to-pass stay hidden); the runner's `--public-acceptance` sets
+  `testEvidencePolicy: agent_visible` + auto-review ON, `--cooldown-ms` pauses between instances (turn latency climbed
+  13 s → 96 s median across four consecutive arm-A instances: sustained-load thermal). Arm B rig prepared at
+  `~/.nklein/factory-drains/swebench-armB-qwen38-8bit-m5max-20260914` (runtime :3508 on the packed image via
+  `NKLEIN_AGENT_SANDBOX_IMAGE`); it runs after arm A finishes (one model slot). **REMAINING:** (f) further packs on
+  demand (ruby, dotnet, php when a project needs them — each an overlay Dockerfile + an egress pack entry); retag the
+  packed image to `0.0.1` (or bump the pin) once arm A has finished measuring the unpacked one; arm B result vs arm A. *(not testable: image overlays and egress reach need Docker and a live
   uplink — the pure parts (b)(c) are unit-tested)*
 - [ ] **P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard
   then refuses every retry for the life of the runtime.** *(Live 2026-09-10, four occurrences across projects 41,
