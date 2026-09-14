@@ -52,6 +52,21 @@ export const runtimeFleetSizingSchema = z.object({
 });
 export type RuntimeFleetSizing = z.infer<typeof runtimeFleetSizingSchema>;
 
+/**
+ * F3.41 (d): the decomposer's own sizing of a generated card, persisted so the router, the DAG/ETA and a later
+ * calibration pass read the SAME facts instead of re-estimating from prompt tokens. Inputs (`complexity`,
+ * `likelyFileCount`) and the current mapping's answer (`requiredCapability`, `smallestTier`) are both kept: the
+ * mapping is a prior that measured floors will replace, and a re-calibration must start from the inputs.
+ * `smallestTier` is null when no researched tier clears the floor (the card must split regardless of fleet).
+ */
+export const runtimeCardDifficultyFactsSchema = z.object({
+	complexity: z.number().min(0).max(100),
+	likelyFileCount: z.number().int().min(1),
+	requiredCapability: z.number().min(0).max(100),
+	smallestTier: z.enum(["xs", "s", "m", "l", "xl", "beyond"]).nullable(),
+});
+export type RuntimeCardDifficultyFacts = z.infer<typeof runtimeCardDifficultyFactsSchema>;
+
 export const runtimeGeneratedFromPlanSchema = z.object({
 	artifactKind: z.enum(["decomposition", "buildout", "spec"]).default("decomposition"),
 	planSlug: z.string().min(1),
@@ -59,6 +74,8 @@ export const runtimeGeneratedFromPlanSchema = z.object({
 	sourceTaskId: z.string().min(1).nullable().optional(),
 	/** The loaded fleet and routing requirement this card was sized against. Absent on legacy/non-fleet plans. */
 	fleetSizing: runtimeFleetSizingSchema.optional(),
+	/** The card's persisted difficulty facts (F3.41 (d)). Absent on cards generated before they were stamped. */
+	difficultyFacts: runtimeCardDifficultyFactsSchema.optional(),
 });
 export type RuntimeGeneratedFromPlan = z.infer<typeof runtimeGeneratedFromPlanSchema>;
 

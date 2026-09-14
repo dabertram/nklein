@@ -236,6 +236,7 @@ function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"
 		planTaskId?: unknown;
 		sourceTaskId?: unknown;
 		fleetSizing?: unknown;
+		difficultyFacts?: unknown;
 	};
 	if (typeof value.planSlug !== "string" || !value.planSlug.trim()) {
 		return undefined;
@@ -251,6 +252,11 @@ function normalizeGeneratedFromPlan(raw: unknown): BoardCard["generatedFromPlan"
 		...(typeof value.sourceTaskId === "string" && value.sourceTaskId ? { sourceTaskId: value.sourceTaskId } : {}),
 		...(value.fleetSizing && typeof value.fleetSizing === "object"
 			? { fleetSizing: value.fleetSizing as NonNullable<BoardCard["generatedFromPlan"]>["fleetSizing"] }
+			: {}),
+		// F3.41 (d): the persisted difficulty facts round-trip untouched — this normalizer rebuilds the object
+		// field-by-field, so an omission here would strip the floor from every card the UI writes back.
+		...(value.difficultyFacts && typeof value.difficultyFacts === "object"
+			? { difficultyFacts: value.difficultyFacts as NonNullable<BoardCard["generatedFromPlan"]>["difficultyFacts"] }
 			: {}),
 	};
 }

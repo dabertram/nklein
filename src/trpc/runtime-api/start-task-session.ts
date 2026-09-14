@@ -998,7 +998,7 @@ async function handleStartTaskSessionInner(
 		// W1.2 (audit 2026-07-02): blend content signals into difficulty — plan cards + planning skill raise the
 		// floor, hard/easy task text nudges — so trivial-verbose stops over-provisioning and terse-hard stops
 		// under-routing (this score also gates the W1.3 /no_think decision).
-		const prerequisiteCount = await loadWorkspaceState(workspaceScope.workspacePath)
+		const startCardFacts = await loadWorkspaceState(workspaceScope.workspacePath)
 			.then((state) => {
 				// Edge-semantics slice (live-found 2026-08-12 on resume-02): an EXPLICIT start of a dep-gated card
 				// proceeds — operator authority — but must SAY SO: the queued redrive silently started an
@@ -1032,15 +1032,52 @@ async function handleStartTaskSessionInner(
 						// Telemetry must never block a start.
 					}
 				}
-				return countNKleinTransitivePrerequisites(body.taskId, state.board.dependencies);
+				// F3.41 (d): the card's persisted difficulty facts ride along from the same read, so the router SEES
+				// the decomposer's own floor beside its prompt-token estimate (recorded below; observe-first).
+				const startCard = state.board.columns.flatMap((column) => column.cards).find((c) => c.id === body.taskId);
+				return {
+					prerequisiteCount: countNKleinTransitivePrerequisites(body.taskId, state.board.dependencies),
+					difficultyFacts: startCard?.generatedFromPlan?.difficultyFacts ?? null,
+				};
 			})
-			.catch(() => 0);
+			.catch(() => ({ prerequisiteCount: 0, difficultyFacts: null }));
+		const prerequisiteCount = startCardFacts.prerequisiteCount;
 		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens, {
 			skillIds: resolvedSkillIds,
 			isPlanCard: body.startInPlanMode === true,
 			taskText: startTaskText,
 			prerequisiteCount,
 		});
+		// F3.41 (d) observe-first: record the persisted plan floor next to the start estimate on EVERY start (a
+		// card without facts records that too — "no floor" is an outcome). `floorBinds` is the flip evidence: how
+		// often the decomposer's floor exceeds the estimate the router actually ranks on. Nothing routes on the
+		// floor until the fitness store has judged the researched priors (F3.41 (c)); routing on an unjudged prior
+		// would be a plausible number standing in for a fact never established.
+		try {
+			const persistedFloor = startCardFacts.difficultyFacts;
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: persistedFloor
+					? `Card difficulty floor for ${body.taskId}: plan floor ${persistedFloor.requiredCapability} (${persistedFloor.smallestTier ?? "beyond any tier"}) vs start estimate ${taskDifficulty} — floor ${persistedFloor.requiredCapability > taskDifficulty ? "WOULD bind" : "would not bind"}.`
+					: `Card difficulty floor for ${body.taskId}: no persisted plan floor (not a generated card, or generated before facts were stamped); start estimate ${taskDifficulty}.`,
+				taskId: body.taskId,
+				workspacePath: workspaceScope.workspacePath,
+				metadata: {
+					category: "card_difficulty_floor",
+					persisted: persistedFloor !== null,
+					estimatedDifficulty: taskDifficulty,
+					requiredCapability: persistedFloor?.requiredCapability ?? null,
+					smallestTier: persistedFloor?.smallestTier ?? null,
+					plannedComplexity: persistedFloor?.complexity ?? null,
+					likelyFileCount: persistedFloor?.likelyFileCount ?? null,
+					floorBinds: persistedFloor ? persistedFloor.requiredCapability > taskDifficulty : null,
+					floorGap: persistedFloor ? persistedFloor.requiredCapability - taskDifficulty : null,
+				},
+			});
+		} catch {
+			// Telemetry must never block a start.
+		}
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
 		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER is BUSY on
 		// isn't truly "free" for fan-out even if !Klein isn't running it — busy = a non-empty `queued` (another client /

@@ -1265,6 +1265,22 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 		addedOn: Date.UTC(2026, 8, 7),
 	},
+	{
+		// F3.41 (d) 2026-09-14: the decomposer's per-card sizing (complexity, likely files → required capability
+		// floor + smallest clearing tier) is now PERSISTED on every generated card, and the start path records it
+		// beside the prompt-token estimate the router actually ranks on. `floorBinds` in the metadata is the
+		// flip evidence for routing on the floor — which stays OFF until F3.41 (c) replaces the researched priors
+		// with fitness-store-measured floors (a prior standing in for a measurement is not a floor).
+		category: "card_difficulty_floor",
+		item: "F3.41",
+		observes:
+			"per task start: the card's persisted plan floor (required capability + smallest tier, or none) next to the start-time difficulty estimate, and whether the floor would have bound",
+		enabledBy: null,
+		// `every_run`: fires at every task start, because "no persisted floor" is itself the recorded outcome.
+		expectation: "every_run",
+		firesWhen: "attempt_started",
+		addedOn: Date.UTC(2026, 8, 14),
+	},
 ];
 
 /**

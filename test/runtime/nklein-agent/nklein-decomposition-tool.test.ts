@@ -163,6 +163,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			planSlug: "habit-tracker",
 			planTaskId: "storage",
 			sourceTaskId: null,
+			difficultyFacts: { complexity: 30, likelyFileCount: 1, requiredCapability: 23, smallestTier: "xs" },
 		});
 		expect(result.createdDependencies).toHaveLength(1);
 		expect(result.createdDependencies[0]).toMatchObject({
@@ -752,6 +753,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			planSlug: "habit-tracker",
 			planTaskId: "storage",
 			sourceTaskId: "planning-card",
+			difficultyFacts: { complexity: 30, likelyFileCount: 1, requiredCapability: 23, smallestTier: "xs" },
 		});
 	});
 
@@ -1748,6 +1750,8 @@ describe("nklein decomposition tools", () => {
 				planSlug: "habit-tracker",
 				planTaskId: "storage",
 				sourceTaskId: null,
+				// F3.41 (d): the facts survive the persisted round trip through the board contract.
+				difficultyFacts: { complexity: 30, likelyFileCount: 1, requiredCapability: 23, smallestTier: "xs" },
 			});
 			expect(planningCards.find((card) => card.id === "habit-tracker-storage")?.prompt).toContain("Execution pace");
 			expect(state.board.dependencies).toHaveLength(1);

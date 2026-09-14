@@ -660,6 +660,38 @@ describe("board dependency state", () => {
 		expect((noticed.board as unknown as Record<string, unknown>).futureBoardField).toEqual({ revision: 3 });
 	});
 
+	it("round-trips a generated card's persisted difficulty facts (F3.41 (d)) — the provenance normalizer rebuilds field-by-field", () => {
+		const difficultyFacts = { complexity: 30, likelyFileCount: 1, requiredCapability: 23, smallestTier: "xs" };
+		const normalized = normalizeBoardData({
+			columns: [
+				{
+					id: "backlog",
+					cards: [
+						{
+							id: "plan-storage",
+							title: "Create storage",
+							prompt: "Implement persistent storage.",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 2,
+							generatedFromPlan: { planSlug: "habit-tracker", planTaskId: "storage", difficultyFacts },
+						},
+					],
+				},
+			],
+			dependencies: [],
+		});
+		expect(normalized).not.toBeNull();
+		if (!normalized) throw new Error("Expected board to normalize");
+		const card = normalized.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(card?.generatedFromPlan).toEqual({
+			artifactKind: "decomposition",
+			planSlug: "habit-tracker",
+			planTaskId: "storage",
+			difficultyFacts,
+		});
+	});
+
 	it("normalizes and updates task blocked state", () => {
 		const normalized = normalizeBoardData({
 			columns: [

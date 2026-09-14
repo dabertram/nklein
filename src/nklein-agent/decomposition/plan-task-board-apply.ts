@@ -6,6 +6,7 @@ import type {
 	RuntimeStream,
 } from "../../core/api-contract";
 import { withAutonomousNKleinTimeoutSettings } from "../../core/autonomous-timeout-defaults";
+import { deriveCardDifficultyFacts } from "../../core/card-difficulty-facts";
 import { buildIntegrationParentPrompt, INTEGRATION_PARENT_PROMPT_MARKER } from "../../core/review-redecompose";
 import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../../core/task-board-mutations";
 import type {
@@ -286,6 +287,9 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 					planSlug: taskGraph.slug,
 					planTaskId: task.id,
 					sourceTaskId: input.sourceTaskId ?? null,
+					// F3.41 (d): the decomposer's sizing rides on the card — the router and the DAG read the plan's
+					// own floor instead of re-estimating from prompt tokens (observe-first; nothing routes on it yet).
+					difficultyFacts: deriveCardDifficultyFacts(task),
 					...(fleetCandidates.length > 0 && fleetFingerprint
 						? {
 								fleetSizing: {
