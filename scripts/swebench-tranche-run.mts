@@ -313,16 +313,27 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		log(`${instanceId}: session did not start: ${execution.result.startMessage ?? "unknown"}`);
 	}
 
-	// Pin the delivered result FIRST: the runtime delivers on `refs/heads/nklein/tasks/<task>-<hash>`, and retiring
-	// the project deletes that branch (pilot 2026-09-14: the only copy of the model's fix became an unreachable
-	// commit and the base tree was graded instead). An immutable evidence ref survives the retirement.
+	// Stop the seed's session before capture (a capped wait ABANDONS a still-live session), then retire the
+	// attempt's runtime registration so nothing rescues or re-dispatches it. Grading reads the FILESYSTEM.
+	await client.runtime.stopTaskSession.mutate({ taskId: runId }).catch((error: unknown) => {
+		log(`${instanceId}: session stop before capture failed: ${error instanceof Error ? error.message : String(error)}`);
+	});
+
+	// Pin the delivered result AFTER the stop and BEFORE retirement: the sandbox result branch
+	// (`refs/heads/nklein/tasks/<task>-<hash>`) is written when the session stops (a capped run delivers at that
+	// moment — requests-1921, 2026-09-14), and retiring the project deletes it (flask-5014 pilot). Poll briefly
+	// for the ref: the capture is asynchronous to the stop call.
 	let pinnedResult: string | null = null;
 	try {
-		const refs = (await git(workspacePath, ["for-each-ref", "--format=%(refname) %(objectname)", `refs/heads/nklein/tasks/${runId}-`]))
-			.split("\n")
-			.map((line) => line.trim())
-			.filter(Boolean)
-			.map((line) => line.split(" ") as [string, string]);
+		let refs: [string, string][] = [];
+		for (let poll = 0; poll < 12 && refs.length === 0; poll += 1) {
+			if (poll > 0) await new Promise((resolveDelay) => setTimeout(resolveDelay, 5_000));
+			refs = (await git(workspacePath, ["for-each-ref", "--format=%(refname) %(objectname)", `refs/heads/nklein/tasks/${runId}-`]))
+				.split("\n")
+				.map((line) => line.trim())
+				.filter(Boolean)
+				.map((line) => line.split(" ") as [string, string]);
+		}
 		if (refs.length > 0) {
 			const [refName, commit] = refs[refs.length - 1] as [string, string];
 			await git(workspacePath, ["update-ref", `refs/nklein/benchmark-evidence/${runId}`, commit]);
@@ -335,11 +346,6 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		log(`${instanceId}: result pin failed: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
 	}
 
-	// Stop the seed's session before capture (a capped wait ABANDONS a still-live session), then retire the
-	// attempt's runtime registration so nothing rescues or re-dispatches it. Grading reads the FILESYSTEM.
-	await client.runtime.stopTaskSession.mutate({ taskId: runId }).catch((error: unknown) => {
-		log(`${instanceId}: session stop before capture failed: ${error instanceof Error ? error.message : String(error)}`);
-	});
 	try {
 		const removal = (await client.projects.remove.mutate({ projectId: workspaceId })) as { ok?: boolean; error?: string };
 		if (!removal.ok) log(`${instanceId}: attempt workspace retirement refused: ${removal.error ?? "unknown"}`);
