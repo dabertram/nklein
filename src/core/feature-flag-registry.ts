@@ -324,6 +324,17 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 	{ flag: "NKLEIN_DURABLE_SCHEDULER", mode: "enforcing", defaultOn: true, gate: "runtime-server.ts" },
 	{ flag: "NKLEIN_MODEL_FAILOVER", mode: "enforcing", defaultOn: true, gate: "nklein-task-session-service.ts" },
 	{
+		flag: "NKLEIN_CONSTRAINED_TOOL_CALL",
+		mode: "enforcing",
+		defaultOn: true,
+		gate: 'nklein-session-runtime.ts model wiring (!== "off")',
+		note:
+			"P23.5 (2) 2026-09-14 kill switch — removes the swarm ladder's constrained_schema rung (forces a tool call the " +
+			"model emitted without usable arguments over the direct local client: native tool_choice:required, then a " +
+			"per-tool json_schema). Fires only after a malformed call, on one turn; the same flattened-prompt exposure " +
+			"family as NKLEIN_ALTERNATE_ENDPOINT, but a structured reply is demanded.",
+	},
+	{
 		flag: "NKLEIN_CONTEXT_OVERFLOW_REDRIVE",
 		mode: "enforcing",
 		defaultOn: true,

@@ -5,6 +5,7 @@ import {
 	compactAgentMessagesPreservingToolWork,
 	createAdaptiveSwarmRecoveryModel,
 } from "../../../src/nklein-agent/adaptive-swarm-recovery-model";
+import { ConstrainedToolCallNoCallError } from "../../../src/nklein-agent/constrained-tool-call-model";
 import { ReasoningBudgetBreachError } from "../../../src/nklein-agent/reasoning-breach-model";
 
 type Script = readonly AgentModelEvent[] | Error;
@@ -312,5 +313,163 @@ describe("F3.36 (b) reasoning-budget breach in the ladder", () => {
 		const lastUser = [...(retry?.messages ?? [])].reverse().find((message) => message.role === "user");
 		const text = (lastUser?.content ?? []).map((part) => (part.type === "text" ? part.text : "")).join("\n");
 		expect(text).toContain(REASONING_BUDGET_BREACH_NUDGE);
+	});
+});
+
+describe("P23.5 (2) constrained_schema rung for calls without usable arguments", () => {
+	const writeFile: AgentToolDefinition = {
+		name: "write_file",
+		description: "write a file",
+		inputSchema: {
+			type: "object",
+			properties: { path: { type: "string" }, content: { type: "string" } },
+			required: ["path", "content"],
+		},
+	};
+	const withWriteFile = () => request({ tools: [tool("read_file"), writeFile, tool("submit_review", true)] });
+	const emptyCall: AgentModelEvent[] = [
+		{ type: "tool-call-delta", toolCallId: "w1", toolName: "write_file", inputText: "{}" },
+		{ type: "finish", reason: "tool-calls" },
+	];
+	const properCall: AgentModelEvent[] = [
+		{
+			type: "tool-call-delta",
+			toolCallId: "w2",
+			toolName: "write_file",
+			input: { path: "src/a.ts", content: "export const a = 1;" },
+			inputText: '{"path":"src/a.ts","content":"export const a = 1;"}',
+		},
+		{ type: "finish", reason: "tool-calls" },
+	];
+
+	it("an EMPTY call on a clean stop is malformed — the constrained rung forces it, narrowed to that tool", async () => {
+		// The P23.5 campaign's wall: three empty write_file calls with the payload in the prompt, clean stops.
+		const base = scriptedBase([emptyCall]);
+		const constrained = scriptedBase([properCall]);
+		const onStrategyApplied = vi.fn();
+		const attempts: {
+			strategy: string | null;
+			trigger: string | null;
+			outcome: string;
+			available: readonly string[];
+		}[] = [];
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			role: "worker",
+			constrainedToolCallModel: constrained.model,
+			onStrategyApplied,
+			onAttempt: (attempt) =>
+				attempts.push({
+					strategy: attempt.strategy,
+					trigger: attempt.triggerOutcome,
+					outcome: attempt.outcome,
+					available: attempt.availableStrategies,
+				}),
+		});
+
+		expect(await collect(model, withWriteFile())).toEqual(properCall);
+		expect(base.requests).toHaveLength(1);
+		expect(constrained.requests).toHaveLength(1);
+		expect(onStrategyApplied).toHaveBeenCalledWith("constrained_schema");
+		expect(attempts).toEqual([
+			{ strategy: null, trigger: null, outcome: "malformed", available: ["constrained_schema", "prompt_variant"] },
+			{ strategy: "constrained_schema", trigger: "malformed", outcome: "success", available: [] },
+		]);
+		// The constrained request is narrowed to the tool the model failed to fill and names the failure.
+		const forced = constrained.requests[0];
+		expect(forced?.tools.map((candidate) => candidate.name)).toEqual(["write_file"]);
+		expect(forced?.options?.metadata).toMatchObject({
+			nkleinProviderMaxRetries: 0,
+			nkleinConstrainedToolCall: {
+				toolName: "write_file",
+				fieldsToReask: ["path", "content"],
+				reason: "re-ask 2 required field(s): path, content",
+			},
+		});
+	});
+
+	it("a lossless argument repair lands in the buffered events without any retry", async () => {
+		const base = scriptedBase([
+			[
+				{ type: "tool-call-delta", toolCallId: "w1", toolName: "write_file", inputText: '{"path":"a.ts",' },
+				{ type: "tool-call-delta", toolCallId: "w1", inputText: '"content":"x","extra":1}' },
+				{ type: "finish", reason: "tool-calls" },
+			],
+		]);
+		const constrained = scriptedBase([properCall]);
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			constrainedToolCallModel: constrained.model,
+		});
+		expect(await collect(model, withWriteFile())).toEqual([
+			{
+				type: "tool-call-delta",
+				toolCallId: "w1",
+				toolName: "write_file",
+				input: { path: "a.ts", content: "x" },
+				inputText: '{"path":"a.ts","content":"x"}',
+			},
+			{ type: "finish", reason: "tool-calls" },
+		]);
+		expect(base.requests).toHaveLength(1);
+		expect(constrained.requests).toHaveLength(0);
+	});
+
+	it("a mixed batch stays a success — the good calls ship and the bad one keeps its tool error", async () => {
+		const mixed: AgentModelEvent[] = [
+			{ type: "tool-call-delta", toolCallId: "r1", toolName: "read_file", inputText: '{"path":"a.ts"}' },
+			{ type: "tool-call-delta", toolCallId: "w1", toolName: "write_file", inputText: "{}" },
+			{ type: "finish", reason: "tool-calls" },
+		];
+		const base = scriptedBase([mixed]);
+		const constrained = scriptedBase([properCall]);
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			constrainedToolCallModel: constrained.model,
+		});
+		expect(await collect(model, withWriteFile())).toEqual(mixed);
+		expect(constrained.requests).toHaveLength(0);
+	});
+
+	it("without a constrained model the malformed turn takes the next rung of the malformed ladder", async () => {
+		const base = scriptedBase([emptyCall, properCall]);
+		const onStrategyApplied = vi.fn();
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			role: "worker",
+			onStrategyApplied,
+		});
+		expect(await collect(model, withWriteFile())).toEqual(properCall);
+		expect(onStrategyApplied).toHaveBeenCalledWith(expect.stringMatching(/^prompt_variant/));
+		expect(base.requests).toHaveLength(2);
+	});
+
+	it("the rung's no-call error keeps the turn malformed and the ladder moves on without repeating it", async () => {
+		const base = scriptedBase([emptyCall, properCall]);
+		const constrained = scriptedBase([new ConstrainedToolCallNoCallError("constrained tool call: no call")]);
+		const outcomes: string[] = [];
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			role: "worker",
+			constrainedToolCallModel: constrained.model,
+			onAttempt: (attempt) => outcomes.push(`${attempt.strategy ?? "baseline"}:${attempt.outcome}`),
+		});
+		expect(await collect(model, withWriteFile())).toEqual(properCall);
+		expect(outcomes).toEqual(["baseline:malformed", "constrained_schema:malformed", "prompt_variant:success"]);
+		expect(constrained.requests).toHaveLength(1);
+	});
+
+	it("a still-empty forced call is judged malformed again and the ladder continues", async () => {
+		const base = scriptedBase([emptyCall, properCall]);
+		const constrained = scriptedBase([emptyCall]);
+		const outcomes: string[] = [];
+		const model = createAdaptiveSwarmRecoveryModel(base.model, {
+			modelId: "qwen/qwen3.8-27b",
+			role: "worker",
+			constrainedToolCallModel: constrained.model,
+			onAttempt: (attempt) => outcomes.push(`${attempt.strategy ?? "baseline"}:${attempt.outcome}`),
+		});
+		expect(await collect(model, withWriteFile())).toEqual(properCall);
+		expect(outcomes).toEqual(["baseline:malformed", "constrained_schema:malformed", "prompt_variant:success"]);
 	});
 });

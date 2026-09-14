@@ -54,6 +54,7 @@ import { StatefulResponsesCapabilityCache } from "../core/stateful-responses-gat
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { createAdaptiveSwarmRecoveryModel } from "./adaptive-swarm-recovery-model";
+import { createConstrainedToolCallModel } from "./constrained-tool-call-model";
 import { createLocalAlternateEndpointModel } from "./local-alternate-endpoint-model";
 import {
 	createActionPlanExecutionTool,
@@ -1079,6 +1080,42 @@ ${new Error("stack").stack ?? ""}
 											},
 										})
 									: undefined;
+						// P23.5 (2): the `constrained_schema` rung — forces the call the model emitted WITHOUT usable
+						// arguments (native tool_choice:required first, per-tool json_schema second) over the direct local
+						// client. Default ON: it fires only after a malformed call, on one turn. NKLEIN_CONSTRAINED_TOOL_CALL=off
+						// removes it for rigs that must not expose a flattened prompt on the direct wire.
+						const constrainedToolCallModel =
+							directClient && process.env.NKLEIN_CONSTRAINED_TOOL_CALL !== "off"
+								? createConstrainedToolCallModel({
+										directClient,
+										modelId: request.modelId,
+										baseMaxTokens: request.maxTokensPerTurn,
+										onObservation: (observation) => {
+											try {
+												recordSelfObservation({
+													signal: "custom",
+													severity: observation.usable ? "info" : "warning",
+													message: `Constrained tool call (${observation.rung}) ${observation.usable ? "recovered" : "did not recover"} ${observation.toolName ?? "the tool call"} for ${request.taskId}: ${observation.reason}`,
+													taskId: request.taskId,
+													providerId: request.providerId,
+													modelId: request.modelId,
+													workspacePath: agentPerceivedCwd,
+													metadata: {
+														category: "swarm_constrained_tool_call",
+														role: request.role ?? "unknown",
+														rung: observation.rung,
+														toolName: observation.toolName,
+														verdict: observation.verdict,
+														reason: observation.reason,
+														usable: observation.usable,
+													},
+												});
+											} catch {
+												// Telemetry must never alter recovery.
+											}
+										},
+									})
+								: undefined;
 						const adaptiveModel = createAdaptiveSwarmRecoveryModel(guardedBase, {
 							modelId: request.modelId,
 							profile: request.behaviorProfile,
@@ -1087,6 +1124,7 @@ ${new Error("stack").stack ?? ""}
 							baseMaxTokens: request.maxTokensPerTurn,
 							promptVariationEnabled: isEnabledByDefaultEnv(process.env.NKLEIN_SWARM_PROMPT_VARIATION),
 							alternateEndpointModel,
+							constrainedToolCallModel,
 							onBufferedToken: () => this.onTaskEvent?.(request.taskId, { type: "nklein_buffered_model_token" }),
 							onStrategyApplied: (strategy) => request.onPromptStrategyApplied?.(strategy),
 							onAttempt: (attempt) => {

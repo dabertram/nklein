@@ -762,6 +762,16 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "exceptional",
 	},
 	{
+		// P23.5 (2) 2026-09-14: registered in the SAME commit as the wire (F4.8b day-one rule). null = default ON —
+		// NKLEIN_CONSTRAINED_TOOL_CALL=off REMOVES the rung (a kill switch, not an enabler).
+		category: "swarm_constrained_tool_call",
+		item: "P23.5",
+		observes:
+			"the swarm ladder's constrained_schema rung forcing a tool call the model emitted without usable arguments (native tool_choice:required first, per-tool json_schema second) and whether the forced call was usable",
+		enabledBy: null,
+		expectation: "exceptional",
+	},
+	{
 		// F4.8b 2026-07-20: likewise already instrumented, only unregistered.
 		category: "model_lost_residency",
 		item: "§5.AL",
