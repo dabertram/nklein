@@ -32,7 +32,7 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 | Execution | ACT mode, one card per instance, 120-min wall (first four instances of arm A: 45 min), 4-min no-progress settle | same |
 | Tool | agent sandbox `nklein/agent-sandbox:0.0.1` (python 3.11, uv, no pytest, no era interpreter) | `0.0.1-python` pack (CPython 3.8–3.12 offline, pytest/coverage wheelhouse) |
 | Context | issue text IS the prompt + two ground rules; repo at base commit; no test patch anywhere | + repro test in a NEW file required; `Acceptance command:` = existing tests of the graded files |
-| Scheduling | one model slot, instances sequential; **shared seat** — the same m5max model also served David's dschinn run on another machine (LM Link) and the runtime's own auxiliary calls | + 5-min cooldown between instances |
+| Scheduling | one model slot, instances sequential; **shared seat** — the same m5max model also served David's DeepSeek Harness (dsh) run on another machine (LM Link) and the runtime's own auxiliary calls | + 5-min cooldown between instances |
 | Observability | runtime HOME telemetry + request logs per arm; receipts carry model facts from `lms ps`/`lms ls` at run time | same |
 | Verification | sealed grader outside the agent workspace; N8.1 tampering check on graded files | + delivery gate runs the acceptance command; auto-review by the same model |
 | Governance | capability tier `fully_open` (product default): sandbox has full egress | same (packs make it unnecessary at stricter tiers) |
@@ -61,7 +61,7 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 
 Running tally: **2 / 5 resolved**. Remaining: pytest-6202, pytest-7521, pylint-4970, pylint-6903, pylint-7993.
 **SUSPENDED 2026-09-14 17:50** on David's instruction ("suspend our use of qwen3.8 27b on m5max until i give a go
-again") — the model is his dschinn run's seat. Runner, runtime and the campaign orchestrator stopped; instance 6
+again") — the model is his DeepSeek Harness (dsh) run's seat. Runner, runtime and the campaign orchestrator stopped; instance 6
 (pytest-6202) had just started and was discarded. Resumes on his go (the runner skips graded instances).
 
 ## Findings → improvements (treated as found)
@@ -75,7 +75,7 @@ again") — the model is his dschinn run's seat. Runner, runtime and the campaig
    python pack overlay, ecosystem egress packs, uv toolchain with setup.py detection, `.python-version` sealed into
    the root commit (`23db8f219`, `e3e9aa9de`).
 3. **Turn latency climbed 13 s → 21 s → 39 s → 96 s median** across consecutive instances — the seat was shared
-   (dschinn on another machine, the runtime's own auxiliary calls) and under sustained load. → 120-min cap,
+   (DeepSeek Harness (dsh) on another machine, the runtime's own auxiliary calls) and under sustained load. → 120-min cap,
    `--cooldown-ms`, and the shared-seat note on every card (`1fe29d107`).
 4. **Delivering with a still-failing visible test** — the held-out configuration requires nothing visible. → Arm B
    public acceptance (`7e13720e8`): repro test in a new file + graded files' existing tests as the acceptance command,
