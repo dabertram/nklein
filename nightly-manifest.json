@@ -163,6 +163,26 @@
 		{
 			"id": "chat-control-plane",
 			"file": "test/integration/chat-control-plane.integration.test.ts"
+		},
+		{
+			"id": "startup-onboarding-flow",
+			"file": "tests/startup-onboarding-flow.spec.ts",
+			"runner": "playwright"
+		},
+		{
+			"id": "setup-wizard-flow",
+			"file": "tests/setup-wizard-flow.spec.ts",
+			"runner": "playwright"
+		},
+		{
+			"id": "agent-onboarding-carousel-flow",
+			"file": "tests/agent-onboarding-carousel-flow.spec.ts",
+			"runner": "playwright"
+		},
+		{
+			"id": "project-initializer-flow",
+			"file": "tests/project-initializer-flow.spec.ts",
+			"runner": "playwright"
 		}
 	]
 }

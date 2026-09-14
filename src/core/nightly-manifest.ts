@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { NightlyModelIoCost } from "./nightly-cell-cost";
 import type { TeardownReport } from "./nightly-drain-collector";
 import type { NightlyHermeticEvidence } from "./nightly-hermeticity";
@@ -62,8 +63,32 @@ export interface NightlyManifest {
 
 export interface NightlyE2eSuiteEntry {
 	readonly id: string;
-	/** Repo-relative vitest file. */
+	/**
+	 * The suite file: repo-relative for `vitest` (the default), `web-ui`-relative for `playwright` (the browser
+	 * flow specs live under `web-ui/tests/` and run from that package, whose Playwright config starts the vite
+	 * dev server itself — the N14 launchers do the same).
+	 */
 	readonly file: string;
+	readonly runner?: "vitest" | "playwright";
+}
+
+export interface NightlyE2eSuiteCommand {
+	readonly command: string;
+	readonly args: readonly string[];
+	readonly cwd: string;
+}
+
+/** The exact process one registered suite runs as — pure, so the mapping is testable without spawning anything. */
+export function nightlyE2eSuiteCommand(entry: NightlyE2eSuiteEntry, repoRoot: string): NightlyE2eSuiteCommand {
+	if (entry.runner === "playwright") {
+		const webUiRoot = join(repoRoot, "web-ui");
+		return {
+			command: join(webUiRoot, "node_modules", ".bin", "playwright"),
+			args: ["test", entry.file],
+			cwd: webUiRoot,
+		};
+	}
+	return { command: "npx", args: ["vitest", "run", entry.file], cwd: repoRoot };
 }
 
 export interface NightlyE2eSuiteResult {

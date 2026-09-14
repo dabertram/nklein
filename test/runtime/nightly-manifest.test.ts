@@ -6,6 +6,7 @@ import {
 	type NightlyManifest,
 	nightlyCellKey,
 	nightlyCellName,
+	nightlyE2eSuiteCommand,
 	summarizeE2eSuiteLane,
 	summarizeNightlyRun,
 } from "../../src/core/nightly-manifest";
@@ -173,6 +174,19 @@ describe("e2e-suite lane (F2.30 d)", () => {
 		]);
 		expect(lane.outcome).toBe("failed");
 		expect(lane.reason).toBe("chat-control-plane: pass · later-suite: a suite that is not a pass MUST say why");
+	});
+
+	it("maps a suite to the exact process it runs as — vitest from the repo, playwright from web-ui", () => {
+		expect(nightlyE2eSuiteCommand({ id: "a", file: "test/integration/a.test.ts" }, "/repo")).toEqual({
+			command: "npx",
+			args: ["vitest", "run", "test/integration/a.test.ts"],
+			cwd: "/repo",
+		});
+		expect(nightlyE2eSuiteCommand({ id: "b", file: "tests/b.spec.ts", runner: "playwright" }, "/repo")).toEqual({
+			command: "/repo/web-ui/node_modules/.bin/playwright",
+			args: ["test", "tests/b.spec.ts"],
+			cwd: "/repo/web-ui",
+		});
 	});
 
 	it("is not selected when nothing is registered or a filter skipped the lane — never a silent pass", () => {

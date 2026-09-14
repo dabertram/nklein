@@ -36,6 +36,7 @@ import {
 	type NightlyManifest,
 	nightlyCellKey,
 	nightlyCellName,
+	nightlyE2eSuiteCommand,
 	summarizeE2eSuiteLane,
 	summarizeNightlyRun,
 } from "../core/nightly-manifest";
@@ -652,7 +653,7 @@ export async function runDevNightlyCommand(options: {
 		}
 		if ((manifest.e2eSuites?.length ?? 0) > 0 && !options.project && !options.model) {
 			process.stdout.write(
-				`  e2e-suites             (F2.30 d mock-model e2e: ${(manifest.e2eSuites ?? []).map((suite) => suite.id).join(", ")})\n`,
+				`  e2e-suites             (F2.30 d mock-model e2e: ${(manifest.e2eSuites ?? []).map((suite) => `${suite.id}${suite.runner === "playwright" ? " [playwright]" : ""}`).join(", ")})\n`,
 			);
 		}
 		return;
@@ -776,7 +777,9 @@ export async function runDevNightlyCommand(options: {
 		e2eSuiteResults = [];
 		for (const suite of manifest.e2eSuites ?? []) {
 			try {
-				const { stderr } = await execFileAsync("npx", ["vitest", "run", suite.file], {
+				const run = nightlyE2eSuiteCommand(suite, process.cwd());
+				const { stderr } = await execFileAsync(run.command, [...run.args], {
+					cwd: run.cwd,
 					timeout: E2E_SUITE_TIMEOUT_MS,
 					maxBuffer: 20 * 1024 * 1024,
 				});
