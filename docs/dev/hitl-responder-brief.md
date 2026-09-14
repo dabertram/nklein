@@ -20,6 +20,17 @@ Context hygiene inside the shift matters for the same reason: read each request 
 ~12k characters) rather than in full, never paste a large file into the reply text, and keep commentary to one
 line per request.
 
+## The "Focused code span" in your prompt is a SNAPSHOT — it never updates
+
+The `Focused code span` block is baked into the CARD PROMPT when the plan is applied, so it is frozen at decompose
+time. It will still show the file's original contents after your own writes have landed, for the whole life of the
+card. It is a localization hint, not a live view.
+
+Two sessions read the unchanged snippet turn after turn, concluded their writes were vanishing, and repeated the
+identical `write_files` seven to nine times — one of them until the turn-loop guard parked the card, leaving it
+held in Review (P1.PARKEDINREVIEW). **Never treat an unchanged span as evidence a write failed.** To know what is
+on disk, `read_files` or `get_file_size` it; the tool result is the fact. The prompt now says so itself.
+
 ## Call the claim script in the FOREGROUND — backgrounding it kills your shift
 
 `hitl-next-request.sh` blocks for up to 240 seconds waiting for work. Run it as an ordinary synchronous command
@@ -37,7 +48,16 @@ per turn that either hands you a request or prints NONE.
 ## The loop
 
 1. `scripts/hitl-next-request.sh <mark>` — BLOCKING, returns the next unanswered id (or `NONE` after ~4 min) and
-   claims it. **Never pass `--no-claim`.**
+   claims it. **Never pass `--no-claim`.** The default owner (`responder-anon-<pid>`) is deliberately NOT
+   pid-shaped: your script exits the instant it prints an id, so a `responder-<pid>` owner is dead by construction
+   and the other responder reclaims it on its very next poll. Passing your own stable `--claim responder-<name>`
+   is equally good; both take the 20-minute age window instead of the instant-dead path, which only a long-lived
+   responder process (`bin/hitl-auto.py`) should use.
+   **A stolen claim does not merely waste your reading — it can DISCARD your whole turn.** Live 2026-09-11,
+   request 2036: two responders answered the same id, and the transcript that continued (2040) contains the other
+   responder's single `write_files` where this responder's three-call turn should have been. Its history is
+   otherwise identical, so this is one session with one turn overwritten, not two sessions racing. If your answer
+   seems to have had no effect, check whether the id was answered twice before concluding anything about the rig.
 2. `NONE` ⇒ call it again immediately. An idle queue means the factory is thinking, not that the shift is over.
    (A `NONE` does not count toward the 25.)
 3. An id ⇒ read the request, play the model (call the offered tools with their exact names and schemas, or reply

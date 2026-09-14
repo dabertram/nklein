@@ -118,7 +118,15 @@ export function formatPlanTaskFocusedSpan(span: PlanTaskFocusedSpan | null | und
 		return null;
 	}
 	return [
-		"Focused code span (automatic top-1 localization; verify before editing and use retrieval if it is not relevant):",
+		// SAY THAT IT IS A SNAPSHOT (live 2026-09-11/12, twice). This text is baked into the CARD PROMPT when the plan
+		// is applied, so it is frozen at decompose time and can never reflect anything the card's own session writes.
+		// Two sessions read the unchanged snippet turn after turn, concluded their writes were vanishing, and
+		// repeated the identical `write_files` 7-9 times — one of them until the turn-loop guard parked the card. The
+		// snippet is a localization hint, not a live view of the file, and only the label can carry that.
+		"Focused code span (automatic top-1 localization; verify before editing and use retrieval if it is not relevant).",
+		"NOTE: this snippet is a SNAPSHOT taken when this card was created. It does NOT update as you work — it will",
+		"still show the original contents after your own writes land. To see the current file, read it; never treat an",
+		"unchanged snippet here as evidence that a write failed.",
 		`Path: ${span.path}:${span.lineStart}`,
 		...(span.symbol ? [`Symbol: ${span.symbol}`] : []),
 		"```",

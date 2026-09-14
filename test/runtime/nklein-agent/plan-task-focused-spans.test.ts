@@ -78,3 +78,26 @@ describe("F11.2d plan-task focused spans", () => {
 		expect(shouldAttachPlanTaskFocusedSpan(candidate(91))).toBe(false);
 	});
 });
+
+describe("formatPlanTaskFocusedSpan — the snapshot label", () => {
+	it("says the snippet does not update, so an unchanged span is never read as a failed write", () => {
+		// Live 2026-09-11/12: the span is baked into the CARD PROMPT at decompose time, so two sessions read the
+		// unchanged snippet turn after turn, concluded their writes were vanishing, and repeated the identical
+		// `write_files` 7-9 times — one until the turn-loop guard parked the card.
+		const rendered = formatPlanTaskFocusedSpan({
+			path: "tests/manifest.json",
+			lineStart: 1,
+			content: "{}",
+			score: 1,
+		} as Parameters<typeof formatPlanTaskFocusedSpan>[0]);
+		expect(rendered).toContain("SNAPSHOT taken when this card was created");
+		expect(rendered).toContain("does NOT update as you work");
+		expect(rendered).toContain("never treat an");
+		expect(rendered).toContain("tests/manifest.json:1");
+	});
+
+	it("still renders nothing without a span", () => {
+		expect(formatPlanTaskFocusedSpan(null)).toBeNull();
+		expect(formatPlanTaskFocusedSpan(undefined)).toBeNull();
+	});
+});
