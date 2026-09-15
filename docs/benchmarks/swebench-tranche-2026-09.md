@@ -92,13 +92,28 @@ with dsh. Receipts: `swebench-tranche-2026-09/qwen36-27b-8bit/`.
 **Score: 8 / 10 resolved.** Mean 16.3 min per instance — a third of qwen3.8's, and the best local seat of the
 campaign. Failures: pylint-4970 (one fail-to-pass red) and pylint-7993 (one red plus two regressions).
 
-### Legion arm — !Klein `83c39fe71`, `qwen3.6-35b-a3b@legion` (Q4_K_M, ctx 32k, in progress)
+### Legion arm — !Klein `83c39fe71`, `qwen3.6-35b-a3b@legion` GGUF Q4_K_M via LM Link (COMPLETE 2026-09-15 12:33)
+
+Legion 5 Pro (RTX 4070 8 GB + 32 GB RAM, experts in RAM), context 32k, one request at a time; low power mode from
+09:10. Receipts: `swebench-tranche-2026-09/legion-qwen36-35b-a3b-q4/` (the seat-outage and mis-retired attempts kept
+as superseded). Two attempts restarted from scratch (operator, 22:32 and 09:10).
 
 | instance | resolved | minutes | outcome | note |
 |---|---|---|---|---|
-| pallets__flask-5014 | yes | 42 | blocked_by_review_cards (delivered) | `blueprints.py` fix; 1/1 F2P, 59 P2P held |
+| pallets__flask-5014 | yes | 42 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | yes | 120 | stagnant | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held; `requests/models.py` |
+| psf__requests-2317 | yes | 102 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (re-graded, finding 7); `requests/sessions.py` |
+| psf__requests-5414 | no | 120 | stagnant | unresolved: 0 fail-to-pass still failing, 8 pass-to-pass REGRESSED; `requests/models.py` |
+| pytest-dev__pytest-5227 | yes | 56 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
+| pytest-dev__pytest-6202 | no | 53 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `` |
+| pytest-dev__pytest-7521 | no | 41 | needs_attention | unresolved: 2 fail-to-pass still failing; `` |
+| pylint-dev__pylint-4970 | no | 52 | needs_attention | unresolved: 1 fail-to-pass still failing; `pylint/checkers/similar.py`, `test_duplicate.py` |
+| pylint-dev__pylint-6903 | yes | 109 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | no | 121 | stagnant | unresolved: 0 fail-to-pass still failing, 2 pass-to-pass REGRESSED; `pylint/reporters/text.py`, `test_msg_template_fix.py`, `test_regex_fix.py` |
 
-Running tally: **1 / 1 resolved**.
+**Score: 5 / 10 resolved.** Mean 81.7 min per instance; four instances ran to the 120-minute cap. Failures: requests-5414 and
+pylint-7993 (fail-to-pass fixed but pass-to-pass regressed), pytest-6202 (nothing delivered), pytest-7521 and
+pylint-4970 (loop-guard parks — finding 10).
 
 ### m4 mini arm — !Klein `83c39fe71`, `dirk-qwen3.8-iq4xs@m4mini` (IQ4_XS, ctx 32k, in progress)
 

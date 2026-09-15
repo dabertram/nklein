@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-legion-qwen36-35b-a3b-q4-pylint-dev__pylint-6903",
+  "instanceId": "pylint-dev__pylint-6903",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "ca80f03a43bc39e4cc2c67dc99817b3c9f13b8a6",
+  "tarballSha256": "f3f28026ce71aa8966c2a349090d3e26b7a76afe1eb3c99c9884b8b7c06c2ee2",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "fdd960233c20a4c0c6540abbdcad5e4a1054f20a",
+    "runtimeOrigin": "http://127.0.0.1:3513",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"legion-qwen36-35b-a3b-q4\": !Klein 83c39fe71 driving qwen3.6-35b-a3b@legion from its own HOME on :3513. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen3.6-35b-a3b@legion\" NKLEIN_CUSTODIAN_MODEL=\"qwen3.6-35b-a3b@legion\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3513 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3513"
+    }
+  },
+  "model": {
+    "identifier": "qwen3.6-35b-a3b@legion",
+    "modelKey": "qwen/qwen3.6-35b-a3b",
+    "status": "idle",
+    "contextLength": 262144,
+    "sizeBytes": 37748563037,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5_moe",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T08:42:23.593Z",
+  "finishedAt": "2026-09-15T10:31:22.101Z",
+  "durationMs": 6538508,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen3.6-35b-a3b@legion": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 908,
+    "baseCommit": "673706694dded540508ec54310415c88ff619ff2",
+    "resultCommit": "646a341771f8e8e8e34699a7e1e6c3c82e1ff2a1",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-legion-qwen36-35b-a3b-q4-pylint-dev__pylint-6903-eac72306de"
+  },
+  "changedFiles": [
+    "pylint/lint/run.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "pylint/lint/run.py"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pylint-dev__pylint__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "tests/test_pylint_runners.py::test_pylint_run_jobs_equal_zero_dont_crash_with_cpu_fraction"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held",
+    "graderStdoutTail": "ted at 10.00/10 (previous run: 10.00/10, +0.00)\n\n__________________ test_runner_with_arguments[run_pyreverse] ___________________\n----------------------------- Captured stdout call -----------------------------\nparsing /work/tests/test_pylint_runners.py...\n___________________ test_runner_with_arguments[run_symilar] ____________________\n----------------------------- Captured stdout call -----------------------------\nTOTAL lines=77 duplicates=0 percent=0.00\n\n=========================== short test summary info ============================\nPASSED tests/test_pylint_runners.py::test_runner[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner[run_symilar]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_symilar]\n========================= 8 passed, 1 warning in 6.63s =========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "646a341771f8e8e8e34699a7e1e6c3c82e1ff2a1",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/workspaces/swebench-legion-qwen36-35b-a3b-q4-pylint-dev__pylint-6903"
+}

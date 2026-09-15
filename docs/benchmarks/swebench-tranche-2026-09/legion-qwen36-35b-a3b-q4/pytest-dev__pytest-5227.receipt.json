@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-5227",
+  "instanceId": "pytest-dev__pytest-5227",
+  "repo": "pytest-dev/pytest",
+  "baseCommit": "2051e30b9b596e944524ccb787ed20f9f5be93e3",
+  "tarballSha256": "9852d5b7c4e2929368ada73c6bf27e707bc31c99fcefab71c6caa573d04cddef",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "50c0d5cdaa77669f003b1fe5c6be8ef9a81e60d6",
+    "runtimeOrigin": "http://127.0.0.1:3513",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"legion-qwen36-35b-a3b-q4\": !Klein 83c39fe71 driving qwen3.6-35b-a3b@legion from its own HOME on :3513. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen3.6-35b-a3b@legion\" NKLEIN_CUSTODIAN_MODEL=\"qwen3.6-35b-a3b@legion\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3513 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3513"
+    }
+  },
+  "model": {
+    "identifier": "qwen3.6-35b-a3b@legion",
+    "modelKey": "qwen/qwen3.6-35b-a3b",
+    "status": "idle",
+    "contextLength": 32768,
+    "sizeBytes": 22069769172,
+    "deviceIdentifier": "040891f3ad9352c2ec9389aba79cd022",
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5_moe",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T05:06:06.832Z",
+  "finishedAt": "2026-09-15T06:02:18.860Z",
+  "durationMs": 3372028,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen3.6-35b-a3b@legion": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 1086,
+    "baseCommit": "c3f8e998b944470a022bfed2746ca71711efed58",
+    "resultCommit": "370e45373927170f858ed7727df7185e385c6c79",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-5227-20a5b0e3f1"
+  },
+  "changedFiles": [
+    ".nklein-venv/lib64",
+    ".nklein-venv/pyvenv.cfg",
+    "src/_pytest/logging.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      ".nklein-venv/lib64",
+      ".nklein-venv/pyvenv.cfg",
+      "src/_pytest/logging.py"
+    ]
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "testing/logging/test_reporting.py::test_log_cli_enabled_disabled[True]",
+      "testing/logging/test_reporting.py::test_log_cli_default_level",
+      "testing/logging/test_reporting.py::test_sections_single_new_line_after_test_outcome"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held (3 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "::test_log_cli_ini_level\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-file-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_cli_auto_enable[--log-cli-level=WARNING]\nPASSED testing/logging/test_reporting.py::test_log_file_cli\nPASSED testing/logging/test_reporting.py::test_log_file_cli_level\nPASSED testing/logging/test_reporting.py::test_log_level_not_changed_by_default\nPASSED testing/logging/test_reporting.py::test_log_file_ini\nPASSED testing/logging/test_reporting.py::test_log_file_ini_level\nPASSED testing/logging/test_reporting.py::test_log_file_unicode\nPASSED testing/logging/test_reporting.py::test_collection_live_logging\nPASSED testing/logging/test_reporting.py::test_collection_logging_to_file\nPASSED testing/logging/test_reporting.py::test_log_in_hooks\nPASSED testing/logging/test_reporting.py::test_log_in_runtest_logreport\nPASSED testing/logging/test_reporting.py::test_log_set_path\n========================== 31 passed in 0.41 seconds ===========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "370e45373927170f858ed7727df7185e385c6c79",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/workspaces/swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-5227"
+}

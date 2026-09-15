@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-7521",
+  "instanceId": "pytest-dev__pytest-7521",
+  "repo": "pytest-dev/pytest",
+  "baseCommit": "41d211c24a6781843b174379d6d6538f5c17adb9",
+  "tarballSha256": "83ca4659a6b71b4234a2857f14bc067a4ee2b73bef5a6d67eeb2fe77503e4435",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "fdd960233c20a4c0c6540abbdcad5e4a1054f20a",
+    "runtimeOrigin": "http://127.0.0.1:3513",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"legion-qwen36-35b-a3b-q4\": !Klein 83c39fe71 driving qwen3.6-35b-a3b@legion from its own HOME on :3513. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen3.6-35b-a3b@legion\" NKLEIN_CUSTODIAN_MODEL=\"qwen3.6-35b-a3b@legion\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3513 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3513"
+    }
+  },
+  "model": {
+    "identifier": "qwen3.6-35b-a3b@legion",
+    "modelKey": "qwen/qwen3.6-35b-a3b",
+    "status": "idle",
+    "contextLength": 262144,
+    "sizeBytes": 37748563037,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5_moe",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T07:09:52.446Z",
+  "finishedAt": "2026-09-15T07:50:32.842Z",
+  "durationMs": 2440396,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "needs_attention",
+  "workflowSummary": "Needs your attention: 1 card(s) parked with a question for the operator — answer it (card chat / needs-you), then continue; 1 card(s) unfinished (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen3.6-35b-a3b@legion": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 576,
+    "baseCommit": "558b276d4ec197354981437fd08a7966c3734098",
+    "resultCommit": "fb02a5cf2316544fd173e93aa5d0ed07110c3bd5",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-7521-0cd5c7660e"
+  },
+  "changedFiles": [
+    ".nklein-venv/lib64",
+    ".nklein-venv/pyvenv.cfg"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      ".nklein-venv/lib64",
+      ".nklein-venv/pyvenv.cfg"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pytest-dev__pytest__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\\r\\n]",
+      "testing/test_capture.py::TestCaptureFixture::test_cafd_preserves_newlines[\\r]"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 2 fail-to-pass still failing (3 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "sys]\nPASSED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[True-capfd]\nPASSED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[False-capsys]\nPASSED testing/test_capture.py::TestCaptureFixture::test_disabled_capture_fixture[False-capfd]\nPASSED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures[capsys]\nPASSED testing/test_capture.py::TestCaptureFixture::test_fixture_use_by_other_fixtures[capfd]\nPASSED testing/test_capture.py::test_error_during_readouterr\nPASSED testing/test_capture.py::TestStdCaptureFD::test_simple_only_fd\nPASSED testing/test_capture.py::TestStdCaptureFDinvalidFD::test_stdcapture_fd_invalid_fd\nPASSED testing/test_capture.py::test_close_and_capture_again\nPASSED testing/test_capture.py::test_crash_on_closing_tmpfile_py27\nPASSED testing/test_capture.py::test_global_capture_with_live_logging\nPASSED testing/test_capture.py::test_capture_with_live_logging[capsys]\nPASSED testing/test_capture.py::test_capture_with_live_logging[capfd]\nPASSED testing/test_capture.py::test_logging_while_collecting\n============================= 122 passed in 4.53s ==============================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": "fb02a5cf2316544fd173e93aa5d0ed07110c3bd5",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-legion-qwen36-35b-a3b-q4/workspaces/swebench-legion-qwen36-35b-a3b-q4-pytest-dev__pytest-7521"
+}
