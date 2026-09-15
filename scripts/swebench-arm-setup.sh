@@ -40,6 +40,9 @@ json.dump({
 	"setupWizardCompletedAt": 1789382481090,
 	"sandboxEgressProxyEnabled": True,
 	"maxConcurrentTasks": 1,
+	# A LOCAL arm must never fan its pinned model out to another host that has the same model key loaded over LM Link
+	# (2026-09-15: the m5max qwen3.6-35b-a3b arm ran its first attempt on the Legion; the seat audit excluded it).
+	"workerUseAllLoadedHosts": ["local"],
 	"testDrivenModeEnabled": True,
 	"modelRoles": {"architect": dict(pinned), "worker": dict(pinned), "reviewer": dict(pinned)},
 }, open(path, "w"), indent=1)
