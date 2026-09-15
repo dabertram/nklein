@@ -23,7 +23,9 @@ for spec in "$@"; do
 	say "arm $ARM: waiting for the slot (no tranche runner active)"
 	wait_idle_runner
 	LOADED_BY_ME=0
-	if lms ps --json 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if any(m.get('modelKey')=='$MODEL' or m.get('identifier')=='$MODEL' for m in json.load(sys.stdin)) else 1)"; then
+	# LOCAL instances only: an LM Link seat (`<model>@<host>`) shares the model key but is another machine's slot
+	# (2026-09-15: the Legion's qwen3.6-35b-a3b was mistaken for a local load and the m5max arm ran on the wrong seat).
+	if lms ps --json 2>/dev/null | python3 -c "import json,sys; sys.exit(0 if any((m.get('modelKey')=='$MODEL' or m.get('identifier')=='$MODEL') and '@' not in (m.get('identifier') or '') for m in json.load(sys.stdin)) else 1)"; then
 		say "arm $ARM: $MODEL already loaded (operator's) — using it as is"
 	else
 		if ! lms load "$MODEL" --estimate-only -c "$CTX" >>"$LOG" 2>&1; then
