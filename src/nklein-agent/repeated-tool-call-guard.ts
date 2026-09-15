@@ -226,6 +226,18 @@ export interface RepeatedToolCallGuardCallbacks {
 	 */
 	getTaskEntry(taskId: string): NKleinTaskSessionEntry | null;
 	/**
+	 * P1.LOOPGUARDNUDGE (2026-09-15, opt-in): a bounded automatic re-drive BEFORE the park — for headless runs
+	 * where "send a new instruction to continue" has nobody to send it. Called at most ONCE per task; when it returns
+	 * true the guard does not park this time (the send-input path resets the guard's counters), and the next
+	 * repetition parks as before. Absent ⇒ byte-identical park behavior.
+	 */
+	autoNudgeBeforePark?: (input: {
+		taskId: string;
+		entry: NKleinTaskSessionEntry;
+		message: string;
+		metadata: Record<string, unknown>;
+	}) => boolean;
+	/**
 	 * Park the task for autonomy budget exhaustion. Called only when the guard decides to act.
 	 * Returns the updated (parked) summary.
 	 */
@@ -250,6 +262,8 @@ export class RepeatedToolCallGuard {
 	private readonly repeatedToolCallByTaskId = new Map<string, NKleinTaskRepeatedToolState>();
 	private readonly repeatedToolCycleByTaskId = new Map<string, NKleinTaskRepeatedToolCycleState>();
 	private readonly repeatedFailureTargetByTaskId = new Map<string, NKleinTaskRepeatedFailureTargetState>();
+	/** Tasks that already used their one automatic re-drive (P1.LOOPGUARDNUDGE); never cleared by resetTask. */
+	private readonly autoNudgedTaskIds = new Set<string>();
 
 	constructor(private readonly callbacks: RepeatedToolCallGuardCallbacks) {}
 
@@ -298,6 +312,7 @@ export class RepeatedToolCallGuard {
 	 * Dispose all guard state. Called once when the session service is torn down.
 	 */
 	dispose(): void {
+		this.autoNudgedTaskIds.clear();
 		this.repeatedToolCallByTaskId.clear();
 		this.repeatedToolCycleByTaskId.clear();
 		this.repeatedFailureTargetByTaskId.clear();
@@ -306,6 +321,20 @@ export class RepeatedToolCallGuard {
 	// ---------------------------------------------------------------------------
 	// Guard implementations (private)
 	// ---------------------------------------------------------------------------
+
+	/** The opt-in re-drive rung: true when the task was nudged instead of parked (once per task). */
+	private tryAutoNudge(input: {
+		taskId: string;
+		entry: NKleinTaskSessionEntry;
+		message: string;
+		metadata: Record<string, unknown>;
+	}): boolean {
+		if (!this.callbacks.autoNudgeBeforePark || this.autoNudgedTaskIds.has(input.taskId)) {
+			return false;
+		}
+		this.autoNudgedTaskIds.add(input.taskId);
+		return this.callbacks.autoNudgeBeforePark(input);
+	}
 
 	private enforceRepeatedToolCallGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {
 		if (isHomeAgentSessionId(summary.taskId) || summary.state !== "running") {
@@ -353,7 +382,7 @@ export class RepeatedToolCallGuard {
 			}
 			const calls = this.repeatedToolCycleByTaskId.get(summary.taskId)?.calls.slice(-cycle.cycleLength) ?? [];
 			const toolNames = [...new Set(calls.map((call) => call.toolName))];
-			return this.callbacks.parkTaskForAutonomyBudget({
+			const cyclePark = {
 				taskId: summary.taskId,
 				entry,
 				message:
@@ -366,13 +395,17 @@ export class RepeatedToolCallGuard {
 					toolNames,
 					toolInputSummaries: calls.map((call) => call.toolInputSummary),
 				},
-			});
+			};
+			if (this.tryAutoNudge(cyclePark)) {
+				return null;
+			}
+			return this.callbacks.parkTaskForAutonomyBudget(cyclePark);
 		}
 		const entry = this.callbacks.getTaskEntry(summary.taskId);
 		if (!entry || entry.summary.reviewReason === "attention") {
 			return null;
 		}
-		return this.callbacks.parkTaskForAutonomyBudget({
+		const identicalPark = {
 			taskId: summary.taskId,
 			entry,
 			message: formatRepeatedToolCallParkMessage(nextState),
@@ -383,7 +416,11 @@ export class RepeatedToolCallGuard {
 				toolName: nextState.toolName,
 				toolInputSummary: nextState.toolInputSummary,
 			},
-		});
+		};
+		if (this.tryAutoNudge(identicalPark)) {
+			return null;
+		}
+		return this.callbacks.parkTaskForAutonomyBudget(identicalPark);
 	}
 
 	private enforceRepeatedFailureTargetGuard(summary: RuntimeTaskSessionSummary): RuntimeTaskSessionSummary | null {

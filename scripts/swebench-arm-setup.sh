@@ -61,6 +61,8 @@ export NKLEIN_LOCAL_BASE_URL="http://127.0.0.1:1234/v1"
 export NKLEIN_EGRESS_PROXY_BUNDLE="$REPO/dist/egress-proxy/entrypoint.mjs"
 ${IMAGE:+export NKLEIN_AGENT_SANDBOX_IMAGE="$IMAGE"}
 export NKLEIN_MERGE_FALLBACK_MODEL="$MODEL" NKLEIN_CUSTODIAN_MODEL="$MODEL"
+# P1.LOOPGUARDNUDGE: a headless run has nobody to answer a loop-guard park — one automatic re-drive per card first.
+export NKLEIN_LOOP_GUARD_AUTO_NUDGE=1
 # P1.SWEBENCHFULL: the sealed grader's flattened wheel caches as the sandbox's read-only wheelhouse (offline toolchain prime).
 [[ -d "$REPO/.nklein-bench/swebench/wheels/_flat" ]] && export NKLEIN_AGENT_SANDBOX_WHEELHOUSE="$REPO/.nklein-bench/swebench/wheels/_flat"
 exec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port $PORT --no-open

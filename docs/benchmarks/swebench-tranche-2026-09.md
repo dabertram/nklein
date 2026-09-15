@@ -239,6 +239,13 @@ that keeps every pass-1 arm on the same !Klein commit.
    slower"). Expect longer turn latencies and more 120-minute-cap hits on every arm graded after this point; the
    operator (me) wrongly paused the Legion, m4 mini and muse arms for two minutes on that notice — their in-flight
    attempts (pytest-7521, pytest-6202, requests-1921) restarted from scratch at 09:10; nothing graded was affected.
+10. **A loop-guard park is a lost card in a headless run** — muse (requests-1921) and the Legion (pytest-7521) both
+   ended "needs attention": the model repeated the same read/search calls, the repeated-tool-call guard paused the
+   card with "send a new instruction to continue", and a benchmark has nobody to send it; the card went to Review
+   with nothing delivered. → `NKLEIN_LOOP_GUARD_AUTO_NUDGE` (opt-in, arms set it from now on): one bounded automatic
+   re-drive per card — cancel the looping turn and re-prompt with the guard's own finding and the way out (results
+   are already in context; edit the library files; deliver) — and only the SECOND loop parks. Pass-1 arms keep the
+   old behavior (pinned runtime); the flag is on for every arm created from now on and for pass 2.
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 

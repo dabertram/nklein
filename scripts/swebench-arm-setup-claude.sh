@@ -60,6 +60,8 @@ export NKLEIN_CUSTODIAN_MODEL="" NKLEIN_MERGE_FALLBACK_MODEL=""
 export NKLEIN_REVIEW_TIMEOUT_MS=2400000 NKLEIN_REVIEW_VERDICT_RESERVE_MS=360000
 export NKLEIN_EGRESS_PROXY_BUNDLE="$REPO/dist/egress-proxy/entrypoint.mjs"
 export NKLEIN_ALTERNATE_ENDPOINT=off NKLEIN_SKILL_API_DIRECT=off
+# P1.LOOPGUARDNUDGE: a headless run has nobody to answer a loop-guard park — one automatic re-drive per card first.
+export NKLEIN_LOOP_GUARD_AUTO_NUDGE=1
 # P1.SWEBENCHFULL: the sealed grader's flattened wheel caches as the sandbox's read-only wheelhouse (offline toolchain prime).
 [[ -d "$REPO/.nklein-bench/swebench/wheels/_flat" ]] && export NKLEIN_AGENT_SANDBOX_WHEELHOUSE="$REPO/.nklein-bench/swebench/wheels/_flat"
 exec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port $PORT --no-open

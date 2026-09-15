@@ -1076,6 +1076,39 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			getMaxRepeatedToolCallsPerTask: () => this.swarmGuardrails.maxRepeatedToolCallsPerTask,
 			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
 			parkTaskForAutonomyBudget: (input) => this.parkController.parkTaskForAutonomyBudget(input),
+			// P1.LOOPGUARDNUDGE (2026-09-15, opt-in NKLEIN_LOOP_GUARD_AUTO_NUDGE — rig/drain flag, default OFF =
+			// byte-identical): in a headless run the loop guard's "send a new instruction to continue" has nobody to
+			// send it — the SWE-bench muse and Legion arms lost requests-1921 / pytest-7521 to exactly that park after
+			// a read loop. One bounded automatic re-drive per task: cancel the looping turn, re-prompt with the guard's
+			// own finding and the way out; the second loop parks as before.
+			...(isTruthyEnv(process.env.NKLEIN_LOOP_GUARD_AUTO_NUDGE)
+				? {
+						autoNudgeBeforePark: ({ taskId, entry, message, metadata }) => {
+							this.recordObservationWithModel({
+								signal: "custom",
+								severity: "warning",
+								message: `!Klein re-drove a looping card once instead of parking it: ${message}`,
+								taskId,
+								workspacePath: entry.summary.workspacePath ?? null,
+								metadata: { category: "loop_guard_auto_nudge", ...metadata },
+							});
+							void this.cancelTaskTurn(taskId)
+								.then(() =>
+									this.sendTaskSessionInput(
+										taskId,
+										[
+											`!Klein noticed you are repeating the same tool calls (${message.replace(/^!Klein paused this task after /u, "").replace(/ Review progress, then send a new instruction to continue\.$/u, "")}).`,
+											"Their results are already in your context — do not call them again.",
+											"Stop exploring and make the change the card asks for NOW: edit the library files (never the graded tests), run the acceptance check, and deliver.",
+											"If you truly cannot proceed, deliver what you have with a short note instead of asking a question.",
+										].join(" "),
+									),
+								)
+								.catch(() => undefined);
+							return true;
+						},
+					}
+				: {}),
 		};
 	}
 

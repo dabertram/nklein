@@ -98,6 +98,12 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (F1.21 observe-before-enforce). A refinable card that ends a turn without begin_implementation gets ONE bounded nudge to promote; gating in the pure decideRefinementStallRecovery. Flip ON only after a live-drain shows the model actually transitions (efficacy is empirical), protecting the accrual campaign's evidence from a misfire until then.",
 	},
 	{
+		flag: "NKLEIN_LOOP_GUARD_AUTO_NUDGE",
+		mode: "enforcing",
+		gate: "nklein-task-session-service.ts buildGuardCallbacks (RepeatedToolCallGuard.autoNudgeBeforePark: ONE cancel-then-re-prompt per task instead of the loop-guard park; the second loop parks as before)",
+		note: "Default-OFF worker-loop behaviour change (P1.LOOPGUARDNUDGE, 2026-09-15). In a headless run (SWE-bench arms, drains) the loop guard's park — 'send a new instruction to continue' — has nobody to answer it and the card is lost with nothing delivered (muse requests-1921, Legion pytest-7521). The rig/drain launchers set it; the interactive product keeps the park so an operator still sees a looping card.",
+	},
+	{
 		flag: "NKLEIN_SKILL_API_DIRECT",
 		mode: "dev_only",
 		gate: 'skill-api-profile-agent-model.ts (value "off" bypasses the direct forced-tool/structured path; the SDK-native wire serves profile turns)',
@@ -525,6 +531,12 @@ export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
 		kind: "pending_validation",
 		reason:
 			"A worker-loop behaviour change (one begin_implementation re-prompt for a wander-stuck refinable card) whose EFFICACY is empirical — does the model actually promote when nudged? Enabling it in the nightly replay lane before a live drain confirms that would bake an unvalidated behaviour into the baseline. The precondition is a live-drain validation (run cli-parser-medium --no-plan with the flag on, confirm the card transitions), not a replay run — then flip it on for real.",
+	},
+	{
+		flag: "NKLEIN_LOOP_GUARD_AUTO_NUDGE",
+		kind: "pending_validation",
+		reason:
+			"A worker-loop behaviour change (one automatic re-drive of a looping card before the loop-guard park) whose EFFICACY is empirical — does the re-prompted model stop looping and deliver? The SWE-bench pass-2 arms run with it on and their receipts (loop_guard_auto_nudge observations joined with resolved/unresolved) are the validation; until that lands it stays out of the replay baseline.",
 	},
 	{
 		flag: "NKLEIN_EMPTY_FINAL_REDRIVE",

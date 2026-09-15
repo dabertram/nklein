@@ -309,3 +309,64 @@ describe("failure-target dedup (v19 architect park, 2026-09-01)", () => {
 		expect(parked).toHaveLength(1); // 4 consecutive WITHOUT progress still parks
 	});
 });
+
+describe("P1.LOOPGUARDNUDGE — one automatic re-drive before the park (opt-in callback)", () => {
+	it("nudges instead of parking the first time, parks the second time", () => {
+		const taskId = "review-loop-nudge";
+		const base = createDefaultSummary(taskId);
+		base.state = "running";
+		const entry = {
+			summary: base,
+			messages: [],
+			activeAssistantMessageId: null,
+			activeReasoningMessageId: null,
+			toolMessageIdByToolCallId: new Map(),
+			toolInputByToolCallId: new Map(),
+		} satisfies NKleinTaskSessionEntry;
+		const parked: string[] = [];
+		const nudged: string[] = [];
+		const guard = new RepeatedToolCallGuard({
+			getMaxRepeatedToolCallsPerTask: () => 3,
+			getTaskEntry: (id) => (id === taskId ? entry : null),
+			autoNudgeBeforePark: (input) => {
+				nudged.push(input.message);
+				// The real send-input path resets the guard's counters; mirror that here.
+				guard.resetTask(input.taskId);
+				return true;
+			},
+			parkTaskForAutonomyBudget: (input) => {
+				parked.push(input.message);
+				return entry.summary as RuntimeTaskSessionSummary;
+			},
+		});
+		const same = (index: number) =>
+			({
+				...base,
+				lastHookAt: index + 1,
+				latestHookActivity: {
+					// search_code carries the BASE limit (read_files/run_commands have a raised threshold).
+					activityText: "search_code",
+					toolName: "search_code",
+					toolInputSummary: "Remove keys that are set to None",
+					toolInputFingerprint: "search:Remove keys that are set to None",
+					finalMessage: null,
+					hookEventName: "tool_call",
+					notificationType: null,
+					source: "nklein-sdk",
+				},
+			}) satisfies RuntimeTaskSessionSummary;
+		// Three identical calls: the guard would park; the auto-nudge takes the first trip instead.
+		expect(guard.check(same(0))).toBeNull();
+		expect(guard.check(same(1))).toBeNull();
+		expect(guard.check(same(2))).toBeNull();
+		expect(nudged).toHaveLength(1);
+		expect(nudged[0]).toContain("repeated search_code tool calls");
+		expect(parked).toEqual([]);
+		// The counters were reset by the nudge; three more identical calls park for real (the budget is one).
+		expect(guard.check(same(3))).toBeNull();
+		expect(guard.check(same(4))).toBeNull();
+		expect(guard.check(same(5))).toBe(entry.summary);
+		expect(parked).toHaveLength(1);
+		expect(nudged).toHaveLength(1);
+	});
+});

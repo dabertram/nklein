@@ -2870,6 +2870,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
   rates for Verified×4 Claude arms ≈ Opus $2k, Fable $6k, Sonnet $2.5k, Haiku $0.6k — enabling is not running.
+- [x] **P1.LOOPGUARDNUDGE — SHIPPED (2026-09-15).** The repeated-tool-call guard parks a looping card with "send a new
+  instruction to continue" — in a headless run (SWE-bench arms, drains) nobody can, and the card is lost with nothing
+  delivered (muse requests-1921, Legion pytest-7521: read/search loops after a failed toolchain prime). Opt-in
+  `NKLEIN_LOOP_GUARD_AUTO_NUDGE` (rig/drain flag, default OFF = byte-identical): the guard's new `autoNudgeBeforePark`
+  callback fires ONCE per task instead of the park — the service cancels the looping turn and re-prompts with the
+  guard's own finding plus the way out — and the second loop parks as before. Test in
+  `test/runtime/nklein-agent/repeated-tool-call-guard.test.ts`; both arm launchers export the flag. Record: campaign
+  doc finding 10.
 - [x] **P1.SEALEDF2P — SHIPPED (2026-09-15).** A SWE-bench fail-to-pass test that hardcodes a public URL
   (`requests-2317` `test_requests_history_is_saved` → `https://httpbin.org/redirect/5`, ignoring the loopback
   `HTTPBIN_URL`) can never pass under the sealed `--network none` grader, so every seat — Opus, Fable, Sonnet,
