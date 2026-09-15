@@ -220,6 +220,8 @@ describe("sealed grading per spec (P1.SWEBENCHFULL slice 4)", () => {
 		});
 		expect(dockerfile).toContain("FROM python:3.8-slim");
 		expect(dockerfile).toContain("build-essential");
+		// Archived-release fallback: the era interpreters' Debian mirrors are gone from deb.debian.org.
+		expect(dockerfile).toContain("archive.debian.org");
 		expect(dockerfile).toContain("RUN apt-get update && apt-get install -y locales && export LC_ALL=C.UTF-8");
 	});
 
@@ -273,6 +275,7 @@ describe("pre_install split (P1.SWEBENCHFULL 4b)", () => {
 		);
 		// A spec whose pre_install is repo-only grades on the plain base image, not an env image.
 		const dockerfile = buildSwebenchEnvDockerfile({ pythonVersion: "3.9", preInstall: ["sed -i 's/a/b/' setup.py"] });
-		expect(dockerfile).not.toContain("sed -i");
+		// The base apt layer has its own `sed -i` (the archived-release fallback) — the REPO edit is what must be absent.
+		expect(dockerfile).not.toContain("setup.py");
 	});
 });

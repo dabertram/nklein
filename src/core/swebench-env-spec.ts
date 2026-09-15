@@ -319,7 +319,24 @@ export function buildSwebenchEnvDockerfile(input: {
 	const lines = [
 		`FROM python:${input.pythonVersion}-slim`,
 		"ENV DEBIAN_FRONTEND=noninteractive PIP_DISABLE_PIP_VERSION_CHECK=1",
-		"RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config git ca-certificates && rm -rf /var/lib/apt/lists/*",
+		// The era interpreters ride ARCHIVED Debian releases (python:3.5-slim = buster, 3.6 = bullseye). Two failure
+		// modes seen live (2026-09-15): `apt-get update` itself fails (buster), or update succeeds while the security
+		// pool 404s at install time (bullseye — and `bullseye-security` has no Release file on archive.debian.org
+		// either). So: try update+install; on ANY failure point the main suite at archive.debian.org and DROP the
+		// security/-updates suites (every toolchain package lives in the main archive), then retry. A live release
+		// never takes the fallback.
+		[
+			"RUN set -eu; \\",
+			'\tpkgs="build-essential pkg-config git ca-certificates"; \\',
+			"\t( apt-get update && apt-get install -y --no-install-recommends $pkgs ) || ( \\",
+			"\t\tsed -i 's|deb.debian.org|archive.debian.org|g; /security/d; /-updates/d' /etc/apt/sources.list 2>/dev/null || true; \\",
+			'\t\tfor f in /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; \\',
+			'\t\t\tgrep -q -e security -e -updates "$f" && rm -f "$f" || sed -i \'s|deb.debian.org|archive.debian.org|g\' "$f"; \\',
+			"\t\tdone; \\",
+			"\t\tapt-get -o Acquire::Check-Valid-Until=false update && \\",
+			"\t\tapt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends $pkgs ); \\",
+			"\trm -rf /var/lib/apt/lists/*",
+		].join("\n"),
 	];
 	const { image } = splitSwebenchPreInstall(input.preInstall);
 	if (image.length > 0) {
