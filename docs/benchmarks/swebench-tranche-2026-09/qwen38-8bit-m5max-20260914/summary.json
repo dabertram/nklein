@@ -4,14 +4,19 @@
   "model": "qwen/qwen3.8-27b",
   "harness": {
     "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "04817064c416527b43783919452f18c288e96930",
     "runtimeOrigin": "http://127.0.0.1:3507",
     "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/home",
     "startInPlanMode": false,
     "autoReviewEnabled": false,
     "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
     "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
     "graderImage": "python:3.9-slim",
-    "maxWaitMs": 2700000,
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
     "runtimeLauncher": "#!/bin/zsh\n# SWE-bench tranche benchmark 2026-09-14 — !Klein (worktree snapshot at 83c39fe71) driving qwen/qwen3.8-27b\n# (MLX 8-bit, 29.5 GB, ctx 262144) on the m5max. Own HOME + port, roles pinned in config.json, NO observe-first\n# experiment flags: this measures !Klein as shipped. Infrastructure env only.\nD=/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914\ncd $D/src || exit 1\nexport HOME=$D/home\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.8-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.8-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3507 --no-open\n",
     "runnerEnv": {
       "NKLEIN_RUNTIME_HOST": "127.0.0.1",
@@ -21,16 +26,88 @@
   "instances": [
     {
       "instanceId": "pallets__flask-5014",
-      "resolved": false,
+      "resolved": true,
       "excludedFromScore": null,
       "workflowOutcome": "blocked_by_review_cards",
       "durationMs": 582516,
+      "reason": "resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held"
+    },
+    {
+      "instanceId": "psf__requests-1921",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 2718339,
+      "reason": "resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held (2 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "psf__requests-2317",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 1867951,
+      "reason": "resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (7 ungradable dataset id(s) excluded); 1 fail-to-pass excluded under the seal: test_requests_history_is_saved (hardcodes https://httpbin.org/redirect/5 (ignores HTTPBIN_URL) — live TLS egress, impossible under --network none)"
+    },
+    {
+      "instanceId": "psf__requests-5414",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 2710020,
+      "reason": "unresolved: 1 fail-to-pass still failing (6 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-5227",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 4476282,
+      "reason": "unresolved: 3 fail-to-pass still failing (3 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-6202",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 2168455,
+      "reason": "resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-7521",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 7225959,
+      "reason": "resolved: 2/2 fail-to-pass now green, 122 pass-to-pass held (3 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-4970",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 7219172,
       "reason": "unresolved: 1 fail-to-pass still failing"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-6903",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 910052,
+      "reason": "resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-7993",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 3090352,
+      "reason": "resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held"
     }
   ],
-  "attempted": 1,
-  "resolved": 0,
+  "attempted": 10,
+  "resolved": 7,
   "excluded": 0,
-  "resolvedRate": 0,
-  "finishedAt": "2026-09-14T12:37:50.305Z"
+  "resolvedRate": 0.7,
+  "finishedAt": "2026-09-15T03:16:03.103Z"
 }

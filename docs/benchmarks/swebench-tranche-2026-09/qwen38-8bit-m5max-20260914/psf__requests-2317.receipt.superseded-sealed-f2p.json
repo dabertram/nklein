@@ -826,10 +826,10 @@
     "applied": true
   },
   "verdict": {
-    "resolved": true,
-    "reason": "resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (7 ungradable dataset id(s) excluded); 1 fail-to-pass excluded under the seal: test_requests_history_is_saved (hardcodes https://httpbin.org/redirect/5 (ignores HTTPBIN_URL) \u2014 live TLS egress, impossible under --network none)"
+    "resolved": false,
+    "reason": "unresolved: 1 fail-to-pass still failing (6 ungradable dataset id(s) excluded)"
   },
-  "resolved": true,
+  "resolved": false,
   "excludedFromScore": null,
   "pinnedResult": "23dd35538d7bae6bb8f33c903f9ff39e5e6a2a32",
   "workspacePath": "/Users/david/.nklein/factory-drains/swebench-qwen38-8bit-m5max-20260914/workspaces/swebench-qwen38-8bit-m5max-20260914-psf__requests-2317",
@@ -838,7 +838,7 @@
     "requests/sessions.py"
   ],
   "correction": {
-    "reason": "tranche change (2026-09-15): test_requests_history_is_saved hardcodes https://httpbin.org \u2014 impossible under --network none for any fix \u2014 declared a sealed fail-to-pass exclusion; same delivery re-graded with the same sealed grader.",
-    "supersededReceipt": "psf__requests-2317.receipt.superseded-sealed-f2p.json"
+    "reason": "runner defect (fixed in b80f85180+): the delivery landed at session stop, after the runner's pin check; the base tree was graded. Re-graded the delivered result with the same sealed grader.",
+    "supersededReceipt": "psf__requests-2317.receipt.superseded-runner-bug.json"
   }
 }

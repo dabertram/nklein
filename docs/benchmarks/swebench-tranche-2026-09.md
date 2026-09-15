@@ -49,20 +49,27 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 
 ## Results
 
-### Arm A — !Klein `83c39fe71`, `qwen/qwen3.8-27b` (in progress)
+### Arm A — !Klein `83c39fe71`, `qwen/qwen3.8-27b` MLX 8-bit on the m5max (COMPLETE 2026-09-15 05:20)
+
+Seat shared all afternoon with David's DeepSeek Harness (dsh) run; suspended 17:50–21:30 on 2026-09-14; 120-minute cap.
+Receipts: `swebench-tranche-2026-09/qwen38-8bit-m5max-20260914/` (superseded runner-bug and sealed-F2P receipts kept).
 
 | instance | resolved | minutes | outcome | note |
 |---|---|---|---|---|
-| pallets__flask-5014 | yes | 10 | blocked_by_review_cards (delivered) | 2-line `blueprints.py` fix; 1/1 F2P, 59 P2P held |
-| psf__requests-1921 | yes | 45 (cap) | stagnant | 1-line `sessions.py` fix delivered at stop; 6/6 F2P, 105 P2P |
-| psf__requests-2317 | yes (re-graded, finding 7) | 31 | blocked_by_review_cards (delivered) | `models.py`, `sessions.py`; 7/7 gradable F2P green, the eighth is internet-bound |
-| psf__requests-5414 | no | 45 (cap) | stagnant | no delivery — 18 turns, ~96 s median turn latency (shared seat) |
-| pytest-dev__pytest-5227 | no | 75 | blocked_by_review_cards (delivered) | 578-byte patch delivered; 3 F2P still failing (log-cli level defaults) |
+| pallets__flask-5014 | yes | 10 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held (re-graded); `src/flask/blueprints.py` |
+| psf__requests-1921 | yes | 45 | stagnant | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held (re-graded); `requests/sessions.py`, `tmp_repro_none_headers.py` |
+| psf__requests-2317 | yes | 31 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (re-graded); `requests/models.py`, `requests/sessions.py` |
+| psf__requests-5414 | no | 45 | stagnant | unresolved: 1 fail-to-pass still failing; `` |
+| pytest-dev__pytest-5227 | no | 75 | blocked_by_review_cards | unresolved: 3 fail-to-pass still failing; `` |
+| pytest-dev__pytest-6202 | yes | 36 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | yes | 120 | blocked_by_review_cards | resolved: 2/2 fail-to-pass now green, 122 pass-to-pass held; `src/_pytest/capture.py` |
+| pylint-dev__pylint-4970 | no | 120 | stagnant | unresolved: 1 fail-to-pass still failing; `_simtest_dup.py`, `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | yes | 15 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | yes | 52 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held; `.tmp/cli/target.py`, `.tmp/repro.py`, `pylint/reporters/text.py` |
 
-Running tally: **4 / 6 resolved** (pytest-7521 resolved at the 120-min cap; requests-2317 re-graded under finding 7). Remaining: pytest-6202 (second pass), pylint-4970, pylint-6903, pylint-7993.
-Suspended 2026-09-14 17:50 on David's instruction (the model was his DeepSeek Harness (dsh) run's seat); instance 6
-(pytest-6202) had just started and was set aside. **Resumed 2026-09-14 21:30** on his go ("continue with the swebench
-on m5max") — pytest-7521 in progress; pytest-6202 needs a second `run.sh all` pass.
+**Score: 7 / 10 resolved.** Mean 54.9 min per instance; three instances ran to the cap. Failures:
+requests-5414 and pylint-4970 (no library change delivered — the pass-1 toolchain gap and the shared seat ate the
+card), pytest-5227 (patch delivered, three fail-to-pass still red).
 
 ### Legion arm — !Klein `83c39fe71`, `qwen3.6-35b-a3b@legion` (Q4_K_M, ctx 32k, in progress)
 
