@@ -44,6 +44,16 @@ ok`); a test missing from the output is a failure, never a pass.
   — the runtime mounts it read-only at `/opt/nklein/wheelhouse` and points `UV_FIND_LINKS` / `PIP_FIND_LINKS` at it.
   Anything not in the wheelhouse still goes through the arm's egress allowlist (`ecosystem:python`).
 
+## Known gaps (2026-09-16)
+
+- **Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).** Their `setup.py` bootstraps from
+  the `astropy_helpers` GIT SUBMODULE, and a mirror `git archive` cannot carry submodule contents, so the tree has an
+  empty `astropy_helpers/` and metadata generation fails (`python setup.py egg_info`). Fixing it means materializing
+  submodules (a second mirror per submodule + `git archive` per submodule commit). Until then these two specs have no
+  wheel cache and their instances are not runnable; every other Verified spec prepared.
+- **matplotlib env images** install texlive per upstream's `pre_install` (multiple GB each, 6 images). They need
+  Docker disk headroom; build them alone, not beside the download sweep.
+
 ## Scale and cost (measured on the tranche, 2026-09-15)
 
 | seat | minutes per instance | cost per instance via the Claude CLI |
