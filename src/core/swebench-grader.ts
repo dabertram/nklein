@@ -580,6 +580,19 @@ export async function gradeSwebenchWorkspace(
 	const reason = `${
 		resolvable ? verdict.reason : `not resolvable: no gradable fail-to-pass id survived the dataset`
 	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}${sealedNote}`;
+	// The receipt keeps a 2 kB tail, which is the right size for a verdict and the wrong size for a diagnosis:
+	// an environment defect lives in the INSTALL stages, thousands of lines above the tail. Naming a directory
+	// here writes the whole grader transcript there, one file per instance. Opt-in, because a full Verified run
+	// would otherwise leave 500 multi-megabyte logs behind.
+	const logDir = process.env.NKLEIN_SWEBENCH_GRADER_LOG_DIR;
+	if (logDir) {
+		try {
+			await mkdir(logDir, { recursive: true });
+			await writeFile(join(logDir, `${input.instance.instanceId}.log`), stdout);
+		} catch {
+			// A diagnostic sink must never change a verdict.
+		}
+	}
 	return {
 		...verdict,
 		resolved: verdict.resolved && resolvable,
