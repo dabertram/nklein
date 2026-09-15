@@ -120,11 +120,12 @@ export function buildSwebenchPrepareScript(
 		...new Set([...entry.preInstallRequirements, ...specBuildRequirements, ...pep518BuildRequires]),
 	];
 	const needsHostBuildEnv = hostBuildPins.length > 0;
+	// ONE shell for the whole block: upstream's lines share state (matplotlib assigns `QHULL_TAR` and uses it two
+	// lines later), so a subshell per line leaves the variable unbound — fatal under `set -eu`.
+	const repoPreInstallLines = "preInstallShell" in entry ? splitSwebenchPreInstall(entry.preInstallShell).repo : [];
 	const repoPreInstall =
-		"preInstallShell" in entry
-			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
-					(line) => `(cd /src && ${rewriteSwebenchRepoLine(line, "/src")})`,
-				)
+		repoPreInstallLines.length > 0
+			? [`( cd /src\n${repoPreInstallLines.map((line) => rewriteSwebenchRepoLine(line, "/src")).join("\n")}\n)`]
 			: [];
 	const stages: { label: string; args: string; fatal: boolean }[] = [
 		...(requirementsFile ? [{ label: "requirements", args: `-r '/src/${requirementsFile}'`, fatal: false }] : []),
