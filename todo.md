@@ -2855,6 +2855,31 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   default complexity 50 replay again, and the "pass an explicit low complexity" responder rule is no longer needed
   for replay's sake.
 
+- [ ] **P1.SWEBENCHFULL — enable !Klein to run the FULL SWE-bench suite (Lite 300 / Verified 500 / test 2,294), not
+  the hand-proven ten.** *(David 2026-09-15: "enable nklein to run full swebench suite".)* The N8 tranche works because
+  each of its ten instances carries probe-proven env facts in `SWEBENCH_TRANCHE`; that does not scale, and the
+  Lite/Verified pool spans twelve repos with compiled deps (numpy/scipy for astropy, matplotlib, scikit-learn, xarray,
+  seaborn), their own test runners (django `tests/runtests.py`, sympy `bin/test`, sphinx via tox) and their own log
+  formats. Architecture (each slice a commit with tests):
+  · **(1) Env specs from upstream, not from memory** — `core/swebench-env-spec`: `SwebenchEnvSpec` per (repo, version)
+    {python, preInstall, packages, install, pipPackages, testCmd, logParser}; `resolveSwebenchEnv(instance, table,
+    overrides)` yields the grader entry for ANY instance (a hand-proven `SWEBENCH_TRANCHE` entry still wins as override).
+    `scripts/swebench-specs.mts` (⚠ egress once) downloads the `swebench` PyPI package and dumps
+    `MAP_REPO_VERSION_TO_SPECS` + parser map into `.nklein-bench/swebench/specs.json` with provenance (package version,
+    sha256) — the table is upstream's evidence, never a guess. **(2) Per-repo test commands + parsers** — pytest `-rA`
+    (existing), django (`test_x (mod.Class) ... ok`), sympy (`test_x ok|F|E`); missing-as-failure everywhere.
+    **(3) Any instance, offline** — `swebench-fetch.mts index --all` (every repo, Lite+Verified+full) and
+    `mirror <repo>` (one `git clone --mirror` per repo, ⚠ egress once); `materialize` then `git archive`s any
+    base_commit from the mirror → the same sha-pinned tarball, no per-instance download. **(4) Sealed grading per
+    spec** — an env image per (repo, version) (`python:<py>-slim` + build toolchain + the spec's apt pre_install),
+    a wheel cache per spec (`prepare-env`, ⚠ egress once per spec; source builds where no aarch64 wheel exists),
+    grade in that image with `--network none`, the spec's test command, the spec's parser. **(5) Runner** — resolves
+    entries through (1); `--instances dataset:<verified|lite|full>|file:<list>|all`; `--parallel N` concurrent
+    instances per arm (Claude seats); the arm's sandbox gets the spec wheel caches as its `UV_FIND_LINKS` wheelhouse
+    so the agent's toolchain prime is offline and fast. **(6) Record** — `docs/dev/swebench-full-suite.md`, campaign
+    doc. Not built yet: everything below (1)–(2) needs David's go for the egress steps (specs package ~1 MB, twelve
+    mirrors ~2–3 GB, wheel caches per spec). Costs at measured rates for Verified×4 Claude arms ≈ Opus $2k, Fable $6k,
+    Sonnet $2.5k, Haiku $0.6k — enabling is not running; runs are David's call.
 - [x] **P1.SEALEDF2P — SHIPPED (2026-09-15).** A SWE-bench fail-to-pass test that hardcodes a public URL
   (`requests-2317` `test_requests_history_is_saved` → `https://httpbin.org/redirect/5`, ignoring the loopback
   `HTTPBIN_URL`) can never pass under the sealed `--network none` grader, so every seat — Opus, Fable, Sonnet,
