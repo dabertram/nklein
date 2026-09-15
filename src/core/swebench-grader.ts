@@ -16,7 +16,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, link, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -433,4 +433,43 @@ export async function applyTestPatchToCopy(workspaceCopyDir: string, testPatch: 
 	} finally {
 		await rm(patchPath, { force: true });
 	}
+}
+
+/**
+ * P1.SWEBENCHFULL: flatten every cached wheel into `wheels/_flat` (hard links, first writer wins) — the directory an
+ * arm mounts into its agent sandboxes as the read-only wheelhouse (`NKLEIN_AGENT_SANDBOX_WHEELHOUSE`), so the
+ * toolchain prime resolves era pins offline from the same closure the sealed grader installs.
+ */
+export async function flattenSwebenchWheels(
+	cacheRoot: string,
+): Promise<{ flatDir: string; linked: number; total: number }> {
+	const wheelsRoot = join(cacheRoot, "wheels");
+	const flatDir = join(wheelsRoot, "_flat");
+	await mkdir(flatDir, { recursive: true });
+	let linked = 0;
+	let total = 0;
+	for (const instanceDir of await readdir(wheelsRoot)) {
+		if (instanceDir === "_flat") continue;
+		const dir = join(wheelsRoot, instanceDir);
+		let files: string[] = [];
+		try {
+			files = await readdir(dir);
+		} catch {
+			continue;
+		}
+		for (const file of files) {
+			if (!/\.(whl|tar\.gz|zip)$/u.test(file)) continue;
+			total += 1;
+			const target = join(flatDir, file);
+			if (existsSync(target)) continue;
+			try {
+				await link(join(dir, file), target);
+				linked += 1;
+			} catch {
+				await copyFile(join(dir, file), target);
+				linked += 1;
+			}
+		}
+	}
+	return { flatDir, linked, total };
 }

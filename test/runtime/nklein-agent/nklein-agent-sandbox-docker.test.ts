@@ -6,7 +6,9 @@ import {
 	createAgentSandboxTaskUid,
 	createAgentSandboxVolumeName,
 	deriveAgentSandboxMemoryReservationMb,
+	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxNetworkArgs,
+	resolveAgentSandboxWheelhouse,
 } from "../../../src/nklein-agent/nklein-agent-sandbox-docker";
 
 /** Assert `flag` appears immediately followed by `value` in an args array. */
@@ -126,5 +128,32 @@ describe("buildAgentSandboxDockerRunArgs (isolation invariants)", () => {
 	it("mounts project repos read-only", () => {
 		const args = buildAgentSandboxDockerRunArgs(options as never);
 		expect(args.some((a) => a.includes("type=bind,src=/host/repo,dst=/repos/deadbeef,readonly"))).toBe(true);
+	});
+});
+
+describe("sandbox wheelhouse (P1.SWEBENCHFULL)", () => {
+	it("resolves only an existing directory from the environment", () => {
+		expect(resolveAgentSandboxWheelhouse({}, () => true)).toBeNull();
+		expect(resolveAgentSandboxWheelhouse({ NKLEIN_AGENT_SANDBOX_WHEELHOUSE: "/w" }, () => false)).toBeNull();
+		expect(resolveAgentSandboxWheelhouse({ NKLEIN_AGENT_SANDBOX_WHEELHOUSE: " /w " }, () => true)).toEqual({
+			hostPath: "/w",
+		});
+	});
+
+	it("mounts the wheelhouse read-only and announces it to uv and pip; absent ⇒ no such args", () => {
+		const base = {
+			slot: 0,
+			image: "img",
+			projectMounts: [],
+			config: normalizeAgentSandboxPoolConfig({}),
+			owner: { pid: 1, nonce: "n" },
+		};
+		const withWheels = buildAgentSandboxDockerRunArgs({ ...base, wheelhouse: { hostPath: "/host/wheels" } });
+		expect(withWheels).toContain("type=bind,src=/host/wheels,dst=/opt/nklein/wheelhouse,readonly");
+		expect(withWheels).toContain("UV_FIND_LINKS=/opt/nklein/wheelhouse");
+		expect(withWheels).toContain("PIP_FIND_LINKS=/opt/nklein/wheelhouse");
+		expect(withWheels.indexOf("img")).toBeGreaterThan(withWheels.indexOf("PIP_FIND_LINKS=/opt/nklein/wheelhouse"));
+		const without = buildAgentSandboxDockerRunArgs(base);
+		expect(without.join(" ")).not.toContain("wheelhouse");
 	});
 });

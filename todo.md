@@ -2866,8 +2866,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   python, grader image, parser) + spec provenance on every receipt. Runbook: `docs/dev/swebench-full-suite.md`.
   **REMAINING (needs David's go for the egress steps):** run steps 1–7 of the runbook (specs package, index, twelve
   mirrors ≈ 2–3 GB, env images, wheel caches) and prove each repo family with a negative control before any arm runs;
-  mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse (the toolchain prime is
-  online today); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
+  ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
+  `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
+  cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
   rates for Verified×4 Claude arms ≈ Opus $2k, Fable $6k, Sonnet $2.5k, Haiku $0.6k — enabling is not running.
 - [x] **P1.SEALEDF2P — SHIPPED (2026-09-15).** A SWE-bench fail-to-pass test that hardcodes a public URL
   (`requests-2317` `test_requests_history_is_saved` → `https://httpbin.org/redirect/5`, ignoring the loopback

@@ -3,8 +3,9 @@
 // on normalize-number, agent-rulesets, and node:crypto), so the `docker run` argv, container/volume naming, and
 // the deterministic per-task uid are unit-testable away from the effectful AgentSandboxManager. The sandbox
 // module re-exports this surface so existing importers (runtime-config, server, task-session-service) are unchanged.
+
 import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync, statSync } from "node:fs";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import {
 	normalizeNonNegativeInteger,
@@ -101,6 +102,12 @@ export interface AgentSandboxDockerRunOptions {
 	projectMounts: readonly AgentSandboxProjectMount[];
 	/** RW bind mounts (default none) — a host-persistent store the sandbox may write (§5.AR basic-memory). */
 	writableMounts?: readonly AgentSandboxWritableMount[];
+	/**
+	 * P1.SWEBENCHFULL: a read-only host wheelhouse mounted at {@link AGENT_SANDBOX_WHEELHOUSE_DIR} and announced to
+	 * uv/pip through UV_FIND_LINKS / PIP_FIND_LINKS, so the toolchain prime resolves era pins from the sealed
+	 * grader's wheel caches instead of the network. Absent ⇒ byte-identical run args.
+	 */
+	wheelhouse?: AgentSandboxWheelhouse;
 	config: AgentSandboxPoolConfig;
 	/** Owner claim stamped on the container. Defaults to this process; injectable so the argv stays unit-testable. */
 	owner?: SandboxOwnerIdentity;
@@ -163,6 +170,26 @@ export function deriveAgentSandboxMemoryReservationMb(memoryKillThresholdMb: num
 
 export function resolveAgentSandboxImageName(): string {
 	return process.env[AGENT_SANDBOX_IMAGE_ENV]?.trim() || DEFAULT_AGENT_SANDBOX_IMAGE;
+}
+
+/** Host directory of wheels (flat: `*.whl` / sdists) mounted read-only into every sandbox as its find-links source. */
+export const AGENT_SANDBOX_WHEELHOUSE_ENV = "NKLEIN_AGENT_SANDBOX_WHEELHOUSE";
+export const AGENT_SANDBOX_WHEELHOUSE_DIR = "/opt/nklein/wheelhouse";
+
+export interface AgentSandboxWheelhouse {
+	readonly hostPath: string;
+}
+
+/** The wheelhouse from the environment, or null when unset / not an existing directory (never a broken mount). */
+export function resolveAgentSandboxWheelhouse(
+	env: NodeJS.ProcessEnv = process.env,
+	directoryExists: (path: string) => boolean = (path) => existsSync(path) && statSync(path).isDirectory(),
+): AgentSandboxWheelhouse | null {
+	const hostPath = env[AGENT_SANDBOX_WHEELHOUSE_ENV]?.trim();
+	if (!hostPath || !directoryExists(hostPath)) {
+		return null;
+	}
+	return { hostPath };
 }
 
 export function createAgentSandboxProjectKey(projectRepoPath: string): string {
@@ -279,6 +306,18 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 	// A bind mount is read-WRITE by default: omit `readonly` (there is NO `readwrite` field — docker rejects it).
 	for (const mount of options.writableMounts ?? []) {
 		args.push("--mount", `type=bind,src=${mount.hostPath},dst=${mount.containerPath}`);
+	}
+	if (options.wheelhouse) {
+		// Read-only, and announced to both resolvers: uv reads a comma list, pip a space list. The wheelhouse
+		// REPLACES the image's own find-links (the pack's /opt/nklein/wheels) — build it as a superset (the
+		// grader's `prepare` flattens every cached wheel, test tools included).
+		args.push("--mount", `type=bind,src=${options.wheelhouse.hostPath},dst=${AGENT_SANDBOX_WHEELHOUSE_DIR},readonly`);
+		args.push(
+			"-e",
+			`UV_FIND_LINKS=${AGENT_SANDBOX_WHEELHOUSE_DIR}`,
+			"-e",
+			`PIP_FIND_LINKS=${AGENT_SANDBOX_WHEELHOUSE_DIR}`,
+		);
 	}
 	args.push(options.image, "sleep", "infinity");
 	return args;

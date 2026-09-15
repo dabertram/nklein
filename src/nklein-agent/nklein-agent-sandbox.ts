@@ -76,6 +76,7 @@ import {
 	createAgentSandboxVolumeName,
 	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxImageName,
+	resolveAgentSandboxWheelhouse,
 } from "./nklein-agent-sandbox-docker";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "./nklein-agent-sandbox-extra-tools";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
@@ -2044,6 +2045,10 @@ export class AgentSandboxManager {
 				image: this.image,
 				projectMounts: mounts,
 				...(writableMounts.length > 0 ? { writableMounts } : {}),
+				...(() => {
+					const wheelhouse = resolveAgentSandboxWheelhouse();
+					return wheelhouse ? { wheelhouse } : {};
+				})(),
 				config: this.poolConfig,
 				networkPolicy: this.networkPolicy,
 				...(egress.wiring ? { egress: egress.wiring } : {}),

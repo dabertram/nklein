@@ -34,9 +34,10 @@ ok`); a test missing from the output is a failure, never a pass.
   the receipt; an instance whose gradable set would empty stays "not resolvable" (finding 7 of the campaign doc).
 - **Parallel runs** (`--parallel N`) need the arm HOME's `maxConcurrentTasks ≥ N` and a seat that answers
   concurrently (the Claude responders do; local LM Studio hosts serve one request at a time).
-- **The agent's own toolchain** still installs from the network through the arm's egress allowlist
-  (`ecosystem:python`). Mounting the spec wheel caches into the sandbox as its `UV_FIND_LINKS` wheelhouse is the
-  next step (todo P1.SWEBENCHFULL remaining).
+- **The agent's own toolchain** resolves from the same wheels the grader installs: `prepare` flattens every cached
+  wheel into `wheels/_flat`, and an arm launcher that finds that directory exports `NKLEIN_AGENT_SANDBOX_WHEELHOUSE`
+  — the runtime mounts it read-only at `/opt/nklein/wheelhouse` and points `UV_FIND_LINKS` / `PIP_FIND_LINKS` at it.
+  Anything not in the wheelhouse still goes through the arm's egress allowlist (`ecosystem:python`).
 
 ## Scale and cost (measured on the tranche, 2026-09-15)
 

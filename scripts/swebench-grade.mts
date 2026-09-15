@@ -18,6 +18,7 @@ import { promisify } from "node:util";
 import {
 	applyTestPatchToCopy,
 	buildSwebenchEnvImage,
+	flattenSwebenchWheels,
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
 } from "../src/core/swebench-grader";
@@ -48,6 +49,8 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 		try {
 			await prepareSwebenchWheels({ entry, sourceDir, cacheRoot });
 			process.stdout.write(`  wheels cached for ${instanceId}\n`);
+			const flat = await flattenSwebenchWheels(cacheRoot);
+			process.stdout.write(`  wheelhouse ${flat.flatDir}: ${flat.total} wheels (${flat.linked} new)\n`);
 		} finally {
 			await rm(join(sourceDir, ".."), { recursive: true, force: true });
 		}
