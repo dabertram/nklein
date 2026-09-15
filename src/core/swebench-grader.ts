@@ -50,6 +50,8 @@ export type SwebenchGraderEntry = SwebenchTrancheEntry | SwebenchResolvedEnv;
  * (repo, version) rows, and every instance of one row resolves the same dependency closure, so one prepare per spec
  * replaces hundreds (and the `--network none` grade finds the same wheels either way).
  */
+export const SWEBENCH_PREPARE_MARKER = "SWEBENCH_PREPARE_OK";
+
 export function swebenchWheelCacheKey(entry: SwebenchGraderEntry): string {
 	return "resolvedFrom" in entry && entry.resolvedFrom === "spec" ? entry.specKey : entry.instanceId;
 }
@@ -164,6 +166,10 @@ export function buildSwebenchPrepareScript(
 				" ",
 			),
 		),
+		// The completion marker: written ONLY after the fatal repo stage succeeded, so a partial closure (some
+		// stages downloaded, the repo's own resolution failed) can never read as a cache hit and let a sealed
+		// grade run against missing dependencies. Live 2026-09-15: four failed specs left partial wheel dirs.
+		`touch /cache/wheels/${swebenchWheelCacheKey(entry)}/SWEBENCH_PREPARE_OK`,
 		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
 	].join("\n");
 }

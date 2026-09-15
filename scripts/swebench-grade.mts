@@ -22,6 +22,7 @@ import {
 	flattenSwebenchWheels,
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
+	SWEBENCH_PREPARE_MARKER,
 	swebenchWheelCacheKey,
 } from "../src/core/swebench-grader";
 import { detectGradedTestTampering, listGradedTestFiles } from "../src/core/swebench-instance";
@@ -51,7 +52,9 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 		// A cache directory is created BEFORE the download runs, so "it exists" is not "it is cached" — a failed
 		// prepare left an empty dir and the next sweep skipped the spec entirely (live 2026-09-15).
 		const cacheDir = join(cacheRoot, "wheels", cacheKey);
-		const cached = existsSync(cacheDir) && readdirSync(cacheDir).some((name) => /\.(whl|tar\.gz|zip)$/u.test(name));
+		// Only a COMPLETE prepare counts: the marker is written after the fatal repo stage, so a partial closure
+		// (some stages downloaded, the repo's resolution failed) re-runs instead of grading against missing deps.
+		const cached = existsSync(join(cacheDir, SWEBENCH_PREPARE_MARKER));
 		if (preparedKeys.has(cacheKey) || cached) {
 			process.stdout.write(`  ${instanceId}: wheels for ${cacheKey} already cached — skipping\n`);
 			preparedKeys.add(cacheKey);
@@ -65,6 +68,7 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 				await prepareSwebenchWheels({ entry, sourceDir, cacheRoot });
 			} catch (error) {
 				// Leave no empty directory behind: it would read as "cached" on the next sweep.
+				// A partial dir is kept (its wheels seed the retry through the shared pip cache) but stays unmarked.
 				if (existsSync(cacheDir) && readdirSync(cacheDir).length === 0) await rm(cacheDir, { recursive: true, force: true });
 				throw error;
 			}
