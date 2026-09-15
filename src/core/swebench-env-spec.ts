@@ -279,3 +279,145 @@ export function passedIdsFromOutput(logParser: SwebenchLogParser, output: string
 	}
 	return passedIdsFromPytestOutput(output);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// (4) Sealed grading per spec: the env image, the package list, the install command.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The base image every spec-resolved env is built on: the spec's interpreter plus a C toolchain (compiled deps). */
+export function swebenchBaseImageTag(pythonVersion: string): string {
+	return `nklein/swebench-base:${pythonVersion}`;
+}
+
+/** The env image for a spec that has pre-install shell (apt packages…); specs without it grade on the base image. */
+export function swebenchEnvImageTag(specKey: string): string {
+	return `nklein/swebench-env:${specKey.replace(/[^A-Za-z0-9_.-]/g, "_")}`;
+}
+
+/**
+ * Which image grades an entry: the tranche's stock `python:3.9-slim` for hand-proven entries (byte-identical to
+ * the N8 runs), the spec's env image when it needs pre-install shell, else the per-interpreter base image.
+ */
+export function swebenchGraderImageFor(entry: SwebenchTrancheEntry | SwebenchResolvedEnv): string {
+	if (!("resolvedFrom" in entry) || entry.resolvedFrom === "tranche") {
+		return "python:3.9-slim";
+	}
+	return entry.preInstallShell.length > 0
+		? swebenchEnvImageTag(entry.specKey)
+		: swebenchBaseImageTag(entry.pythonVersion);
+}
+
+/**
+ * The Dockerfile for a base or env image. Built ONLINE once (an explicit egress step, like `prepare`); every
+ * grade then runs in it with `--network none`. Upstream `pre_install` lines are joined into ONE layer so an
+ * `export` in one line is visible to the next.
+ */
+export function buildSwebenchEnvDockerfile(input: {
+	readonly pythonVersion: string;
+	readonly preInstall: readonly string[];
+}): string {
+	const lines = [
+		`FROM python:${input.pythonVersion}-slim`,
+		"ENV DEBIAN_FRONTEND=noninteractive PIP_DISABLE_PIP_VERSION_CHECK=1",
+		"RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config git ca-certificates && rm -rf /var/lib/apt/lists/*",
+	];
+	if (input.preInstall.length > 0) {
+		lines.push(`RUN ${input.preInstall.map((line) => line.replace(/\n/g, " ")).join(" && ")}`);
+	}
+	return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Upstream `packages` → what to pip-download/install beyond the repo itself: a requirements file name is
+ * returned as `{ requirementsFile }`, an `environment.yml` is read by the caller into pins via
+ * {@link parseCondaEnvironmentYml}, a space-separated list is pins as-is.
+ */
+export function classifySwebenchPackages(packages: string | null): {
+	requirementsFile?: string;
+	environmentYml?: string;
+	pins: string[];
+} {
+	if (!packages) {
+		return { pins: [] };
+	}
+	const value = packages.trim();
+	if (/\.txt$/.test(value)) {
+		return { requirementsFile: value, pins: [] };
+	}
+	if (/\.ya?ml$/.test(value)) {
+		return { environmentYml: value, pins: [] };
+	}
+	return { pins: value.split(/\s+/).filter(Boolean) };
+}
+
+/**
+ * Pins from a conda `environment.yml`: the `dependencies:` entries (minus `python`/`pip` themselves, conda
+ * channel markers stripped, `=` pins rewritten to `==`) plus the nested `- pip:` list verbatim. An approximation
+ * of conda by pip — recorded as such; the negative control (`control <id>`) is what proves an env grades.
+ */
+export function parseCondaEnvironmentYml(yml: string): string[] {
+	const pins: string[] = [];
+	let inDependencies = false;
+	let inPip = false;
+	for (const raw of yml.split("\n")) {
+		const line = raw.replace(/#.*$/, "").trimEnd();
+		if (!line.trim()) continue;
+		const indent = line.length - line.trimStart().length;
+		if (/^dependencies\s*:/.test(line)) {
+			inDependencies = true;
+			inPip = false;
+			continue;
+		}
+		if (indent === 0) {
+			inDependencies = false;
+			inPip = false;
+			continue;
+		}
+		if (!inDependencies) continue;
+		const item = line.trim();
+		if (/^-\s*pip\s*:/.test(item)) {
+			inPip = true;
+			continue;
+		}
+		if (!item.startsWith("-")) continue;
+		const spec = item.replace(/^-\s*/, "").trim();
+		if (inPip) {
+			if (indent > 2) {
+				pins.push(spec);
+				continue;
+			}
+			inPip = false;
+		}
+		const name = spec.replace(/^[\w-]+::/, "");
+		if (/^(python|pip)(\b|[=<>])/.test(name)) continue;
+		pins.push(name.replace(/(?<![=<>!])=(?!=)/, "=="));
+	}
+	return pins;
+}
+
+/**
+ * Upstream `install` → the cache-only editable install the sealed grade runs from /work. pip-shaped commands
+ * keep their extras (`-e .[test]` → `-e /work[test]`) and gain `--no-index --find-links` + `--no-build-isolation`;
+ * anything else (`python setup.py develop`) runs verbatim inside /work.
+ */
+export function sealedInstallCommand(installCommand: string, wheelsArgs: string): string {
+	const pip = /(?:python(?:3)?\s+-m\s+)?pip\s+install\s+(.*)$/.exec(installCommand.trim());
+	if (!pip) {
+		return `cd /work && ${installCommand}`;
+	}
+	const rest = (pip[1] ?? "")
+		.replace(
+			/(^|\s)-e\s+\.(\[[^\]]*\])?/,
+			(_m, lead: string, extras: string | undefined) => `${lead}-e /work${extras ?? ""}`,
+		)
+		.replace(
+			/(^|\s)\.(\[[^\]]*\])?(?=\s|$)/,
+			(_m, lead: string, extras: string | undefined) => `${lead}/work${extras ?? ""}`,
+		)
+		.replace(/--no-build-isolation/g, "")
+		.trim();
+	return `python -m pip install --disable-pip-version-check -q ${wheelsArgs} --no-build-isolation ${rest}`.replace(
+		/\s+/g,
+		" ",
+	);
+}

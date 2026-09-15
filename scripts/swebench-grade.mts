@@ -17,27 +17,31 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import {
 	applyTestPatchToCopy,
+	buildSwebenchEnvImage,
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
 } from "../src/core/swebench-grader";
 import { detectGradedTestTampering, listGradedTestFiles } from "../src/core/swebench-instance";
+import { resolveSwebenchEnv } from "../src/core/swebench-env-spec";
 import { materializeSwebenchInstance, readSwebenchCacheEntry, swebenchCacheRoot } from "../src/core/swebench-materialize";
+import { loadSwebenchSpecTable } from "../src/core/swebench-spec-table";
 import { SWEBENCH_TRANCHE } from "../src/core/swebench-tranche";
 
 const cacheRoot = swebenchCacheRoot(process.cwd());
 
-function trancheEntry(instanceId: string) {
-	const entry = SWEBENCH_TRANCHE.find((candidate) => candidate.instanceId === instanceId);
-	if (!entry) {
-		throw new Error(`${instanceId} is not in SWEBENCH_TRANCHE.`);
-	}
-	return entry;
+/**
+ * P1.SWEBENCHFULL: the grader entry for ANY cached instance — a hand-proven tranche entry wins, else the upstream
+ * spec table row for (repo, version), else a named refusal.
+ */
+async function trancheEntry(instanceId: string) {
+	const { instance } = await readSwebenchCacheEntry(cacheRoot, instanceId);
+	return resolveSwebenchEnv({ instance, table: await loadSwebenchSpecTable(cacheRoot), overrides: SWEBENCH_TRANCHE });
 }
 
 async function commandPrepare(ids: readonly string[]): Promise<void> {
 	const targets = ids.length > 0 ? ids : SWEBENCH_TRANCHE.map((entry) => entry.instanceId);
 	for (const instanceId of targets) {
-		const entry = trancheEntry(instanceId);
+		const entry = await trancheEntry(instanceId);
 		const sourceDir = join(await mkdtemp(join(tmpdir(), "swebench-prep-")), instanceId);
 		process.stdout.write(`⚠ EGRESS (once): resolving ${instanceId}'s wheel cache inside the grader…\n`);
 		await materializeSwebenchInstance({ cacheRoot, instanceId, targetDir: sourceDir });
@@ -117,7 +121,7 @@ async function checkTests(instanceId: string, workspaceDir: string): Promise<num
 }
 
 async function gradeDir(instanceId: string, workspaceDir: string, label: string): Promise<number> {
-	const entry = trancheEntry(instanceId);
+	const entry = await trancheEntry(instanceId);
 	const { instance } = await readSwebenchCacheEntry(cacheRoot, instanceId);
 	const copyDir = join(await mkdtemp(join(tmpdir(), "swebench-grade-")), "work");
 	await cp(workspaceDir, copyDir, { recursive: true });
@@ -144,7 +148,13 @@ async function gradeDir(instanceId: string, workspaceDir: string, label: string)
 }
 
 const [mode, ...args] = process.argv.slice(2);
-if (mode === "prepare") {
+if (mode === "build-env" && args[0]) {
+	// P1.SWEBENCHFULL (⚠ EGRESS once per image): the base/env image a spec-resolved instance grades in.
+	for (const instanceId of args) {
+		const built = await buildSwebenchEnvImage({ entry: await trancheEntry(instanceId) });
+		process.stdout.write(`${instanceId}: ${built.built ? `built ${built.image}` : `${built.image} (stock image, nothing to build)`}\n`);
+	}
+} else if (mode === "prepare") {
 	await commandPrepare(args);
 } else if (mode === "grade" && args[0] && args[1]) {
 	process.exitCode = await gradeDir(args[0], args[1], "grade");
@@ -163,7 +173,7 @@ if (mode === "prepare") {
 	}
 } else {
 	process.stderr.write(
-		"usage: swebench-grade.mts prepare [<id>...] | grade <id> <workspaceDir> | check-tests <id> <workspaceDir> | control <id>\n",
+		"usage: swebench-grade.mts build-env <id...> | prepare [<id>...] | grade <id> <workspaceDir> | check-tests <id> <workspaceDir> | control <id>\n",
 	);
 	process.exit(64);
 }

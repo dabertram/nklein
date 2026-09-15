@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildSwebenchEnvDockerfile,
 	buildSwebenchSelectionCommand,
+	classifySwebenchPackages,
 	djangoTestLabel,
 	normalizeSwebenchSpecRow,
+	parseCondaEnvironmentYml,
 	parseSwebenchSpecDump,
 	passedIdsFromDjangoOutput,
 	passedIdsFromSympyOutput,
 	resolveSwebenchEnv,
+	sealedInstallCommand,
+	swebenchGraderImageFor,
 	swebenchSpecKey,
 	sympyTestFiles,
 } from "../../../src/core/swebench-env-spec";
@@ -170,5 +175,82 @@ describe("sympy runner", () => {
 			"test_one",
 			"test_four",
 		]);
+	});
+});
+
+describe("sealed grading per spec (P1.SWEBENCHFULL slice 4)", () => {
+	it("chooses the stock image for tranche entries, the base image for plain specs, the env image for pre-install specs", () => {
+		const specEnv = resolveSwebenchEnv({
+			instance: instance({ instanceId: "psf__requests-9", repo: "psf/requests", version: "2.3" }),
+			table,
+			overrides: [],
+		});
+		const djangoEnv = resolveSwebenchEnv({
+			instance: instance({ instanceId: "django__django-1", repo: "django/django", version: "4.0" }),
+			table,
+			overrides: [],
+		});
+		const tranche = resolveSwebenchEnv({
+			instance: instance({ instanceId: "psf__requests-2317", repo: "psf/requests", version: "2.3" }),
+			table,
+			overrides: [
+				{
+					instanceId: "psf__requests-2317",
+					repo: "psf/requests",
+					python: "3.9",
+					preInstallRequirements: [],
+					installEnv: {},
+					installArgs: [],
+					buildRequirements: [],
+					extraRequirements: [],
+				},
+			],
+		});
+		expect(swebenchGraderImageFor(tranche)).toBe("python:3.9-slim");
+		expect(swebenchGraderImageFor(specEnv)).toBe("nklein/swebench-base:3.9");
+		expect(swebenchGraderImageFor(djangoEnv)).toBe("nklein/swebench-env:django__django__4.0");
+	});
+
+	it("writes a Dockerfile with the toolchain layer and the spec's pre-install joined into one layer", () => {
+		const dockerfile = buildSwebenchEnvDockerfile({
+			pythonVersion: "3.8",
+			preInstall: ["apt-get update && apt-get install -y locales", "export LC_ALL=C.UTF-8"],
+		});
+		expect(dockerfile).toContain("FROM python:3.8-slim");
+		expect(dockerfile).toContain("build-essential");
+		expect(dockerfile).toContain("RUN apt-get update && apt-get install -y locales && export LC_ALL=C.UTF-8");
+	});
+
+	it("classifies upstream package lists and reads conda environment files as pip pins", () => {
+		expect(classifySwebenchPackages("requirements.txt")).toEqual({ requirementsFile: "requirements.txt", pins: [] });
+		expect(classifySwebenchPackages("environment.yml")).toEqual({ environmentYml: "environment.yml", pins: [] });
+		expect(classifySwebenchPackages("numpy scipy pandas")).toEqual({ pins: ["numpy", "scipy", "pandas"] });
+		expect(classifySwebenchPackages(null)).toEqual({ pins: [] });
+		const yml = [
+			"name: xarray-tests",
+			"channels:",
+			"  - conda-forge",
+			"dependencies:",
+			"  - python=3.10",
+			"  - numpy=1.23",
+			"  - conda-forge::pandas>=1.4",
+			"  - pip",
+			"  - pip:",
+			"    - numbagg",
+			"    - cfgrib==0.9",
+			"  - scipy  # trailing comment",
+			"prefix: /x",
+		].join("\n");
+		expect(parseCondaEnvironmentYml(yml)).toEqual(["numpy==1.23", "pandas>=1.4", "numbagg", "cfgrib==0.9", "scipy"]);
+	});
+
+	it("turns the spec's install command into the cache-only sealed install, keeping extras", () => {
+		const wheels = "--no-index --find-links /cache/wheels/x";
+		expect(sealedInstallCommand("pip install -e .[test]", wheels)).toBe(
+			"python -m pip install --disable-pip-version-check -q --no-index --find-links /cache/wheels/x --no-build-isolation -e /work[test]",
+		);
+		expect(sealedInstallCommand("python -m pip install -e .", wheels)).toContain("-e /work");
+		expect(sealedInstallCommand("pip install .", wheels)).toContain(" /work");
+		expect(sealedInstallCommand("python setup.py develop", wheels)).toBe("cd /work && python setup.py develop");
 	});
 });

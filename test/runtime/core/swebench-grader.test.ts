@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
+import { parseSwebenchSpecDump, resolveSwebenchEnv } from "../../../src/core/swebench-env-spec";
 import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
@@ -189,6 +190,61 @@ describe("planSealedGrade — sealed fail-to-pass exclusions", () => {
 			expect(sealed.plan.failToPass).toEqual(["test_requests.py::T::test_a"]);
 			expect(sealed.excludedCount).toBe(0);
 			expect(sealed.sealedFailToPassExcluded).toEqual([]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHFULL slice 4)", () => {
+	it("runs django's runner with dotted labels and installs the spec's requirements before the repo", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-spec-grade-"));
+		try {
+			await writeFile(join(dir, "tests"), "");
+			const table = parseSwebenchSpecDump({
+				source: {
+					package: "swebench",
+					version: "4.0.0",
+					sha256: "ab".repeat(32),
+					generatedAt: "2026-09-15T00:00:00Z",
+				},
+				specs: {
+					"django/django": {
+						"4.0": {
+							python: "3.8",
+							packages: "requirements.txt",
+							install: "python -m pip install -e .",
+							pip_packages: ["pytz"],
+							test_cmd: "./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1",
+						},
+					},
+				},
+			});
+			const djangoInstance: SwebenchInstanceMetadata = {
+				...instance,
+				instanceId: "django__django-1",
+				repo: "django/django",
+				version: "4.0",
+				failToPass: ["test_a (auth_tests.test_views.LoginTest)"],
+				passToPass: ["test_b (auth_tests.test_views.LoginTest)"],
+			};
+			const env = resolveSwebenchEnv({ instance: djangoInstance, table, overrides: [] });
+			const sealed = planSealedGrade(env, djangoInstance, dir);
+			expect(sealed.plan.failToPassCommand).toEqual([
+				"./tests/runtests.py",
+				"--verbosity",
+				"2",
+				"--settings=test_sqlite",
+				"--parallel",
+				"1",
+				"auth_tests.test_views.LoginTest.test_a",
+			]);
+			const script = buildSwebenchGradeScript(env, sealed.plan);
+			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
+			expect(pipLines[1]).toContain("-r '/work/requirements.txt'");
+			expect(pipLines[2]).toContain("'pytz'");
+			expect(pipLines[3]).toContain("--no-build-isolation -e /work");
+			expect(script).toContain("'./tests/runtests.py'");
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

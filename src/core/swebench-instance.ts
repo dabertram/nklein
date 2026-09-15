@@ -185,17 +185,21 @@ export function parseSwebenchGradeOutput(input: {
 	readonly passToPass: readonly string[];
 	readonly failToPassOutput: string;
 	readonly passToPassOutput: string;
+	/** P1.SWEBENCHFULL: the runner's own pass reader (django, sympy); pytest `-rA` when absent. */
+	readonly passedIn?: (output: string) => Set<string>;
 }): SwebenchGradeVerdict {
-	const passedIn = (output: string): Set<string> => {
-		const passed = new Set<string>();
-		for (const line of output.split("\n")) {
-			const match = /^PASSED\s+(\S+)/.exec(line.trim());
-			if (match?.[1]) {
-				passed.add(match[1]);
+	const passedIn =
+		input.passedIn ??
+		((output: string): Set<string> => {
+			const passed = new Set<string>();
+			for (const line of output.split("\n")) {
+				const match = /^PASSED\s+(\S+)/.exec(line.trim());
+				if (match?.[1]) {
+					passed.add(match[1]);
+				}
 			}
-		}
-		return passed;
-	};
+			return passed;
+		});
 	// pytest may print node ids with parametrization/whitespace variants; match on exact id OR the id as a
 	// prefix of a printed pass (a parametrized selection like `test_a[x]` prints exactly; a module selection
 	// never appears verbatim, so exactness is required for test ids and prefix matching is NOT used for them).

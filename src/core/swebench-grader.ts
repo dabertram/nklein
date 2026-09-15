@@ -16,13 +16,53 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { createGitProcessEnv } from "./git-process-env";
+import {
+	buildSwebenchEnvDockerfile,
+	buildSwebenchSelectionCommand,
+	classifySwebenchPackages,
+	parseCondaEnvironmentYml,
+	passedIdsFromOutput,
+	type SwebenchResolvedEnv,
+	sealedInstallCommand,
+	swebenchGraderImageFor,
+} from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
 import { buildSwebenchGradePlan, parseSwebenchGradeOutput, type SwebenchGradeVerdict } from "./swebench-instance";
 import type { SwebenchTrancheEntry } from "./swebench-tranche";
+
+/** A hand-proven tranche entry or a spec-resolved env (P1.SWEBENCHFULL) — the grader takes either. */
+export type SwebenchGraderEntry = SwebenchTrancheEntry | SwebenchResolvedEnv;
+
+/** The runner facts of an entry, with the tranche's byte-identical defaults for hand-proven entries. */
+export function graderEntryFacts(entry: SwebenchGraderEntry): {
+	readonly fromSpec: boolean;
+	readonly testCmd: string;
+	readonly logParser: SwebenchResolvedEnv["logParser"];
+	readonly installCommand: string;
+	readonly packages: string | null;
+} {
+	if ("resolvedFrom" in entry && entry.resolvedFrom === "spec") {
+		return {
+			fromSpec: true,
+			testCmd: entry.testCmd,
+			logParser: entry.logParser,
+			installCommand: entry.installCommand,
+			packages: entry.packages,
+		};
+	}
+	return {
+		fromSpec: false,
+		testCmd: "python -m pytest -rA -p no:cacheprovider",
+		logParser: "pytest",
+		installCommand: "pip install -e .",
+		packages: null,
+	};
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -34,10 +74,14 @@ export const SWEBENCH_GRADER_IMAGE = "python:3.9-slim";
  * build env gets the LATEST setuptools (no pkg_resources) and no scm pretend-version, which is exactly the
  * failure the facts exist to prevent (prepare-caught on pytest-5227).
  */
-export function buildSwebenchPrepareScript(entry: SwebenchTrancheEntry): string {
+export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins: readonly string[] = []): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
-	const pins = [...new Set([...swebenchToolchainRequirements(entry), ...entry.extraRequirements])];
+	const packages = classifySwebenchPackages(graderEntryFacts(entry).packages);
+	const pins = [
+		...new Set([...swebenchToolchainRequirements(entry), ...entry.extraRequirements, ...packages.pins, ...extraPins]),
+	];
+	const requirementsArg = packages.requirementsFile ? ` -r '/src/${packages.requirementsFile}'` : "";
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -55,13 +99,13 @@ export function buildSwebenchPrepareScript(entry: SwebenchTrancheEntry): string 
 		// The repo source resolves its own dependency constraints; pins ride along so their wheels land too.
 		`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q ${
 			needsHostBuildEnv ? "--no-build-isolation " : ""
-		}--dest /cache/wheels/${entry.instanceId} /src ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
+		}--dest /cache/wheels/${entry.instanceId} /src${requirementsArg} ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
 		`ls /cache/wheels/${entry.instanceId} | wc -l`,
 	].join("\n");
 }
 
 /** The build toolchain every offline editable install needs (pip's isolated build env is unreachable offline). */
-export function swebenchToolchainRequirements(entry: SwebenchTrancheEntry): string[] {
+export function swebenchToolchainRequirements(entry: SwebenchGraderEntry): string[] {
 	const pinnedSetuptools = entry.preInstallRequirements.find((requirement) => requirement.startsWith("setuptools"));
 	return [
 		"wheel",
@@ -79,10 +123,18 @@ export function swebenchToolchainRequirements(entry: SwebenchTrancheEntry): stri
  * lines cannot collide with diagnostics).
  */
 export function buildSwebenchGradeScript(
-	entry: SwebenchTrancheEntry,
+	entry: SwebenchGraderEntry,
 	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
+	extraPins: readonly string[] = [],
 ): string {
 	const wheels = `--no-index --find-links /cache/wheels/${entry.instanceId}`;
+	const facts = graderEntryFacts(entry);
+	const packages = classifySwebenchPackages(facts.packages);
+	// Upstream order for a spec: pre_install → packages → pip_packages → install (the repo). A tranche entry keeps
+	// its probe-proven order (extras AFTER the editable install: a pytest-repo's editable install IS the pytest).
+	const packagePins = facts.fromSpec
+		? [...packages.pins, ...extraPins, ...entry.extraRequirements]
+		: [...packages.pins, ...extraPins];
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -94,13 +146,20 @@ export function buildSwebenchGradeScript(
 		"python -m venv /tmp/venv",
 		"export PATH=/tmp/venv/bin:$PATH",
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
-		`${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
-			`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e /work`
-				.replace(/\s+/g, " ")
-				.trim(),
-			"editable",
-		)}`,
-		...(entry.extraRequirements.length > 0 ? [pipInstall(quote(entry.extraRequirements), "extras")] : []),
+		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
+		...(packages.requirementsFile ? [pipInstall(`-r '/work/${packages.requirementsFile}'`, "packages")] : []),
+		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
+		facts.fromSpec
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
+					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e /work`
+						.replace(/\s+/g, " ")
+						.trim(),
+					"editable",
+				)}`,
+		...(!facts.fromSpec && entry.extraRequirements.length > 0
+			? [pipInstall(quote(entry.extraRequirements), "extras")]
+			: []),
 		...(entry.httpbinService
 			? [
 					// Loopback httpbin INSIDE the none-network namespace: the era suite builds URLs from HTTPBIN_URL.
@@ -142,7 +201,7 @@ export function splitSwebenchGradeOutput(stdout: string): { failToPassOutput: st
  * counted so a trimmed guard is visible in the verdict, never silent.
  */
 export function planSealedGrade(
-	entry: SwebenchTrancheEntry,
+	entry: SwebenchGraderEntry,
 	instance: SwebenchInstanceMetadata,
 	workspaceDir: string,
 ): {
@@ -156,7 +215,12 @@ export function planSealedGrade(
 		instance.failToPass.includes(exclusion.id),
 	);
 	const sealedFailToPassIds = new Set(sealedFailToPassExcluded.map((exclusion) => exclusion.id));
+	const facts = graderEntryFacts(entry);
+	// pytest ids name files (a missing file aborts the whole selection run); django labels and sympy names do not.
 	const fileExists = (selection: string): boolean => {
+		if (facts.logParser !== "pytest") {
+			return true;
+		}
 		const file = selection.split("::")[0];
 		return file !== undefined && existsSync(join(workspaceDir, file));
 	};
@@ -166,7 +230,34 @@ export function planSealedGrade(
 	const failToPass = instance.failToPass.filter(
 		(selection) => !sealedFailToPassIds.has(selection) && fileExists(selection),
 	);
-	const plan = buildSwebenchGradePlan({ ...instance, failToPass, passToPass });
+	// pytest ids pass the dataset sanitizer (shell-unsafe node ids are dropped and counted); django/sympy ids are
+	// not node ids — the runner builders validate them by shape instead.
+	const sanitized =
+		facts.logParser === "pytest"
+			? buildSwebenchGradePlan({ ...instance, failToPass, passToPass })
+			: {
+					...buildSwebenchGradePlan({ ...instance, failToPass: [], passToPass: [] }),
+					failToPass,
+					passToPass,
+					droppedSelections: [],
+				};
+	// P1.SWEBENCHFULL: the runner invocation comes from the entry's facts (django labels, sympy files, pytest ids);
+	// for a hand-proven tranche entry this is byte-identical to the pytest plan.
+	const plan = {
+		...sanitized,
+		failToPassCommand: buildSwebenchSelectionCommand({
+			logParser: facts.logParser,
+			testCmd: facts.testCmd,
+			selections: sanitized.failToPass,
+			testPatch: instance.testPatch,
+		}),
+		passToPassCommand: buildSwebenchSelectionCommand({
+			logParser: facts.logParser,
+			testCmd: facts.testCmd,
+			selections: sanitized.passToPass,
+			testPatch: instance.testPatch,
+		}),
+	};
 	const excludedCount =
 		plan.droppedSelections.length +
 		(instance.passToPass.length - passToPass.length) +
@@ -188,10 +279,11 @@ const defaultDeps: SwebenchGraderDeps = {
 
 /** One-time per instance, network ON — the wheel-cache egress step. `sourceDir` is a PRISTINE materialization. */
 export async function prepareSwebenchWheels(
-	input: { entry: SwebenchTrancheEntry; sourceDir: string; cacheRoot: string },
+	input: { entry: SwebenchGraderEntry; sourceDir: string; cacheRoot: string },
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<void> {
 	await mkdir(join(input.cacheRoot, "wheels"), { recursive: true });
+	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
 	await deps.exec("docker", [
 		"run",
 		"--rm",
@@ -201,11 +293,48 @@ export async function prepareSwebenchWheels(
 		`${input.sourceDir}:/src`,
 		"-v",
 		`${input.cacheRoot}:/cache`,
-		SWEBENCH_GRADER_IMAGE,
+		swebenchGraderImageFor(input.entry),
 		"bash",
 		"-lc",
-		buildSwebenchPrepareScript(input.entry),
+		buildSwebenchPrepareScript(input.entry, extraPins),
 	]);
+}
+
+/** Pins from the spec's conda `environment.yml` in the source tree (an approximation of conda by pip — recorded). */
+async function environmentYmlPins(entry: SwebenchGraderEntry, sourceDir: string): Promise<string[]> {
+	const packages = classifySwebenchPackages(graderEntryFacts(entry).packages);
+	if (!packages.environmentYml || !existsSync(join(sourceDir, packages.environmentYml))) {
+		return [];
+	}
+	return parseCondaEnvironmentYml(await readFile(join(sourceDir, packages.environmentYml), "utf8"));
+}
+
+/**
+ * P1.SWEBENCHFULL: build the base/env image a spec-resolved entry grades in — ONLINE, once per image (an explicit
+ * egress step like `prepare`). A hand-proven tranche entry needs none (stock python:3.9-slim).
+ */
+export async function buildSwebenchEnvImage(
+	input: { entry: SwebenchGraderEntry },
+	deps: SwebenchGraderDeps = defaultDeps,
+): Promise<{ image: string; built: boolean }> {
+	const image = swebenchGraderImageFor(input.entry);
+	if (!("resolvedFrom" in input.entry) || input.entry.resolvedFrom !== "spec") {
+		return { image, built: false };
+	}
+	const context = await mkdtemp(join(tmpdir(), "swebench-env-"));
+	try {
+		await writeFile(
+			join(context, "Dockerfile"),
+			buildSwebenchEnvDockerfile({
+				pythonVersion: input.entry.pythonVersion,
+				preInstall: input.entry.preInstallShell,
+			}),
+		);
+		await deps.exec("docker", ["build", "-t", image, context]);
+		return { image, built: true };
+	} finally {
+		await rm(context, { recursive: true, force: true });
+	}
 }
 
 /**
@@ -215,7 +344,7 @@ export async function prepareSwebenchWheels(
  */
 export async function gradeSwebenchWorkspace(
 	input: {
-		entry: SwebenchTrancheEntry;
+		entry: SwebenchGraderEntry;
 		instance: SwebenchInstanceMetadata;
 		workspaceCopyDir: string;
 		cacheRoot: string;
@@ -234,10 +363,14 @@ export async function gradeSwebenchWorkspace(
 			`${input.workspaceCopyDir}:/work`,
 			"-v",
 			`${input.cacheRoot}:/cache:ro`,
-			SWEBENCH_GRADER_IMAGE,
+			swebenchGraderImageFor(input.entry),
 			"bash",
 			"-lc",
-			buildSwebenchGradeScript(input.entry, sealed.plan),
+			buildSwebenchGradeScript(
+				input.entry,
+				sealed.plan,
+				await environmentYmlPins(input.entry, input.workspaceCopyDir),
+			),
 		]);
 		stdout = result.stdout;
 	} catch (error) {
@@ -245,11 +378,13 @@ export async function gradeSwebenchWorkspace(
 	}
 	const { failToPassOutput, passToPassOutput } = splitSwebenchGradeOutput(stdout);
 	const { plan, excludedCount, sealedFailToPassExcluded } = sealed;
+	const logParser = graderEntryFacts(input.entry).logParser;
 	const verdict = parseSwebenchGradeOutput({
 		failToPass: plan.failToPass,
 		passToPass: plan.passToPass,
 		failToPassOutput,
 		passToPassOutput,
+		passedIn: (output) => passedIdsFromOutput(logParser, output),
 	});
 	// A tranche instance whose gradable F2P is EMPTY cannot prove any fix — that is disqualifying, not green.
 	const resolvable = plan.failToPass.length > 0;
