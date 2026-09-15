@@ -4,6 +4,8 @@ import {
 	buildSwebenchSelectionCommand,
 	classifySwebenchPackages,
 	djangoTestLabel,
+	flattenSwebenchRequirements,
+	isSwebenchRequirementsSentinel,
 	normalizeSwebenchSpecRow,
 	parseCondaEnvironmentYml,
 	parseSwebenchSpecDump,
@@ -11,6 +13,7 @@ import {
 	passedIdsFromSympyOutput,
 	resolveSwebenchEnv,
 	rewriteSwebenchRepoLine,
+	SWEBENCH_REPO_REQUIREMENTS_PATHS,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
@@ -277,5 +280,30 @@ describe("pre_install split (P1.SWEBENCHFULL 4b)", () => {
 		const dockerfile = buildSwebenchEnvDockerfile({ pythonVersion: "3.9", preInstall: ["sed -i 's/a/b/' setup.py"] });
 		// The base apt layer has its own `sed -i` (the archived-release fallback) — the REPO edit is what must be absent.
 		expect(dockerfile).not.toContain("setup.py");
+	});
+});
+
+describe("repo requirements sentinel (upstream MAP_REPO_TO_REQS_PATHS)", () => {
+	it("recognises the sentinel and flattens -r includes, dropping -e . comments and extras", () => {
+		expect(isSwebenchRequirementsSentinel("requirements.txt")).toBe(true);
+		expect(isSwebenchRequirementsSentinel("numpy scipy")).toBe(false);
+		expect(SWEBENCH_REPO_REQUIREMENTS_PATHS["django/django"]).toEqual(["tests/requirements/py3.txt"]);
+		const files: Record<string, string> = {
+			"tests/requirements/py3.txt": [
+				"-r base.txt",
+				"# a comment",
+				"-e .",
+				".[test]",
+				"aiosmtpd",
+				"docutils >= 0.19",
+			].join("\n"),
+			"tests/requirements/base.txt": ["sqlparse >= 0.3", ""].join("\n"),
+		};
+		expect(flattenSwebenchRequirements("tests/requirements/py3.txt", (path) => files[path] ?? null)).toEqual([
+			"sqlparse >= 0.3",
+			"aiosmtpd",
+			"docutils >= 0.19",
+		]);
+		expect(flattenSwebenchRequirements("tests/requirements/missing.txt", () => null)).toEqual([]);
 	});
 });

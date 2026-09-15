@@ -240,13 +240,17 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 				"1",
 				"auth_tests.test_views.LoginTest.test_a",
 			]);
-			const script = buildSwebenchGradeScript(env, sealed.plan);
+			// `packages: "requirements.txt"` is upstream's SENTINEL: the real file is resolved from the checkout and
+			// passed in (here: the flattened file the grader writes beside the tree).
+			const script = buildSwebenchGradeScript(env, sealed.plan, [], ".nklein-swebench-requirements.txt");
 			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
-			expect(pipLines[1]).toContain("-r '/work/requirements.txt'");
+			expect(pipLines[1]).toContain("-r '/work/.nklein-swebench-requirements.txt'");
 			expect(pipLines[2]).toContain("'pytz'");
 			// The spec's BUILD prerequisites (wheel + any setuptools/cython pin) land before the editable install.
 			expect(pipLines[3]).toContain("'wheel'");
 			expect(pipLines[4]).toContain("--no-build-isolation -e /work");
+			// Without a resolved file the sentinel must NOT become a literal `-r requirements.txt`.
+			expect(buildSwebenchGradeScript(env, sealed.plan)).not.toContain("-r '/work/requirements.txt'");
 			expect(script).toContain("'./tests/runtests.py'");
 		} finally {
 			await rm(dir, { recursive: true, force: true });

@@ -15,7 +15,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { copyFile, link, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,9 +25,12 @@ import {
 	buildSwebenchEnvDockerfile,
 	buildSwebenchSelectionCommand,
 	classifySwebenchPackages,
+	flattenSwebenchRequirements,
+	isSwebenchRequirementsSentinel,
 	parseCondaEnvironmentYml,
 	passedIdsFromOutput,
 	rewriteSwebenchRepoLine,
+	SWEBENCH_REPO_REQUIREMENTS_PATHS,
 	type SwebenchResolvedEnv,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
@@ -87,14 +90,18 @@ export const SWEBENCH_GRADER_IMAGE = "python:3.9-slim";
  * build env gets the LATEST setuptools (no pkg_resources) and no scm pretend-version, which is exactly the
  * failure the facts exist to prevent (prepare-caught on pytest-5227).
  */
-export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins: readonly string[] = []): string {
+export function buildSwebenchPrepareScript(
+	entry: SwebenchGraderEntry,
+	extraPins: readonly string[] = [],
+	repoRequirementsFile: string | null = null,
+): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
 	const packages = classifySwebenchPackages(graderEntryFacts(entry).packages);
-	const pins = [
-		...new Set([...swebenchToolchainRequirements(entry), ...entry.extraRequirements, ...packages.pins, ...extraPins]),
-	];
-	const requirementsArg = packages.requirementsFile ? ` -r '/src/${packages.requirementsFile}'` : "";
+	const requirementsFile =
+		repoRequirementsFile ??
+		(isSwebenchRequirementsSentinel(graderEntryFacts(entry).packages) ? null : packages.requirementsFile);
+	const requirementsArg = requirementsFile ? ` -r '/src/${requirementsFile}'` : "";
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -107,6 +114,29 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 					(line) => `(cd /src && ${rewriteSwebenchRepoLine(line, "/src")})`,
 				)
 			: [];
+	const stages: { label: string; args: string; fatal: boolean }[] = [
+		...(requirementsFile ? [{ label: "requirements", args: `-r '/src/${requirementsFile}'`, fatal: false }] : []),
+		...(packages.pins.length > 0 || extraPins.length > 0
+			? [
+					{
+						label: "packages",
+						args: [...new Set([...packages.pins, ...extraPins])].map((pin) => `'${pin}'`).join(" "),
+						fatal: false,
+					},
+				]
+			: []),
+		{
+			label: "toolchain",
+			args: swebenchToolchainRequirements(entry)
+				.map((pin) => `'${pin}'`)
+				.join(" "),
+			fatal: false,
+		},
+		{ label: "repo", args: "/src", fatal: true },
+		...(entry.extraRequirements.length > 0
+			? [{ label: "extras", args: entry.extraRequirements.map((pin) => `'${pin}'`).join(" "), fatal: false }]
+			: []),
+	];
 	return [
 		"set -eu",
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
@@ -121,12 +151,19 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 						.join(" ")}`.trimEnd(),
 				]
 			: []),
-		// The repo source resolves its own dependency constraints; pins ride along so their wheels land too.
-		// A SHARED pip HTTP cache under /cache: hundreds of instances of one repo resolve the same wheels, and the
-		// operator's uplink is a phone hotspot (full-suite run, 2026-09-15) — without it every prepare re-downloads.
-		`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
-			needsHostBuildEnv ? "--no-build-isolation " : ""
-		}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} /src${requirementsArg} ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
+		// Upstream INSTALLS in stages (requirements file → era pins → the repo → pip_packages) and never resolves
+		// them together. Resolving them in one `pip download` asks pip for a single solution across stages that
+		// legitimately conflict — ten sphinx specs died with ResolutionImpossible on the 2026-09-15 Verified sweep.
+		// So: one call per stage into the same wheel dir, with the SHARED pip HTTP cache (the operator's uplink is a
+		// phone hotspot). Only the repo stage is fatal; the others print a named marker.
+		...stages.map(({ label, args, fatal }) =>
+			`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
+				needsHostBuildEnv ? "--no-build-isolation " : ""
+			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${fatal ? "" : ' || echo "SWEBENCH_DOWNLOAD_INCOMPLETE ' + label + '"'}`.replace(
+				/\s+/g,
+				" ",
+			),
+		),
 		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
 	].join("\n");
 }
@@ -153,6 +190,7 @@ export function buildSwebenchGradeScript(
 	entry: SwebenchGraderEntry,
 	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
 	extraPins: readonly string[] = [],
+	repoRequirementsFile: string | null = null,
 ): string {
 	const wheels = `--no-index --find-links /cache/wheels/${swebenchWheelCacheKey(entry)}`;
 	const facts = graderEntryFacts(entry);
@@ -181,7 +219,9 @@ export function buildSwebenchGradeScript(
 				)
 			: []),
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
-		...(packages.requirementsFile ? [pipInstall(`-r '/work/${packages.requirementsFile}'`, "packages")] : []),
+		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
+			? [pipInstall(`-r '/work/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
+			: []),
 		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [pipInstall(quote(swebenchSpecBuildRequirements(entry)), "build-requirements")]
@@ -324,6 +364,7 @@ export async function prepareSwebenchWheels(
 ): Promise<void> {
 	await mkdir(join(input.cacheRoot, "wheels"), { recursive: true });
 	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
+	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
 	await deps.exec("docker", [
 		"run",
 		"--rm",
@@ -336,8 +377,37 @@ export async function prepareSwebenchWheels(
 		swebenchGraderImageFor(input.entry),
 		"bash",
 		"-lc",
-		buildSwebenchPrepareScript(input.entry, extraPins),
+		buildSwebenchPrepareScript(input.entry, extraPins, repoRequirements),
 	]);
+}
+
+/**
+ * The spec's repo requirements, flattened from the LOCAL checkout when upstream's `packages` is the sentinel
+ * (`requirements.txt`). Writes them beside the tree as `.nklein-swebench-requirements.txt` so both the prepare
+ * download and the sealed install can `-r` it, and returns that file's basename (or null when no path matched).
+ */
+async function materializeRepoRequirements(entry: SwebenchGraderEntry, treeDir: string): Promise<string | null> {
+	const facts = graderEntryFacts(entry);
+	if (!isSwebenchRequirementsSentinel(facts.packages)) {
+		return null;
+	}
+	const repo = entry.repo;
+	for (const candidate of SWEBENCH_REPO_REQUIREMENTS_PATHS[repo] ?? []) {
+		if (!existsSync(join(treeDir, candidate))) {
+			continue;
+		}
+		const lines = flattenSwebenchRequirements(candidate, (path) => {
+			const full = join(treeDir, path);
+			return existsSync(full) ? readFileSync(full, "utf8") : null;
+		});
+		if (lines.length === 0) {
+			continue;
+		}
+		const name = ".nklein-swebench-requirements.txt";
+		await writeFile(join(treeDir, name), `${lines.join("\n")}\n`);
+		return name;
+	}
+	return null;
 }
 
 /** Pins from the spec's conda `environment.yml` in the source tree (an approximation of conda by pip — recorded). */

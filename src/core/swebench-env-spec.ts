@@ -490,3 +490,57 @@ export function splitSwebenchPreInstall(preInstall: readonly string[]): { image:
 export function rewriteSwebenchRepoLine(line: string, workspacePath: string): string {
 	return line.replace(/\/testbed\b/g, workspacePath);
 }
+
+/**
+ * Upstream's `packages: "requirements.txt"` is a SENTINEL, not a path: their harness resolves a per-repo file
+ * (`MAP_REPO_TO_REQS_PATHS`) at the instance's commit, follows `-r` includes, and drops `-e .`, comments and
+ * `.[test…]` extras. Live 2026-09-15 that sentinel made ten django/pylint prepares die with "Could not open
+ * requirements file". This is the same table, applied to the LOCAL checkout (no network); the first path that
+ * exists wins, exactly as upstream breaks on the first 200.
+ */
+export const SWEBENCH_REPO_REQUIREMENTS_PATHS: Readonly<Record<string, readonly string[]>> = {
+	"dbt-labs/dbt-core": ["dev-requirements.txt", "dev_requirements.txt"],
+	"django/django": ["tests/requirements/py3.txt"],
+	"matplotlib/matplotlib": ["requirements/dev/dev-requirements.txt", "requirements/testing/travis_all.txt"],
+	"pallets/flask": ["requirements/dev.txt"],
+	"pylint-dev/pylint": ["requirements_test.txt"],
+	"pyvista/pyvista": ["requirements_test.txt", "requirements.txt"],
+	"sqlfluff/sqlfluff": ["requirements_dev.txt"],
+	"sympy/sympy": ["requirements-dev.txt", "requirements-test.txt"],
+};
+
+/** True when upstream's `packages` value is the repo-requirements sentinel rather than a real file name. */
+export function isSwebenchRequirementsSentinel(packages: string | null): boolean {
+	return (packages ?? "").trim() === "requirements.txt";
+}
+
+/**
+ * Flatten a repo's requirements file the way upstream does: follow `-r` includes relative to the file's directory,
+ * drop `-e .`, comments and `.[test…]` extras. `readFile` returns null for a path that does not exist.
+ */
+export function flattenSwebenchRequirements(
+	entryPath: string,
+	readFile: (path: string) => string | null,
+	depth = 0,
+): string[] {
+	const body = readFile(entryPath);
+	if (body === null || depth > 4) {
+		return [];
+	}
+	const directory = entryPath.split("/").slice(0, -1).join("/");
+	const excluded = (line: string): boolean =>
+		["-e .", "#", ".[test"].some((prefix) => line.trim().startsWith(prefix)) || line.trim().length === 0;
+	const lines: string[] = [];
+	for (const line of body.split("\n")) {
+		const trimmed = line.trim();
+		if (trimmed.startsWith("-r")) {
+			const included = trimmed.slice(2).trim();
+			lines.push(...flattenSwebenchRequirements(directory ? `${directory}/${included}` : included, readFile, depth + 1));
+			continue;
+		}
+		if (!excluded(line)) {
+			lines.push(trimmed);
+		}
+	}
+	return lines;
+}
