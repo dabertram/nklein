@@ -49,6 +49,27 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 
 ## Results
 
+## Pass-1 scoreboard (all arms, !Klein `83c39fe71`, sealed offline grading, updated 2026-09-15 16:35)
+
+| seat | resolved | graded | mean min/instance | state |
+|---|---|---|---|---|
+| Opus 5 (Claude CLI seat) | **10** | 10 | 8.6 | final |
+| Sonnet 5 (Claude CLI seat) | **9** | 10 | 23.4 | final |
+| qwen3.6-27b MLX 8-bit, m5max | **8** | 10 | 16.3 | final |
+| qwen3.8-27b MLX 8-bit, m5max (shared seat) | **7** | 10 | 54.9 | final |
+| Fable 5.1 (Claude CLI seat) | **7** | 8 | 14.2 | paused by David at 02:08, 2 instances left |
+| Haiku 4.5 (Claude CLI seat) | **6** | 10 | 15.2 | final |
+| qwen3.6-35b-a3b Q4_K_M, Legion via LM Link | **5** | 10 | 81.7 | final |
+| qwen3.8-27b IQ4_XS, m4 mini via LM Link | **4** | 8 | 82.9 | stopped, seat unstable |
+| muse-glimmer-30b 8-bit, m5max | **1** | 10 | 46.6 | final |
+| qwen3.6-35b-a3b MLX 8-bit, m5max | **0** | 0 | – | queued (waits for the Legion copy to be unloaded) |
+
+Per-instance grids are in each arm's section below. Excluded attempts (seat outages, mis-seated runs, never-started
+sessions) are not in these numbers; every counted receipt is seat-verified. Caveats from the audit still apply: the
+instances are public SWE-bench items (contamination), ten is a small sample, the pass-1 toolchain never primed, arm A
+shared its seat, and the local arms ran in low power mode from 09:10.
+
+
 ### Arm A — !Klein `83c39fe71`, `qwen/qwen3.8-27b` MLX 8-bit on the m5max (COMPLETE 2026-09-15 05:20)
 
 Seat shared all afternoon with David's DeepSeek Harness (dsh) run; suspended 17:50–21:30 on 2026-09-14; 120-minute cap.
@@ -139,6 +160,28 @@ graded. Receipts: `swebench-tranche-2026-09/m4mini-dirk-qwen38-iq4xs/`.
 
 **Score: 4 / 8 graded (of 10).** Mean 82.9 min per graded instance; three ran to the cap. A smaller
 model on the mini (the 9B class) would be the honest next configuration for this host.
+
+### muse-glimmer-30b arm — !Klein `83c39fe71`, `muse-glimmer-30b` 8-bit on the m5max (COMPLETE 2026-09-15 16:31)
+
+Loaded by the campaign beside David's qwen3.8 (context 65536); low power mode from 09:10; the requests-1921 attempt
+restarted once (operator, 09:10). Receipts: `swebench-tranche-2026-09/muse-glimmer-30b-q8/`.
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 26 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `reproduce_blueprint_name.py`, `src/flask/blueprints.py` |
+| psf__requests-1921 | no | 48 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+| psf__requests-2317 | no | 40 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+| psf__requests-5414 | no | 24 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+| pytest-dev__pytest-5227 | no | 15 | needs_attention | unresolved: 3 fail-to-pass still failing; `` |
+| pytest-dev__pytest-6202 | no | 107 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+| pytest-dev__pytest-7521 | no | 14 | needs_attention | unresolved: 2 fail-to-pass still failing; `` |
+| pylint-dev__pylint-4970 | no | 120 | stagnant | unresolved: 1 fail-to-pass still failing; `` |
+| pylint-dev__pylint-6903 | no | 26 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+| pylint-dev__pylint-7993 | no | 47 | needs_attention | unresolved: 1 fail-to-pass still failing; `` |
+
+**Score: 1 / 10 resolved.** Seven of the nine misses ended in a loop-guard park (three identical calls of the same
+tool — `search_code`, `skills`, `read_files`) with nothing delivered, the pattern finding 10 addresses for pass 2;
+the other two ran to the cap with scratch scripts but no library change.
 
 ### Opus 5 arm — !Klein `83c39fe71`, `claude-opus-5-hitl` (COMPLETE 2026-09-15 01:41)
 

@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-muse-glimmer-30b-q8-pylint-dev__pylint-4970",
+  "instanceId": "pylint-dev__pylint-4970",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "40cc2ffd7887959157aaf469e09585ec2be7f528",
+  "tarballSha256": "1b7f0146e8091589eb51d6e76a17a6d85e736ae70ecd90a483d63f92f4ba640f",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "fdd960233c20a4c0c6540abbdcad5e4a1054f20a",
+    "runtimeOrigin": "http://127.0.0.1:3511",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-muse-glimmer-30b-q8/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"muse-glimmer-30b-q8\": !Klein 83c39fe71 driving muse-glimmer-30b from its own HOME on :3511. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-muse-glimmer-30b-q8\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"muse-glimmer-30b\" NKLEIN_CUSTODIAN_MODEL=\"muse-glimmer-30b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3511 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3511"
+    }
+  },
+  "model": {
+    "identifier": "muse-glimmer-30b",
+    "modelKey": "muse-glimmer-30b",
+    "status": "idle",
+    "contextLength": 65536,
+    "sizeBytes": 29612957984,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "Q8_0",
+      "bits": 8
+    },
+    "format": "gguf",
+    "architecture": "muse-glimmer",
+    "maxContextLength": 131072
+  },
+  "startedAt": "2026-09-15T11:17:56.321Z",
+  "finishedAt": "2026-09-15T13:18:18.326Z",
+  "durationMs": 7222005,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "stagnant",
+  "workflowSummary": "Stagnant: 1 card(s) remain, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "muse-glimmer-30b": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 3726,
+    "baseCommit": "21b3b9876397c08c62d3dcb7d7f2c8e2c3a5be91",
+    "resultCommit": "39c22e4d21415777520602010d3f5e77c6b7fd2f",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-muse-glimmer-30b-q8-pylint-dev__pylint-4970-5664aec900"
+  },
+  "changedFiles": [
+    "work/check_pylint.py",
+    "work/check_pylint2.py",
+    "work/test_hash_lineset.py",
+    "work/test_hash_lineset2.py",
+    "work/test_hash_lineset3.py",
+    "work/test_simple.py",
+    "work/test_zip.py",
+    "work/test_zip2.py",
+    "work/test_zip3.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "work/check_pylint.py",
+      "work/check_pylint2.py",
+      "work/test_hash_lineset.py",
+      "work/test_hash_lineset2.py",
+      "work/test_hash_lineset3.py",
+      "work/test_simple.py",
+      "work/test_zip.py",
+      "work/test_zip2.py",
+      "work/test_zip3.py"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pylint-dev__pylint__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing",
+    "graderStdoutTail": "SSED tests/checkers/unittest_similar.py::test_ignore_imports\nPASSED tests/checkers/unittest_similar.py::test_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_pass\nPASSED tests/checkers/unittest_similar.py::test_no_hide_code_with_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_nothing\nPASSED tests/checkers/unittest_similar.py::test_lines_without_meaningful_content_do_not_trigger_similarity\nPASSED tests/checkers/unittest_similar.py::test_help\nPASSED tests/checkers/unittest_similar.py::test_no_args\nPASSED tests/checkers/unittest_similar.py::test_get_map_data\n======================== 17 passed, 3 warnings in 0.03s ========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": "39c22e4d21415777520602010d3f5e77c6b7fd2f",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-muse-glimmer-30b-q8/workspaces/swebench-muse-glimmer-30b-q8-pylint-dev__pylint-4970"
+}
