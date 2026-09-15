@@ -3139,9 +3139,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   `testEvidencePolicy: agent_visible` + auto-review ON, `--cooldown-ms` pauses between instances (turn latency climbed
   13 s → 96 s median across four consecutive arm-A instances: sustained-load thermal). Arm B rig prepared at
   `~/.nklein/factory-drains/swebench-armB-qwen38-8bit-m5max-20260914` (runtime :3508 on the packed image via
-  `NKLEIN_AGENT_SANDBOX_IMAGE`); it runs after arm A finishes (one model slot). **REMAINING:** (f) further packs on
-  demand (ruby, dotnet, php when a project needs them — each an overlay Dockerfile + an egress pack entry); retag the
-  packed image to `0.0.1` (or bump the pin) once arm A has finished measuring the unpacked one; arm B result vs arm A. *(not testable: image overlays and egress reach need Docker and a live
+  `NKLEIN_AGENT_SANDBOX_IMAGE`); it runs after arm A finishes (one model slot). **RETAGGED 2026-09-15** (pass 1 done): `0.0.1-python` → `0.0.1`, old image kept as `0.0.1-base`. **REMAINING:** (f)
+  further packs on demand (ruby, dotnet, php when a project needs them — each an overlay Dockerfile + an egress pack
+  entry); arm B / pass-2 result vs pass 1. *(not testable: image overlays and egress reach need Docker and a live
   uplink — the pure parts (b)(c) are unit-tested)*
 - [ ] **P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard
   then refuses every retry for the life of the runtime.** *(Live 2026-09-10, four occurrences across projects 41,

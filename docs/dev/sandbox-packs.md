@@ -44,3 +44,10 @@ product default) the sandbox has full egress and the packs only matter for offli
 `uv venv --seed .nklein-venv && uv pip install --python .nklein-venv/bin/python -e . pytest coverage`. The test
 tools are unpinned on this path on purpose: an era interpreter needs the last release that still supports it, and
 uv's resolver knows which.
+
+## Status 2026-09-15
+
+Pass 1 of the SWE-bench campaign measured the UNPACKED `0.0.1` (finding 2: every worker built a Python by hand). With
+that measurement banked, the python pack was promoted: `nklein/agent-sandbox:0.0.1-python` is now tagged
+`nklein/agent-sandbox:0.0.1` (the product default) and the previous image is kept as `nklein/agent-sandbox:0.0.1-base`.
+Pass 2 arms therefore get the pack without an override.

@@ -319,8 +319,9 @@ that keeps every pass-1 arm on the same !Klein commit.
    `claude -p` call on the Sonnet arm exited 1 for the whole requests-1921 second-pass attempt (the responder answered
    "the model seat failed to answer this turn"), the session delivered a venv and nothing else in five minutes, and
    the receipt said "unresolved". Voided (`*.superseded-seat-outage.json`) and re-run after the limit reset; the
-   same rule as the Legion seat outage (operator note under finding 6). A seat-failure marker on the receipt itself
-   (responder FAILED count in the run window) is the next runner improvement so this never needs a human to spot.
+   same rule as the Legion seat outage (operator note under finding 6). **Shipped the same day:** the runner counts the
+   responder's FAILED/answered calls in the run window onto every HITL receipt (`seatFailures`) and EXCLUDES an attempt
+   whose every call failed as a seat outage, so this no longer needs a human to spot.
    **The m4 mini's LM Link seat flaps:** it dropped at 07:16 (five instances excluded as "not loaded", seat reloaded
    08:25, arm relaunched) and again at ~10:00 UTC mid-attempt on pylint-4970 (two empty model turns, then "not
    loaded"; the attempt voided as a seat outage, the arm relaunched for its last three instances). Both were

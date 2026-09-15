@@ -214,6 +214,36 @@ interface AttemptRow {
 }
 
 /** Every `attempt_started` the runtime HOME recorded at or after `sinceMs` — the seat witness. */
+/**
+ * Finding 8 (2026-09-15): a HITL seat can fail every call (Claude usage limit, CLI exit 1) and the session then
+ * "delivers" nothing — which graded as an ordinary unresolved. Count the responder's FAILED lines inside the run
+ * window (the arm's logs/responder.log beside the queue) so the receipt says it and a total outage is excluded.
+ */
+async function readSeatFailuresBetween(
+	seatFile: string | null,
+	startedMs: number,
+	finishedMs: number,
+): Promise<{ failed: number; answered: number } | null> {
+	if (!seatFile) return null;
+	const responderLog = join(dirname(dirname(seatFile)), "logs", "responder.log");
+	if (!existsSync(responderLog)) return null;
+	// A FAILED request is still "answered" by the responder (with an error message the agent can read), so the
+	// answered line of a failed seq must not count as a seat success: classify per request seq.
+	const failedSeqs = new Set<string>();
+	const answeredSeqs = new Set<string>();
+	for (const line of (await readFile(responderLog, "utf8")).split("\n")) {
+		const stamp = /^\[([^\]]+)\] request (\d+): (FAILED|answered)/u.exec(line);
+		if (!stamp) continue;
+		const at = Date.parse(stamp[1] ?? "");
+		if (!Number.isFinite(at) || at < startedMs || at > finishedMs) continue;
+		const seq = stamp[2] ?? "";
+		if (stamp[3] === "FAILED") failedSeqs.add(seq);
+		else answeredSeqs.add(seq);
+	}
+	for (const seq of failedSeqs) answeredSeqs.delete(seq);
+	return { failed: failedSeqs.size, answered: answeredSeqs.size };
+}
+
 async function readAttemptsSince(home: string, sinceMs: number): Promise<AttemptRow[]> {
 	const dir = join(home, ".nklein", "nklein", "telemetry");
 	if (!existsSync(dir)) return [];
@@ -463,6 +493,11 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	for (const row of attempts) attemptModels[row.modelId ?? "(null)"] = (attemptModels[row.modelId ?? "(null)"] ?? 0) + 1;
 	const foreign = attempts.filter((row) => row.modelId !== options.model);
 	if (foreign.length > 0 && !seatViolation) seatViolation = foreign[0] ?? null;
+	const seatFailures = await readSeatFailuresBetween(options.seatFile, startedAt, Date.now());
+	const seatOutage = seatFailures !== null && seatFailures.failed > 0 && seatFailures.answered === 0;
+	if (seatFailures && seatFailures.failed > 0) {
+		log(`${instanceId}: seat answered ${seatFailures.answered} and FAILED ${seatFailures.failed} responder call(s) in the run window${seatOutage ? " — every call failed: seat outage, NOT counted" : ""}`);
+	}
 
 	// Grade the PINNED delivery: check it out so the working tree is the model's result, then the sealed capture
 	// diffs it against the base and records the patch.
@@ -518,7 +553,9 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	}
 
 	const resolved = verdict?.resolved === true;
-	const excludedFromScore = seatViolation
+	const excludedFromScore = seatOutage
+		? `seat outage: every responder call failed in the run window (${seatFailures?.failed ?? 0} FAILED, 0 answered)`
+		: seatViolation
 		? `seat violation: attempt on ${seatViolation.modelId ?? "(unknown)"} (${seatViolation.taskId ?? "?"})`
 		: attempts.length === 0
 			? "no model attempt was recorded for this run (the seat never answered a turn)"
@@ -545,6 +582,7 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		completedCardCount: execution?.result.finalCounts.completed ?? null,
 		attemptModels,
 		seatVerified: !seatViolation && attempts.length > 0,
+		seatFailures,
 		seatViolation,
 		capture,
 		changedFiles: [...changed],
