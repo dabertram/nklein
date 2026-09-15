@@ -75,7 +75,8 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 		await materializeSwebenchInstance({ cacheRoot, instanceId, targetDir: sourceDir });
 		try {
 			try {
-				await prepareSwebenchWheels({ entry, sourceDir, cacheRoot });
+				const { instance } = await readSwebenchCacheEntry(cacheRoot, instanceId);
+				await prepareSwebenchWheels({ entry, sourceDir, cacheRoot, instanceVersion: instance.version });
 			} catch (error) {
 				// Leave no empty directory behind: it would read as "cached" on the next sweep.
 				// A partial dir is kept (its wheels seed the retry through the shared pip cache) but stays unmarked.

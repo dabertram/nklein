@@ -373,13 +373,14 @@ const defaultDeps: SwebenchGraderDeps = {
 
 /** One-time per instance, network ON — the wheel-cache egress step. `sourceDir` is a PRISTINE materialization. */
 export async function prepareSwebenchWheels(
-	input: { entry: SwebenchGraderEntry; sourceDir: string; cacheRoot: string },
+	input: { entry: SwebenchGraderEntry; sourceDir: string; cacheRoot: string; instanceVersion?: string | null },
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<void> {
 	await mkdir(join(input.cacheRoot, "wheels"), { recursive: true });
 	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
 	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
+	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
 	await deps.exec("docker", [
 		"run",
 		"--rm",
@@ -392,7 +393,12 @@ export async function prepareSwebenchWheels(
 		swebenchGraderImageFor(input.entry),
 		"bash",
 		"-lc",
-		buildSwebenchPrepareScript(input.entry, extraPins, repoRequirements, buildRequires),
+		buildSwebenchPrepareScript(
+			{ ...input.entry, installEnv: { ...input.entry.installEnv, ...scmEnv } },
+			extraPins,
+			repoRequirements,
+			buildRequires,
+		),
 	]);
 }
 
@@ -401,6 +407,28 @@ export async function prepareSwebenchWheels(
  * (`requirements.txt`). Writes them beside the tree as `.nklein-swebench-requirements.txt` so both the prepare
  * download and the sealed install can `-r` it, and returns that file's basename (or null when no path matched).
  */
+/**
+ * `SETUPTOOLS_SCM_PRETEND_VERSION` for a checkout whose build reads its version from git tags. Our workspace is a
+ * tarball with ONE synthetic commit and no tags, so setuptools_scm invents `0.1.dev1+…`: pytest's own suite then
+ * dies with `ModuleNotFoundError: No module named '_pytest._version'` (live 2026-09-16, 15 pass-to-pass "regressed"
+ * in a pristine control). Upstream clones with history and never sees it. The instance's dataset `version` is the
+ * honest value — the same trick the hand-proven tranche entries carry as `installEnv`.
+ */
+function setuptoolsScmPretendVersion(treeDir: string, instanceVersion: string | null): Record<string, string> {
+	if (!instanceVersion) {
+		return {};
+	}
+	const mentionsScm = ["pyproject.toml", "setup.py", "setup.cfg"].some((file) => {
+		const path = join(treeDir, file);
+		return existsSync(path) && /setuptools[-_]scm/i.test(readFileSync(path, "utf8"));
+	});
+	if (!mentionsScm) {
+		return {};
+	}
+	const version = /^\d+(\.\d+)?$/u.test(instanceVersion) ? `${instanceVersion}.0` : instanceVersion;
+	return { SETUPTOOLS_SCM_PRETEND_VERSION: version };
+}
+
 /** The checkout's PEP 518 build requirements, read host-side (empty when there is no pyproject.toml). */
 function readPep518BuildRequires(treeDir: string): string[] {
 	const path = join(treeDir, "pyproject.toml");
@@ -482,7 +510,9 @@ export async function gradeSwebenchWorkspace(
 	},
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<SwebenchGradeVerdict & { graderStdoutTail: string }> {
-	const sealed = planSealedGrade(input.entry, input.instance, input.workspaceCopyDir);
+	const scmEnv = setuptoolsScmPretendVersion(input.workspaceCopyDir, input.instance.version);
+	const gradeEntry = { ...input.entry, installEnv: { ...input.entry.installEnv, ...scmEnv } } as SwebenchGraderEntry;
+	const sealed = planSealedGrade(gradeEntry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
 		const result = await deps.exec("docker", [
@@ -498,7 +528,7 @@ export async function gradeSwebenchWorkspace(
 			"bash",
 			"-lc",
 			buildSwebenchGradeScript(
-				input.entry,
+				gradeEntry,
 				sealed.plan,
 				await environmentYmlPins(input.entry, input.workspaceCopyDir),
 			),
