@@ -71,6 +71,27 @@ Receipts: `swebench-tranche-2026-09/qwen38-8bit-m5max-20260914/` (superseded run
 requests-5414 and pylint-4970 (no library change delivered — the pass-1 toolchain gap and the shared seat ate the
 card), pytest-5227 (patch delivered, three fail-to-pass still red).
 
+### qwen3.6-27b arm — !Klein `83c39fe71`, `qwen/qwen3.6-27b` MLX 8-bit on the m5max (COMPLETE 2026-09-15 08:03)
+
+Loaded by the campaign beside David's qwen3.8 (27.5 GiB, LM Studio reported context 262144); the seat was NOT shared
+with dsh. Receipts: `swebench-tranche-2026-09/qwen36-27b-8bit/`.
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 8 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | yes | 13 | blocked_by_review_cards | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held; `requests/models.py` |
+| psf__requests-2317 | yes | 10 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held; `requests/sessions.py` |
+| psf__requests-5414 | yes | 25 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held; `requests/models.py` |
+| pytest-dev__pytest-5227 | yes | 10 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
+| pytest-dev__pytest-6202 | yes | 24 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | yes | 28 | blocked_by_review_cards | resolved: 2/2 fail-to-pass now green, 122 pass-to-pass held; `src/_pytest/capture.py` |
+| pylint-dev__pylint-4970 | no | 19 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | yes | 9 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | no | 17 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing, 2 pass-to-pass REGRESSED; `pylint/reporters/text.py` |
+
+**Score: 8 / 10 resolved.** Mean 16.3 min per instance — a third of qwen3.8's, and the best local seat of the
+campaign. Failures: pylint-4970 (one fail-to-pass red) and pylint-7993 (one red plus two regressions).
+
 ### Legion arm — !Klein `83c39fe71`, `qwen3.6-35b-a3b@legion` (Q4_K_M, ctx 32k, in progress)
 
 | instance | resolved | minutes | outcome | note |

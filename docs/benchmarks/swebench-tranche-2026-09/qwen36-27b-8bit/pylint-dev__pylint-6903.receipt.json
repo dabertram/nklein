@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-qwen36-27b-8bit-pylint-dev__pylint-6903",
+  "instanceId": "pylint-dev__pylint-6903",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "ca80f03a43bc39e4cc2c67dc99817b3c9f13b8a6",
+  "tarballSha256": "f3f28026ce71aa8966c2a349090d3e26b7a76afe1eb3c99c9884b8b7c06c2ee2",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "7917a978bceec8fbb83850ee8ef46b058a7d9d4b",
+    "runtimeOrigin": "http://127.0.0.1:3509",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"qwen36-27b-8bit\": !Klein 83c39fe71 driving qwen/qwen3.6-27b from its own HOME on :3509. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.6-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.6-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3509 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3509"
+    }
+  },
+  "model": {
+    "identifier": "qwen/qwen3.6-27b",
+    "modelKey": "qwen/qwen3.6-27b",
+    "status": "idle",
+    "contextLength": 262144,
+    "sizeBytes": 29528361872,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T05:38:03.114Z",
+  "finishedAt": "2026-09-15T05:46:40.968Z",
+  "durationMs": 517854,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen/qwen3.6-27b": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 398,
+    "baseCommit": "ea363647889e5b693c3e12ed3db3c097e5a4e8b5",
+    "resultCommit": "c422d4dc8a3df497aaccc6b62820cad4a73bcb7b",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-qwen36-27b-8bit-pylint-dev__pylint-6903-d8c365251e"
+  },
+  "changedFiles": [
+    "pylint/lint/run.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "pylint/lint/run.py"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pylint-dev__pylint__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "tests/test_pylint_runners.py::test_pylint_run_jobs_equal_zero_dont_crash_with_cpu_fraction"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held",
+    "graderStdoutTail": "ted at 10.00/10 (previous run: 10.00/10, +0.00)\n\n__________________ test_runner_with_arguments[run_pyreverse] ___________________\n----------------------------- Captured stdout call -----------------------------\nparsing /work/tests/test_pylint_runners.py...\n___________________ test_runner_with_arguments[run_symilar] ____________________\n----------------------------- Captured stdout call -----------------------------\nTOTAL lines=77 duplicates=0 percent=0.00\n\n=========================== short test summary info ============================\nPASSED tests/test_pylint_runners.py::test_runner[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner[run_symilar]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_symilar]\n========================= 8 passed, 1 warning in 3.94s =========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "c422d4dc8a3df497aaccc6b62820cad4a73bcb7b",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit/workspaces/swebench-qwen36-27b-8bit-pylint-dev__pylint-6903"
+}

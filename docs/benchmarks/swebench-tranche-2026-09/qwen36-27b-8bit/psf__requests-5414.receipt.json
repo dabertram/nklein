@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-qwen36-27b-8bit-psf__requests-5414",
+  "instanceId": "psf__requests-5414",
+  "repo": "psf/requests",
+  "baseCommit": "39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e",
+  "tarballSha256": "3f584cc5cd8ce4846c5ae7439461878d0813246efdc10eb18d049a00cf2ceb83",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "7917a978bceec8fbb83850ee8ef46b058a7d9d4b",
+    "runtimeOrigin": "http://127.0.0.1:3509",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"qwen36-27b-8bit\": !Klein 83c39fe71 driving qwen/qwen3.6-27b from its own HOME on :3509. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"qwen/qwen3.6-27b\" NKLEIN_CUSTODIAN_MODEL=\"qwen/qwen3.6-27b\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3509 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3509"
+    }
+  },
+  "model": {
+    "identifier": "qwen/qwen3.6-27b",
+    "modelKey": "qwen/qwen3.6-27b",
+    "status": "idle",
+    "contextLength": 262144,
+    "sizeBytes": 29528361872,
+    "deviceIdentifier": null,
+    "quantization": {
+      "name": "8bit",
+      "bits": 8
+    },
+    "format": "safetensors",
+    "architecture": "qwen3_5",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T03:51:51.253Z",
+  "finishedAt": "2026-09-15T04:16:42.817Z",
+  "durationMs": 1491564,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "qwen/qwen3.6-27b": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 586,
+    "baseCommit": "ec3bb0cf5248fad37dae5b17aa1183aba39bbac7",
+    "resultCommit": "6530d6c43acc21d64b2b304f3345be27d9a05d45",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-qwen36-27b-8bit-psf__requests-5414-798a614fe2"
+  },
+  "changedFiles": [
+    "requests/models.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "requests/models.py"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "psf__requests__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://.example.com]"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held (6 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "://%2Fvar%2Frun%2Fsocket/path%7E-http+unix://%2Fvar%2Frun%2Fsocket/path~1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org0]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[data:SSDimaUgUHl0aG9uIQ==-data:SSDimaUgUHl0aG9uIQ==]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params0-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params1-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params2-mailto:user@example.org]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params3-mailto:user@example.org]\n============================= 124 passed in 0.07s ==============================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "6530d6c43acc21d64b2b304f3345be27d9a05d45",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-qwen36-27b-8bit/workspaces/swebench-qwen36-27b-8bit-psf__requests-5414"
+}
