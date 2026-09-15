@@ -214,13 +214,16 @@ describe("sealed grading per spec (P1.SWEBENCHFULL slice 4)", () => {
 	it("writes a Dockerfile with the toolchain layer and the spec's pre-install joined into one layer", () => {
 		const dockerfile = buildSwebenchEnvDockerfile({
 			pythonVersion: "3.8",
-			preInstall: ["apt-get update && apt-get install -y locales", "export LC_ALL=C.UTF-8"],
+			preInstall: ["apt-get update && apt-get install -y locales", "locale-gen en_US.UTF-8", "export LC_ALL=C.UTF-8"],
 		});
 		expect(dockerfile).toContain("FROM python:3.8-slim");
 		expect(dockerfile).toContain("build-essential");
 		// Archived-release fallback: the era interpreters' Debian mirrors are gone from deb.debian.org.
 		expect(dockerfile).toContain("archive.debian.org");
-		expect(dockerfile).toContain("RUN apt-get update && apt-get install -y locales && export LC_ALL=C.UTF-8");
+		// Only the CONTIGUOUS system prefix is baked; `export LC_ALL=…` starts the workspace stage (a later line
+		// may depend on it), so it must NOT appear in the image.
+		expect(dockerfile).toContain("RUN apt-get update && apt-get install -y locales && locale-gen en_US.UTF-8");
+		expect(dockerfile).not.toContain("LC_ALL");
 	});
 
 	it("classifies upstream package lists and reads conda environment files as pip pins", () => {

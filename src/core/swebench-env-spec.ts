@@ -336,7 +336,7 @@ export function buildSwebenchEnvDockerfile(input: {
 		// never takes the fallback.
 		[
 			"RUN set -eu; \\",
-			'\tpkgs="build-essential pkg-config git ca-certificates"; \\',
+			'\tpkgs="build-essential pkg-config git ca-certificates wget curl"; \\',
 			"\t( apt-get update && apt-get install -y --no-install-recommends $pkgs ) || ( \\",
 			"\t\tsed -i 's|deb.debian.org|archive.debian.org|g; /security/d; /-updates/d' /etc/apt/sources.list 2>/dev/null || true; \\",
 			'\t\tfor f in /etc/apt/sources.list.d/*.sources; do [ -e "$f" ] || continue; \\',
@@ -474,18 +474,27 @@ export function sealedInstallCommand(installCommand: string, wheelsArgs: string)
  * system line at grade time has no network. This splits them; `/testbed` is rewritten to the sealed workspace path.
  */
 export function splitSwebenchPreInstall(preInstall: readonly string[]): { image: string[]; repo: string[] } {
+	// The split must keep the block CONTIGUOUS: upstream's lines share shell state (matplotlib assigns
+	// `QHULL_BUILD_DIR="/testbed/build"` and three lines later uses `$QHULL_BUILD_DIR`). Cherry-picking the
+	// repo-touching lines stranded the assignment in one stage and its use in the other — live 2026-09-16, every
+	// matplotlib env image failed on `mkdir -p ""`. So: the longest PREFIX of pure system setup goes into the
+	// image; from the first line that touches the repo (or sets a variable a later line may use) everything runs,
+	// in order, in the workspace shell.
+	const isSystemOnly = (line: string): boolean =>
+		/^(apt-get|apt|locale-gen|update-locale|ln -s|mkdir -p \/(etc|usr|opt)|echo .*>\s*\/etc)/.test(line.trim()) ||
+		/^(DEBIAN_FRONTEND=\S+\s+)?apt-get\b/.test(line.trim());
 	const image: string[] = [];
-	const repo: string[] = [];
-	for (const raw of preInstall) {
-		const line = raw.trim();
+	let index = 0;
+	for (; index < preInstall.length; index += 1) {
+		const line = (preInstall[index] ?? "").trim();
 		if (!line) continue;
-		const touchesRepo =
-			/\/testbed\b/.test(line) ||
-			/\bsed\s+-i\b/.test(line) ||
-			/\b(pyproject\.toml|setup\.(py|cfg)|requirements[\w.-]*\.txt|tox\.ini|environment\.ya?ml)\b/.test(line) ||
-			/^(python|pip|pip3)\b/.test(line);
-		(touchesRepo ? repo : image).push(line);
+		if (!isSystemOnly(line)) break;
+		image.push(line);
 	}
+	const repo = preInstall
+		.slice(index)
+		.map((line) => line.trim())
+		.filter(Boolean);
 	return { image, repo };
 }
 
