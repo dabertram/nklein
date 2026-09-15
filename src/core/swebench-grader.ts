@@ -40,6 +40,16 @@ import type { SwebenchTrancheEntry } from "./swebench-tranche";
 /** A hand-proven tranche entry or a spec-resolved env (P1.SWEBENCHFULL) — the grader takes either. */
 export type SwebenchGraderEntry = SwebenchTrancheEntry | SwebenchResolvedEnv;
 
+/**
+ * The wheel-cache directory name for an entry. A hand-proven tranche entry keeps its INSTANCE id (byte-identical to
+ * the N8 runs); a spec-resolved entry uses its `specKey` — the full suite has 707 instances across only ~389
+ * (repo, version) rows, and every instance of one row resolves the same dependency closure, so one prepare per spec
+ * replaces hundreds (and the `--network none` grade finds the same wheels either way).
+ */
+export function swebenchWheelCacheKey(entry: SwebenchGraderEntry): string {
+	return "resolvedFrom" in entry && entry.resolvedFrom === "spec" ? entry.specKey : entry.instanceId;
+}
+
 /** The runner facts of an entry, with the tranche's byte-identical defaults for hand-proven entries. */
 export function graderEntryFacts(entry: SwebenchGraderEntry): {
 	readonly fromSpec: boolean;
@@ -96,7 +106,7 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 			: [];
 	return [
 		"set -eu",
-		`mkdir -p /cache/wheels/${entry.instanceId}`,
+		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
 			? [
@@ -110,8 +120,8 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 		// operator's uplink is a phone hotspot (full-suite run, 2026-09-15) — without it every prepare re-downloads.
 		`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
 			needsHostBuildEnv ? "--no-build-isolation " : ""
-		}--dest /cache/wheels/${entry.instanceId} /src${requirementsArg} ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
-		`ls /cache/wheels/${entry.instanceId} | wc -l`,
+		}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} /src${requirementsArg} ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
+		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
 	].join("\n");
 }
 
@@ -138,7 +148,7 @@ export function buildSwebenchGradeScript(
 	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
 	extraPins: readonly string[] = [],
 ): string {
-	const wheels = `--no-index --find-links /cache/wheels/${entry.instanceId}`;
+	const wheels = `--no-index --find-links /cache/wheels/${swebenchWheelCacheKey(entry)}`;
 	const facts = graderEntryFacts(entry);
 	const packages = classifySwebenchPackages(facts.packages);
 	// Upstream order for a spec: pre_install → packages → pip_packages → install (the repo). A tranche entry keeps

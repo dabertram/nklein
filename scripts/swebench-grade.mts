@@ -15,12 +15,14 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { existsSync } from "node:fs";
 import {
 	applyTestPatchToCopy,
 	buildSwebenchEnvImage,
 	flattenSwebenchWheels,
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
+	swebenchWheelCacheKey,
 } from "../src/core/swebench-grader";
 import { detectGradedTestTampering, listGradedTestFiles } from "../src/core/swebench-instance";
 import { resolveSwebenchEnv } from "../src/core/swebench-env-spec";
@@ -41,14 +43,23 @@ async function trancheEntry(instanceId: string) {
 
 async function commandPrepare(ids: readonly string[]): Promise<void> {
 	const targets = ids.length > 0 ? ids : SWEBENCH_TRANCHE.map((entry) => entry.instanceId);
+	const preparedKeys = new Set<string>();
 	for (const instanceId of targets) {
 		const entry = await trancheEntry(instanceId);
+		// One prepare per (repo, version): the full suite's instances share their dependency closure per spec.
+		const cacheKey = swebenchWheelCacheKey(entry);
+		if (preparedKeys.has(cacheKey) || existsSync(join(cacheRoot, "wheels", cacheKey))) {
+			process.stdout.write(`  ${instanceId}: wheels for ${cacheKey} already cached — skipping\n`);
+			preparedKeys.add(cacheKey);
+			continue;
+		}
 		const sourceDir = join(await mkdtemp(join(tmpdir(), "swebench-prep-")), instanceId);
 		process.stdout.write(`⚠ EGRESS (once): resolving ${instanceId}'s wheel cache inside the grader…\n`);
 		await materializeSwebenchInstance({ cacheRoot, instanceId, targetDir: sourceDir });
 		try {
 			await prepareSwebenchWheels({ entry, sourceDir, cacheRoot });
-			process.stdout.write(`  wheels cached for ${instanceId}\n`);
+			preparedKeys.add(cacheKey);
+			process.stdout.write(`  wheels cached for ${cacheKey}\n`);
 			const flat = await flattenSwebenchWheels(cacheRoot);
 			process.stdout.write(`  wheelhouse ${flat.flatDir}: ${flat.total} wheels (${flat.linked} new)\n`);
 		} finally {

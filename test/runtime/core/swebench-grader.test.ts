@@ -15,6 +15,7 @@ import {
 	buildSwebenchPrepareScript,
 	planSealedGrade,
 	splitSwebenchGradeOutput,
+	swebenchWheelCacheKey,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
 import { buildSwebenchGradePlan } from "../../../src/core/swebench-instance";
@@ -248,5 +249,37 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}
+	});
+});
+
+describe("wheel-cache key (P1.SWEBENCHFULL: one prepare per spec, not per instance)", () => {
+	it("uses the instance id for a hand-proven tranche entry and the spec key for a resolved one", () => {
+		expect(swebenchWheelCacheKey(entry)).toBe("pytest-dev__pytest-9999");
+		const table = parseSwebenchSpecDump({
+			source: {
+				package: "swebench",
+				version: "3.0.17",
+				sha256: "cd".repeat(32),
+				generatedAt: "2026-09-15T00:00:00Z",
+			},
+			specs: {
+				"django/django": { "4.0": { python: "3.8", install: "pip install -e .", test_cmd: "./tests/runtests.py" } },
+			},
+		});
+		const resolved = resolveSwebenchEnv({
+			instance: { ...instance, instanceId: "django__django-11001", repo: "django/django", version: "4.0" },
+			table,
+			overrides: [],
+		});
+		expect(swebenchWheelCacheKey(resolved)).toBe("django__django__4.0");
+		const sibling = resolveSwebenchEnv({
+			instance: { ...instance, instanceId: "django__django-12002", repo: "django/django", version: "4.0" },
+			table,
+			overrides: [],
+		});
+		expect(swebenchWheelCacheKey(sibling)).toBe(swebenchWheelCacheKey(resolved));
+		expect(buildSwebenchGradeScript(resolved, buildSwebenchGradePlan(instance))).toContain(
+			"/cache/wheels/django__django__4.0",
+		);
 	});
 });
