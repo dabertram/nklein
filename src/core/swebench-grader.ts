@@ -23,7 +23,7 @@ import { promisify } from "node:util";
 import { createGitProcessEnv } from "./git-process-env";
 import {
 	buildSwebenchEnvDockerfile,
-	buildSwebenchSelectionCommand,
+	buildSwebenchSelectionArguments,
 	classifySwebenchPackages,
 	flattenSwebenchRequirements,
 	isSwebenchRequirementsSentinel,
@@ -265,9 +265,9 @@ export function buildSwebenchGradeScript(
 		// reach the test commands below.
 		...("evalCommands" in entry ? entry.evalCommands.map((line) => `${line} 2>&1 || true`) : []),
 		"echo '===SWEBENCH_F2P==='",
-		`${quote(plan.failToPassCommand)} 2>&1 || true`,
+		`${facts.testCmd} ${quote(plan.failToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_P2P==='",
-		`${quote(plan.passToPassCommand)} 2>&1 || true`,
+		`${facts.testCmd} ${quote(plan.passToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_END==='",
 	].join("\n");
 }
@@ -340,15 +340,14 @@ export function planSealedGrade(
 	// for a hand-proven tranche entry this is byte-identical to the pytest plan.
 	const plan = {
 		...sanitized,
-		failToPassCommand: buildSwebenchSelectionCommand({
+		// The plan carries the SELECTION ARGUMENTS; the script prefixes the spec's raw `test_cmd` shell string.
+		failToPassCommand: buildSwebenchSelectionArguments({
 			logParser: facts.logParser,
-			testCmd: facts.testCmd,
 			selections: sanitized.failToPass,
 			testPatch: instance.testPatch,
 		}),
-		passToPassCommand: buildSwebenchSelectionCommand({
+		passToPassCommand: buildSwebenchSelectionArguments({
 			logParser: facts.logParser,
-			testCmd: facts.testCmd,
 			selections: sanitized.passToPass,
 			testPatch: instance.testPatch,
 		}),

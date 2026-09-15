@@ -220,21 +220,24 @@ export function sympyTestFiles(testPatch: string): string[] {
 	return [...files];
 }
 
-/** The runner invocation for one selection group, per parser. */
-export function buildSwebenchSelectionCommand(input: {
+/**
+ * The SELECTION ARGUMENTS for one group, per runner — NOT the command itself. The spec's `test_cmd` stays a shell
+ * string (sympy's is `PYTHONWARNINGS='…' bin/test -C --verbose`: an env-var PREFIX that dies the moment it is
+ * quoted as an argv token — live 2026-09-16, every sympy selection reported "command not found"), so the caller
+ * emits `<test_cmd> <quoted selections>` and only these arguments are quoted.
+ */
+export function buildSwebenchSelectionArguments(input: {
 	readonly logParser: SwebenchLogParser;
-	readonly testCmd: string;
 	readonly selections: readonly string[];
 	readonly testPatch: string;
 }): readonly string[] {
-	const base = input.testCmd.split(/\s+/).filter(Boolean);
 	if (input.logParser === "django") {
-		return [...base, ...[...new Set(input.selections.map(djangoTestLabel))]];
+		return [...new Set(input.selections.map(djangoTestLabel))];
 	}
 	if (input.logParser === "sympy") {
-		return [...base, ...sympyTestFiles(input.testPatch)];
+		return sympyTestFiles(input.testPatch);
 	}
-	return [...base, ...input.selections];
+	return [...input.selections];
 }
 
 /** Ids reported PASSED by pytest `-rA` (the tranche's parser, kept exact). */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildSwebenchEnvDockerfile,
-	buildSwebenchSelectionCommand,
+	buildSwebenchSelectionArguments,
 	classifySwebenchPackages,
 	djangoTestLabel,
 	flattenSwebenchRequirements,
@@ -139,13 +139,12 @@ describe("django runner", () => {
 			"auth_tests.test_views.LoginTest.test_a",
 		);
 		expect(
-			buildSwebenchSelectionCommand({
+			buildSwebenchSelectionArguments({
 				logParser: "django",
-				testCmd: "./tests/runtests.py --verbosity 2",
 				selections: ["test_a (m.C)", "test_b (m.C)", "test_a (m.C)"],
 				testPatch: "",
 			}),
-		).toEqual(["./tests/runtests.py", "--verbosity", "2", "m.C.test_a", "m.C.test_b"]);
+		).toEqual(["m.C.test_a", "m.C.test_b"]);
 	});
 
 	it("reads only `... ok` lines as passes", () => {
@@ -169,14 +168,9 @@ describe("sympy runner", () => {
 		const testPatch =
 			"diff --git a/sympy/core/tests/test_x.py b/sympy/core/tests/test_x.py\n--- a\n+++ b\ndiff --git a/sympy/core/x.py b/sympy/core/x.py\n";
 		expect(sympyTestFiles(testPatch)).toEqual(["sympy/core/tests/test_x.py"]);
-		expect(
-			buildSwebenchSelectionCommand({
-				logParser: "sympy",
-				testCmd: "bin/test -C --verbose",
-				selections: ["test_one"],
-				testPatch,
-			}),
-		).toEqual(["bin/test", "-C", "--verbose", "sympy/core/tests/test_x.py"]);
+		expect(buildSwebenchSelectionArguments({ logParser: "sympy", selections: ["test_one"], testPatch })).toEqual([
+			"sympy/core/tests/test_x.py",
+		]);
 		expect([...passedIdsFromSympyOutput("test_one ok\ntest_two F\ntest_three E\ntest_four ok\n")]).toEqual([
 			"test_one",
 			"test_four",
