@@ -227,12 +227,17 @@ export function buildSwebenchGradeScript(
 		"export PATH=/tmp/venv/bin:$PATH",
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
-		...("preInstallShell" in entry
-			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
-					(line) =>
-						`(cd /work && ${rewriteSwebenchRepoLine(line, "/work")}) 2>&1 || echo "SWEBENCH_PREINSTALL_FAILED"`,
-				)
-			: []),
+		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
+		...(() => {
+			const lines = "preInstallShell" in entry ? splitSwebenchPreInstall(entry.preInstallShell).repo : [];
+			return lines.length > 0
+				? [
+						`( cd /work\n${lines
+							.map((line) => rewriteSwebenchRepoLine(line, "/work"))
+							.join("\n")}\n) 2>&1 || echo "SWEBENCH_PREINSTALL_FAILED"`,
+					]
+				: [];
+		})(),
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
 			? [pipInstall(`-r '/work/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
