@@ -177,7 +177,7 @@ export function buildSwebenchPrepareScript(
 		// The completion marker: written ONLY after the fatal repo stage succeeded, so a partial closure (some
 		// stages downloaded, the repo's own resolution failed) can never read as a cache hit and let a sealed
 		// grade run against missing dependencies. Live 2026-09-15: four failed specs left partial wheel dirs.
-		`touch /cache/wheels/${swebenchWheelCacheKey(entry)}/SWEBENCH_PREPARE_OK`,
+		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)} && touch /cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_PREPARE_MARKER}`,
 		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
 	].join("\n");
 }
