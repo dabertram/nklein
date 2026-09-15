@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-6903",
+  "instanceId": "pylint-dev__pylint-6903",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "ca80f03a43bc39e4cc2c67dc99817b3c9f13b8a6",
+  "tarballSha256": "f3f28026ce71aa8966c2a349090d3e26b7a76afe1eb3c99c9884b8b7c06c2ee2",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "a6582c970d1eaec75dd9bc6391470dec4837e2b4",
+    "runtimeOrigin": "http://127.0.0.1:3514",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"m4mini-dirk-qwen38-iq4xs\": !Klein 83c39fe71 driving dirk-qwen3.8-iq4xs@m4mini from its own HOME on :3514. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\" NKLEIN_CUSTODIAN_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3514 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3514"
+    }
+  },
+  "model": {
+    "identifier": "dirk-qwen3.8-iq4xs@m4mini",
+    "modelKey": "dirk-qwen3.8-27b@iq4_xs",
+    "status": "idle",
+    "contextLength": 32768,
+    "sizeBytes": 15180472544,
+    "deviceIdentifier": "2d30f46d0371d004b1758e6df7790a03",
+    "quantization": {
+      "name": "IQ4_XS",
+      "bits": 4
+    },
+    "format": "gguf",
+    "architecture": "qwen35",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T12:36:36.029Z",
+  "finishedAt": "2026-09-15T12:50:27.150Z",
+  "durationMs": 831121,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "dirk-qwen3.8-iq4xs@m4mini": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 0,
+    "baseCommit": "5157ca105e942d2ac9d23f547d01927c0c5e6f87",
+    "resultCommit": "5157ca105e942d2ac9d23f547d01927c0c5e6f87",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-6903-557fa11b6f"
+  },
+  "changedFiles": [],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": []
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pylint-dev__pylint__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "tests/test_pylint_runners.py::test_pylint_run_jobs_equal_zero_dont_crash_with_cpu_fraction"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing",
+    "graderStdoutTail": "ted at 10.00/10 (previous run: 10.00/10, +0.00)\n\n__________________ test_runner_with_arguments[run_pyreverse] ___________________\n----------------------------- Captured stdout call -----------------------------\nparsing /work/tests/test_pylint_runners.py...\n___________________ test_runner_with_arguments[run_symilar] ____________________\n----------------------------- Captured stdout call -----------------------------\nTOTAL lines=77 duplicates=0 percent=0.00\n\n=========================== short test summary info ============================\nPASSED tests/test_pylint_runners.py::test_runner[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner[run_symilar]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_epylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pylint]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_pyreverse]\nPASSED tests/test_pylint_runners.py::test_runner_with_arguments[run_symilar]\n======================== 8 passed, 1 warning in 13.83s =========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": null,
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/workspaces/swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-6903"
+}

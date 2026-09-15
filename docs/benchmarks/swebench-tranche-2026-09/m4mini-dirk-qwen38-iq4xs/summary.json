@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-m4mini-dirk-qwen38-iq4xs",
+  "model": "dirk-qwen3.8-iq4xs@m4mini",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "a6582c970d1eaec75dd9bc6391470dec4837e2b4",
+    "runtimeOrigin": "http://127.0.0.1:3514",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"m4mini-dirk-qwen38-iq4xs\": !Klein 83c39fe71 driving dirk-qwen3.8-iq4xs@m4mini from its own HOME on :3514. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\" NKLEIN_CUSTODIAN_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3514 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3514"
+    }
+  },
+  "instances": [
+    {
+      "instanceId": "pallets__flask-5014",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 1971670,
+      "reason": "resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held"
+    },
+    {
+      "instanceId": "psf__requests-1921",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 7233223,
+      "reason": "unresolved: 1 fail-to-pass still failing (2 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "psf__requests-2317",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 3326404,
+      "reason": "resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (7 ungradable dataset id(s) excluded); 1 fail-to-pass excluded under the seal: test_requests_history_is_saved (hardcodes https://httpbin.org/redirect/5 (ignores HTTPBIN_URL) — live TLS egress, impossible under --network none)"
+    },
+    {
+      "instanceId": "psf__requests-5414",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 7266296,
+      "reason": "unresolved: 1 fail-to-pass still failing (6 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-5227",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 6390162,
+      "reason": "resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held (3 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-6202",
+      "resolved": true,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 2573192,
+      "reason": "resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held"
+    },
+    {
+      "instanceId": "pytest-dev__pytest-7521",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "stagnant",
+      "durationMs": 7238847,
+      "reason": "unresolved: 2 fail-to-pass still failing (3 ungradable dataset id(s) excluded)"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-4970",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 3809603,
+      "reason": "unresolved: 1 fail-to-pass still failing"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-6903",
+      "resolved": false,
+      "excludedFromScore": null,
+      "workflowOutcome": "blocked_by_review_cards",
+      "durationMs": 831121,
+      "reason": "unresolved: 1 fail-to-pass still failing"
+    },
+    {
+      "instanceId": "pylint-dev__pylint-7993",
+      "resolved": false,
+      "excludedFromScore": "runner error: dirk-qwen3.8-iq4xs@m4mini is not loaded (lms ps) — load it in LM Studio; this runner never loads models.",
+      "workflowOutcome": null,
+      "durationMs": null,
+      "reason": "dirk-qwen3.8-iq4xs@m4mini is not loaded (lms ps) — load it in LM Studio; this runner never loads models."
+    }
+  ],
+  "attempted": 9,
+  "resolved": 4,
+  "excluded": 1,
+  "resolvedRate": 0.4444444444444444,
+  "finishedAt": "2026-09-15T12:50:27.345Z"
+}

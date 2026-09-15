@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-m4mini-dirk-qwen38-iq4xs-psf__requests-5414",
+  "instanceId": "psf__requests-5414",
+  "repo": "psf/requests",
+  "baseCommit": "39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e",
+  "tarballSha256": "3f584cc5cd8ce4846c5ae7439461878d0813246efdc10eb18d049a00cf2ceb83",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "f941c80e9a028ce570c1b74cc4646748b9885295",
+    "runtimeOrigin": "http://127.0.0.1:3514",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"m4mini-dirk-qwen38-iq4xs\": !Klein 83c39fe71 driving dirk-qwen3.8-iq4xs@m4mini from its own HOME on :3514. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\" NKLEIN_CUSTODIAN_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3514 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3514"
+    }
+  },
+  "model": {
+    "identifier": "dirk-qwen3.8-iq4xs@m4mini",
+    "modelKey": "dirk-qwen3.8-27b@iq4_xs",
+    "status": "idle",
+    "contextLength": 32768,
+    "sizeBytes": 15180472544,
+    "deviceIdentifier": "2d30f46d0371d004b1758e6df7790a03",
+    "quantization": {
+      "name": "IQ4_XS",
+      "bits": 4
+    },
+    "format": "gguf",
+    "architecture": "qwen35",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T01:29:02.088Z",
+  "finishedAt": "2026-09-15T03:30:08.384Z",
+  "durationMs": 7266296,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "stagnant",
+  "workflowSummary": "Stagnant: 1 card(s) remain, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "dirk-qwen3.8-iq4xs@m4mini": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 0,
+    "baseCommit": "f21383cca62c7c8a9ef4bfc9969b86643de05044",
+    "resultCommit": "f21383cca62c7c8a9ef4bfc9969b86643de05044",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-m4mini-dirk-qwen38-iq4xs-psf__requests-5414-94814820bd"
+  },
+  "changedFiles": [],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": []
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://.example.com]"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing (6 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "://%2Fvar%2Frun%2Fsocket/path%7E-http+unix://%2Fvar%2Frun%2Fsocket/path~1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org0]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[data:SSDimaUgUHl0aG9uIQ==-data:SSDimaUgUHl0aG9uIQ==]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params0-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params1-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params2-mailto:user@example.org]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params3-mailto:user@example.org]\n============================= 124 passed in 0.08s ==============================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": null,
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/workspaces/swebench-m4mini-dirk-qwen38-iq4xs-psf__requests-5414"
+}

@@ -115,13 +115,30 @@ as superseded). Two attempts restarted from scratch (operator, 22:32 and 09:10).
 pylint-7993 (fail-to-pass fixed but pass-to-pass regressed), pytest-6202 (nothing delivered), pytest-7521 and
 pylint-4970 (loop-guard parks — finding 10).
 
-### m4 mini arm — !Klein `83c39fe71`, `dirk-qwen3.8-iq4xs@m4mini` (IQ4_XS, ctx 32k, in progress)
+### m4 mini arm — !Klein `83c39fe71`, `dirk-qwen3.8-iq4xs@m4mini` GGUF IQ4_XS via LM Link (STOPPED 2026-09-15 14:55, 8 of 10 graded)
+
+Mac mini M4 24 GB, context 32k, one request at a time. **The seat is not stable at this size:** the model unloaded
+itself four times (07:16, ~10:00, 11:34, 12:44 UTC), each time around a long-context turn — twice mid-attempt with
+two empty model turns and a model-side error before the unload; the last drop came eight minutes after a reload with
+a 24-hour TTL, so idle unloading is not the cause (memory pressure on the 24 GB mini is the likely one). The two
+crashed attempts (pylint-4970 first try, pylint-6903) are voided as seat outages; pylint-6903 and pylint-7993 were not
+graded. Receipts: `swebench-tranche-2026-09/m4mini-dirk-qwen38-iq4xs/`.
 
 | instance | resolved | minutes | outcome | note |
 |---|---|---|---|---|
-| pallets__flask-5014 | yes | 33 | blocked_by_review_cards (delivered) | `blueprints.py` fix; 1/1 F2P, 59 P2P held |
+| pallets__flask-5014 | yes | 33 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | no | 121 | stagnant | unresolved: 1 fail-to-pass still failing; `` |
+| psf__requests-2317 | yes | 55 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held (re-graded, finding 7); `requests/models.py`, `requests/sessions.py` |
+| psf__requests-5414 | no | 121 | stagnant | unresolved: 1 fail-to-pass still failing; `` |
+| pytest-dev__pytest-5227 | yes | 107 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
+| pytest-dev__pytest-6202 | yes | 43 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | no | 121 | stagnant | unresolved: 2 fail-to-pass still failing; `` |
+| pylint-dev__pylint-4970 | no | 63 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | not run | – | – | seat unstable — see note |
+| pylint-dev__pylint-7993 | not run | – | – | seat unstable — see note |
 
-Running tally: **1 / 1 resolved**.
+**Score: 4 / 8 graded (of 10).** Mean 82.9 min per graded instance; three ran to the cap. A smaller
+model on the mini (the 9B class) would be the honest next configuration for this host.
 
 ### Opus 5 arm — !Klein `83c39fe71`, `claude-opus-5-hitl` (COMPLETE 2026-09-15 01:41)
 

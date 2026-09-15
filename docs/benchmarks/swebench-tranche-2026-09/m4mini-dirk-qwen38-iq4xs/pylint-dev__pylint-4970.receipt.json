@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-4970",
+  "instanceId": "pylint-dev__pylint-4970",
+  "repo": "pylint-dev/pylint",
+  "baseCommit": "40cc2ffd7887959157aaf469e09585ec2be7f528",
+  "tarballSha256": "1b7f0146e8091589eb51d6e76a17a6d85e736ae70ecd90a483d63f92f4ba640f",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "c56b657c6648e1685de914fb9c70b3df7f3c6d70",
+    "runtimeOrigin": "http://127.0.0.1:3514",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "specTable": null,
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "parallel": 1,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"m4mini-dirk-qwen38-iq4xs\": !Klein 83c39fe71 driving dirk-qwen3.8-iq4xs@m4mini from its own HOME on :3514. Infrastructure env only —\n# no experiment flags: this measures !Klein as shipped at that commit.\nD=\"/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_LOCAL_BASE_URL=\"http://127.0.0.1:1234/v1\"\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\n\nexport NKLEIN_MERGE_FALLBACK_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\" NKLEIN_CUSTODIAN_MODEL=\"dirk-qwen3.8-iq4xs@m4mini\"\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3514 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3514"
+    }
+  },
+  "model": {
+    "identifier": "dirk-qwen3.8-iq4xs@m4mini",
+    "modelKey": "dirk-qwen3.8-27b@iq4_xs",
+    "status": "idle",
+    "contextLength": 32768,
+    "sizeBytes": 15180472544,
+    "deviceIdentifier": "2d30f46d0371d004b1758e6df7790a03",
+    "quantization": {
+      "name": "IQ4_XS",
+      "bits": 4
+    },
+    "format": "gguf",
+    "architecture": "qwen35",
+    "maxContextLength": 262144
+  },
+  "startedAt": "2026-09-15T10:31:27.244Z",
+  "finishedAt": "2026-09-15T11:34:56.847Z",
+  "durationMs": 3809603,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "dirk-qwen3.8-iq4xs@m4mini": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 517,
+    "baseCommit": "c2d0721802239b2ebb0e6907806ee75779f369df",
+    "resultCommit": "1e55f0920117412f049ecdc8d7bc0036e2b2ca94",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-4970-e5e1c0f4b1"
+  },
+  "changedFiles": [
+    "pylint/checkers/similar.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "pylint/checkers/similar.py"
+    ]
+  },
+  "env": {
+    "resolvedFrom": "tranche",
+    "specKey": "pylint-dev__pylint__tranche",
+    "pythonVersion": "3.9",
+    "graderImage": "python:3.9-slim",
+    "logParser": "pytest"
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "tests/checkers/unittest_similar.py::test_set_duplicate_lines_to_zero"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing",
+    "graderStdoutTail": "SSED tests/checkers/unittest_similar.py::test_ignore_imports\nPASSED tests/checkers/unittest_similar.py::test_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_multiline_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_class_methods_pass\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_fail\nPASSED tests/checkers/unittest_similar.py::test_ignore_signatures_empty_functions_pass\nPASSED tests/checkers/unittest_similar.py::test_no_hide_code_with_imports\nPASSED tests/checkers/unittest_similar.py::test_ignore_nothing\nPASSED tests/checkers/unittest_similar.py::test_lines_without_meaningful_content_do_not_trigger_similarity\nPASSED tests/checkers/unittest_similar.py::test_help\nPASSED tests/checkers/unittest_similar.py::test_no_args\nPASSED tests/checkers/unittest_similar.py::test_get_map_data\n======================== 17 passed, 3 warnings in 0.06s ========================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": "1e55f0920117412f049ecdc8d7bc0036e2b2ca94",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-m4mini-dirk-qwen38-iq4xs/workspaces/swebench-m4mini-dirk-qwen38-iq4xs-pylint-dev__pylint-4970"
+}
