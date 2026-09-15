@@ -106,6 +106,12 @@ export async function materializeSwebenchInstance(input: {
 		// Error building trees"). Sanitise every git call (live 2026-09-08, misdiagnosed as flaky all day).
 		execFileAsync("git", ["-C", input.targetDir, ...args], { env: createGitProcessEnv() });
 	await git("init", "--quiet", "--initial-branch=main");
+	// No background repacking in a benchmark workspace: the commit below trips git's `gc --auto` on a large repo
+	// (django), and a concurrent copy of the tree then races loose objects vanishing into a packfile — live
+	// 2026-09-16 the django control died with ENOENT on `.git/objects/08` mid-copy. Deterministic trees also make
+	// the sealed capture's diffs reproducible.
+	await git("config", "gc.auto", "0");
+	await git("config", "maintenance.auto", "false");
 	if (input.pythonVersion) {
 		if (!/^\d+\.\d+$/u.test(input.pythonVersion)) throw new Error(`invalid pythonVersion ${input.pythonVersion}`);
 		await writeFile(join(input.targetDir, ".python-version"), `${input.pythonVersion}\n`);
