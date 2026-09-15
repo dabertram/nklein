@@ -49,20 +49,20 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 
 ## Results
 
-## Pass-1 scoreboard (all arms, !Klein `83c39fe71`, sealed offline grading, updated 2026-09-15 16:35)
+## Pass-1 scoreboard (all arms, !Klein `83c39fe71`, sealed offline grading, updated 2026-09-15 22:50)
 
 | seat | resolved | graded | mean min/instance | state |
 |---|---|---|---|---|
 | Opus 5 (Claude CLI seat) | **10** | 10 | 8.6 | final |
 | Sonnet 5 (Claude CLI seat) | **9** | 10 | 23.4 | final |
 | qwen3.6-27b MLX 8-bit, m5max | **8** | 10 | 16.3 | final |
+| qwen3.6-35b-a3b MLX 8-bit, m5max | **8** | 10 | 14.5 | final |
 | qwen3.8-27b MLX 8-bit, m5max (shared seat) | **7** | 10 | 54.9 | final |
 | Fable 5.1 (Claude CLI seat) | **7** | 8 | 14.2 | paused by David at 02:08, 2 instances left |
 | Haiku 4.5 (Claude CLI seat) | **6** | 10 | 15.2 | final |
 | qwen3.6-35b-a3b Q4_K_M, Legion via LM Link | **5** | 10 | 81.7 | final |
 | qwen3.8-27b IQ4_XS, m4 mini via LM Link | **4** | 8 | 82.9 | stopped, seat unstable |
 | muse-glimmer-30b 8-bit, m5max | **1** | 10 | 46.6 | final |
-| qwen3.6-35b-a3b MLX 8-bit, m5max | **0** | 0 | – | queued (waits for the Legion copy to be unloaded) |
 
 Per-instance grids are in each arm's section below. Excluded attempts (seat outages, mis-seated runs, never-started
 sessions) are not in these numbers; every counted receipt is seat-verified. Caveats from the audit still apply: the
@@ -182,6 +182,28 @@ restarted once (operator, 09:10). Receipts: `swebench-tranche-2026-09/muse-glimm
 **Score: 1 / 10 resolved.** Seven of the nine misses ended in a loop-guard park (three identical calls of the same
 tool — `search_code`, `skills`, `read_files`) with nothing delivered, the pattern finding 10 addresses for pass 2;
 the other two ran to the cap with scratch scripts but no library change.
+
+### qwen3.6-35b-a3b arm — !Klein `83c39fe71`, `qwen/qwen3.6-35b-a3b` MLX 8-bit on the m5max (COMPLETE 2026-09-15 22:10)
+
+Started 19:45 once the Legion's copy of the same model key was gone (finding 9); local seat, low power mode.
+Receipts: `swebench-tranche-2026-09/qwen36-35b-a3b-8bit/` (three earlier mis-seated starts quarantined under
+`results/mis-seated/`, none counted).
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 9 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | no | 11 | blocked_by_review_cards | unresolved: 0 fail-to-pass still failing, 1 pass-to-pass REGRESSED; `requests/structures.py` |
+| psf__requests-2317 | yes | 8 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held; `requests/sessions.py` |
+| psf__requests-5414 | yes | 12 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held; `requests/models.py` |
+| pytest-dev__pytest-5227 | yes | 10 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py` |
+| pytest-dev__pytest-6202 | yes | 20 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | yes | 26 | blocked_by_review_cards | resolved: 2/2 fail-to-pass now green, 122 pass-to-pass held; `src/_pytest/capture.py`, `test_capfd_cr.py`, `test_verify_fix.py` |
+| pylint-dev__pylint-4970 | no | 10 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | yes | 6 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 8 pass-to-pass held; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | yes | 35 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held; `pylint/reporters/text.py`, `test_msg_template.py`, `test_msg_template_integration.py` |
+
+**Score: 8 / 10 resolved.** Mean 14.5 min per instance — the fastest local seat of the campaign (the MoE's 3B
+active parameters), one point behind the dense qwen3.6-27b. Failures: requests-1921, pylint-4970.
 
 ### Opus 5 arm — !Klein `83c39fe71`, `claude-opus-5-hitl` (COMPLETE 2026-09-15 01:41)
 
