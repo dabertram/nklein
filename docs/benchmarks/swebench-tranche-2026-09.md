@@ -147,6 +147,12 @@ that keeps every pass-1 arm on the same !Klein commit.
    stays "not resolvable". The four deliveries were re-graded with the same sealed grader (superseded receipts kept
    as `*.superseded-sealed-f2p.json`): all four resolved. Upstream SWE-bench grades with the network on; this is the
    local-only equivalent, recorded on every receipt it touches.
+8. **A seat outage is not a model result** — David's Claude usage limit hit at 01:54 UTC on 2026-09-15: every
+   `claude -p` call on the Sonnet arm exited 1 for the whole requests-1921 second-pass attempt (the responder answered
+   "the model seat failed to answer this turn"), the session delivered a venv and nothing else in five minutes, and
+   the receipt said "unresolved". Voided (`*.superseded-seat-outage.json`) and re-run after the limit reset; the
+   same rule as the Legion seat outage (operator note under finding 6). A seat-failure marker on the receipt itself
+   (responder FAILED count in the run window) is the next runner improvement so this never needs a human to spot.
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 
