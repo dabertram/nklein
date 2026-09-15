@@ -224,6 +224,10 @@ that keeps every pass-1 arm on the same !Klein commit.
    the receipt said "unresolved". Voided (`*.superseded-seat-outage.json`) and re-run after the limit reset; the
    same rule as the Legion seat outage (operator note under finding 6). A seat-failure marker on the receipt itself
    (responder FAILED count in the run window) is the next runner improvement so this never needs a human to spot.
+   **The m4 mini's LM Link seat flaps:** it dropped at 07:16 (five instances excluded as "not loaded", seat reloaded
+   08:25, arm relaunched) and again at ~10:00 UTC mid-attempt on pylint-4970 (two empty model turns, then "not
+   loaded"; the attempt voided as a seat outage, the arm relaunched for its last three instances). Both were
+   seat outages, not model results; the receipts say so.
 9. **A local arm fanned out to another host** — the m5max qwen3.6-35b-a3b arm's first attempt ran on
    `qwen3.6-35b-a3b@legion` (the Legion arm's seat, same model key over LM Link): the worker pool uses every host
    that has the pinned model loaded unless `workerUseAllLoadedHosts` restricts it. The seat audit caught it (receipt
