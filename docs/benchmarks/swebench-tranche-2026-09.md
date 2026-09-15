@@ -235,6 +235,10 @@ that keeps every pass-1 arm on the same !Klein commit.
    instance itself was excluded as "legion" and the runtime fell back to qwen3.8. Identifiers now claim aliases
    exclusively and contended secondary aliases prefer local. The pinned pass-1 runtime predates the fix, so the
    m5max qwen3.6-35b-a3b arm is queued to run after the Legion arm finishes (no shared key loaded twice).
+   **Operator note 2026-09-15 09:10:** David switched the Legion and the m5max to low power mode ("things are just
+   slower"). Expect longer turn latencies and more 120-minute-cap hits on every arm graded after this point; the
+   operator (me) wrongly paused the Legion, m4 mini and muse arms for two minutes on that notice — their in-flight
+   attempts (pytest-7521, pytest-6202, requests-1921) restarted from scratch at 09:10; nothing graded was affected.
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 
