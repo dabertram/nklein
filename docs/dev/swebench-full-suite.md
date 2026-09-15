@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced nine defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced thirteen defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -62,6 +62,8 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 9 | every sympy selection: "command not found" | its `test_cmd` is an env-var PREFIX and we quoted it as argv tokens | the spec's `test_cmd` stays a shell string; only selections are quoted (`d31e68e45` area) |
 | 10 | pytest: `No module named '_pytest._version'` | a tarball checkout has no tags, so setuptools-scm never wrote the version file | `SETUPTOOLS_SCM_PRETEND_VERSION` from the instance's own version (`d31e68e45`) |
 | 11 | every matplotlib env image: `mkdir -p ""` | the pre_install split stranded a shell assignment from its use | the split keeps the block contiguous; bases carry wget/curl (`ffa47793c`) |
+| 12 | astropy 4.3: `initialization of 'PyCelprm *' from incompatible pointer type` | our bases are Debian 13 / GCC 14.2; upstream's are Ubuntu 22.04 / GCC 11, and GCC 14 promoted six legacy C diagnostics to hard errors | append `-Wno-error=` for each to `CFLAGS` (`d2a52c672`) |
+| 13 | astropy 4.3: `cc1: fatal error: astropy/table/_np_utils.c: No such file` | the sealed GRADE never installed the checkout's PEP 518 requires — only the prepare download did — so `cython==0.29.22` was absent and the generated C source was never written | the grade path reads the same requires from the workspace and installs them (`d2a52c672`) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and most "pass-to-pass regressions"
 in a pristine tree were OUR harness diverging from upstream, not a broken repo.
