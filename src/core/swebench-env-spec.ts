@@ -582,3 +582,31 @@ export function parsePep518BuildRequires(pyprojectToml: string): string[] {
 		.map((match) => (match[1] ?? match[2] ?? "").trim())
 		.filter(Boolean);
 }
+
+/**
+ * The C diagnostics GCC 14 promoted from warnings to hard errors. SWE-bench's own images are Ubuntu 22.04 with
+ * GCC 11, where these are warnings; our base images are Debian 13 with GCC 14.2, where the SAME pre-2023 sources
+ * stop compiling. Live on 2026-09-16: astropy 4.3's `wcslib_celprm_wrap.c` failed its editable install with
+ * `initialization of 'PyCelprm *' from incompatible pointer type`, which surfaced downstream as thirteen
+ * pass-to-pass "regressions" in a PRISTINE control tree (the package never installed, so `astropy.__version__`
+ * was missing). Demoting them back to warnings reproduces the compiler behaviour the dataset was built against.
+ */
+export const SWEBENCH_LEGACY_C_DIAGNOSTICS: readonly string[] = [
+	"-Wno-error=implicit-function-declaration",
+	"-Wno-error=implicit-int",
+	"-Wno-error=int-conversion",
+	"-Wno-error=incompatible-pointer-types",
+	"-Wno-error=return-mismatch",
+	"-Wno-error=declaration-missing-parameter-type",
+];
+
+/**
+ * `installEnv` with the legacy C diagnostics appended to `CFLAGS`. distutils APPENDS the environment's `CFLAGS`
+ * to the interpreter's own compile options, so appending here is additive for a spec that already sets the
+ * variable rather than a silent override of it.
+ */
+export function withSwebenchLegacyCBuildEnv(installEnv: Readonly<Record<string, string>>): Record<string, string> {
+	const flags = SWEBENCH_LEGACY_C_DIAGNOSTICS.join(" ");
+	const existing = installEnv.CFLAGS?.trim();
+	return { ...installEnv, CFLAGS: existing ? `${existing} ${flags}` : flags };
+}

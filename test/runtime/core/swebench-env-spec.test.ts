@@ -14,12 +14,14 @@ import {
 	passedIdsFromSympyOutput,
 	resolveSwebenchEnv,
 	rewriteSwebenchRepoLine,
+	SWEBENCH_LEGACY_C_DIAGNOSTICS,
 	SWEBENCH_REPO_REQUIREMENTS_PATHS,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
 	swebenchSpecKey,
 	sympyTestFiles,
+	withSwebenchLegacyCBuildEnv,
 } from "../../../src/core/swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
 import type { SwebenchTrancheEntry } from "../../../src/core/swebench-tranche";
@@ -350,5 +352,24 @@ describe("PEP 518 requirements with environment markers", () => {
 			"Cython>=0.29.33",
 			"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'",
 		]);
+	});
+});
+
+describe("legacy C build environment", () => {
+	it("demotes the diagnostics GCC 14 promoted to hard errors back to warnings", () => {
+		const env = withSwebenchLegacyCBuildEnv({});
+		expect(env.CFLAGS).toContain("-Wno-error=incompatible-pointer-types");
+		expect(env.CFLAGS).toContain("-Wno-error=implicit-function-declaration");
+	});
+
+	it("appends to a spec's own CFLAGS instead of replacing them", () => {
+		const env = withSwebenchLegacyCBuildEnv({ CFLAGS: "-O0", OTHER: "kept" });
+		expect(env.OTHER).toBe("kept");
+		expect(env.CFLAGS.startsWith("-O0 ")).toBe(true);
+		expect(env.CFLAGS).toContain("-Wno-error=int-conversion");
+	});
+
+	it("carries no single quote — installEnv renders every value inside single quotes", () => {
+		expect(SWEBENCH_LEGACY_C_DIAGNOSTICS.some((flag) => flag.includes("'"))).toBe(false);
 	});
 });

@@ -37,6 +37,7 @@ import {
 	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
 	swebenchSpecBuildRequirements,
+	withSwebenchLegacyCBuildEnv,
 } from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
 import { buildSwebenchGradePlan, parseSwebenchGradeOutput, type SwebenchGradeVerdict } from "./swebench-instance";
@@ -110,7 +111,6 @@ export function buildSwebenchPrepareScript(
 	const requirementsFile =
 		repoRequirementsFile ??
 		(isSwebenchRequirementsSentinel(graderEntryFacts(entry).packages) ? null : packages.requirementsFile);
-	const requirementsArg = requirementsFile ? ` -r '/src/${requirementsFile}'` : "";
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -170,7 +170,7 @@ export function buildSwebenchPrepareScript(
 		...stages.map(({ label, args, fatal }) =>
 			`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
 				needsHostBuildEnv ? "--no-build-isolation " : ""
-			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${fatal ? "" : ' || echo "SWEBENCH_DOWNLOAD_INCOMPLETE ' + label + '"'}`.replace(
+			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${fatal ? "" : ` || echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"`}`.replace(
 				/\s+/g,
 				" ",
 			),
@@ -405,7 +405,7 @@ export async function prepareSwebenchWheels(
 		"bash",
 		"-lc",
 		buildSwebenchPrepareScript(
-			{ ...input.entry, installEnv: { ...input.entry.installEnv, ...scmEnv } },
+			{ ...input.entry, installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }) },
 			extraPins,
 			repoRequirements,
 			buildRequires,
@@ -522,7 +522,11 @@ export async function gradeSwebenchWorkspace(
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<SwebenchGradeVerdict & { graderStdoutTail: string }> {
 	const scmEnv = setuptoolsScmPretendVersion(input.workspaceCopyDir, input.instance.version);
-	const gradeEntry = { ...input.entry, installEnv: { ...input.entry.installEnv, ...scmEnv } } as SwebenchGraderEntry;
+	const gradeEntry = {
+		...input.entry,
+		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
+	} as SwebenchGraderEntry;
+	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir);
 	const sealed = planSealedGrade(gradeEntry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
@@ -542,6 +546,13 @@ export async function gradeSwebenchWorkspace(
 				gradeEntry,
 				sealed.plan,
 				await environmentYmlPins(input.entry, input.workspaceCopyDir),
+				// The sealed grade builds the same closure the prepare downloaded: the repo's flattened
+				// requirements file AND its PEP 518 build requirements. Omitting the latter left the editable
+				// install without the checkout's declared build backend deps — astropy 4.3 needs `cython==0.29.22`
+				// to generate `astropy/table/_np_utils.c`, which the git checkout does not carry, so `gcc` died on
+				// a missing source and thirteen pass-to-pass tests read as "regressed" in a pristine control.
+				repoRequirementsFile,
+				readPep518BuildRequires(input.workspaceCopyDir),
 			),
 		]);
 		stdout = result.stdout;
