@@ -42,6 +42,16 @@ async function trancheEntry(instanceId: string) {
 	return resolveSwebenchEnv({ instance, table: await loadSwebenchSpecTable(cacheRoot), overrides: SWEBENCH_TRANCHE });
 }
 
+/**
+ * Remove a temp tree that may contain read-only git objects. `rm -rf` on a `.git` directory races both the object
+ * files' read-only mode and any lingering container mount — live 2026-09-16 the django control died with ENOTEMPTY
+ * on `.git/objects` AFTER a successful grade, hiding the verdict. Retry, then give up quietly: a temp dir left in
+ * /var/folders costs nothing next to a lost result.
+ */
+async function removeTempTree(path: string): Promise<void> {
+	await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
+}
+
 async function commandPrepare(ids: readonly string[]): Promise<void> {
 	const targets = ids.length > 0 ? ids : SWEBENCH_TRANCHE.map((entry) => entry.instanceId);
 	const preparedKeys = new Set<string>();
@@ -77,7 +87,7 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 			const flat = await flattenSwebenchWheels(cacheRoot);
 			process.stdout.write(`  wheelhouse ${flat.flatDir}: ${flat.total} wheels (${flat.linked} new)\n`);
 		} finally {
-			await rm(join(sourceDir, ".."), { recursive: true, force: true });
+			await removeTempTree(join(sourceDir, ".."));
 		}
 	}
 }
@@ -171,7 +181,7 @@ async function gradeDir(instanceId: string, workspaceDir: string, label: string)
 		process.stdout.write(`${label} ${instanceId}: ${verdict.reason}\n`);
 		return verdict.resolved ? 0 : 1;
 	} finally {
-		await rm(join(copyDir, ".."), { recursive: true, force: true });
+		await removeTempTree(join(copyDir, ".."));
 	}
 }
 
@@ -197,7 +207,7 @@ if (mode === "build-env" && args[0]) {
 		const rc = await gradeDir(instanceId, pristineDir, "control(unfixed)");
 		process.exitCode = rc === 1 ? 0 : 1; // unresolved is the EXPECTED control outcome
 	} finally {
-		await rm(join(pristineDir, ".."), { recursive: true, force: true });
+		await removeTempTree(join(pristineDir, ".."));
 	}
 } else {
 	process.stderr.write(
