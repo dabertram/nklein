@@ -244,7 +244,9 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
 			expect(pipLines[1]).toContain("-r '/work/requirements.txt'");
 			expect(pipLines[2]).toContain("'pytz'");
-			expect(pipLines[3]).toContain("--no-build-isolation -e /work");
+			// The spec's BUILD prerequisites (wheel + any setuptools/cython pin) land before the editable install.
+			expect(pipLines[3]).toContain("'wheel'");
+			expect(pipLines[4]).toContain("--no-build-isolation -e /work");
 			expect(script).toContain("'./tests/runtests.py'");
 		} finally {
 			await rm(dir, { recursive: true, force: true });

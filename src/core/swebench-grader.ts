@@ -32,6 +32,7 @@ import {
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
+	swebenchSpecBuildRequirements,
 } from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
 import { buildSwebenchGradePlan, parseSwebenchGradeOutput, type SwebenchGradeVerdict } from "./swebench-instance";
@@ -97,7 +98,9 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
-	const needsHostBuildEnv = entry.preInstallRequirements.length > 0;
+	const specBuildRequirements =
+		"resolvedFrom" in entry && entry.resolvedFrom === "spec" ? swebenchSpecBuildRequirements(entry) : [];
+	const needsHostBuildEnv = entry.preInstallRequirements.length > 0 || specBuildRequirements.length > 0;
 	const repoPreInstall =
 		"preInstallShell" in entry
 			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
@@ -110,9 +113,12 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 		...repoPreInstall,
 		...(needsHostBuildEnv
 			? [
-					`python -m pip install --disable-pip-version-check -q wheel ${entry.preInstallRequirements
+					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel ${[
+						...entry.preInstallRequirements,
+						...specBuildRequirements.filter((requirement) => requirement !== "wheel"),
+					]
 						.map((requirement) => `'${requirement}'`)
-						.join(" ")}`,
+						.join(" ")}`.trimEnd(),
 				]
 			: []),
 		// The repo source resolves its own dependency constraints; pins ride along so their wheels land too.
@@ -177,6 +183,9 @@ export function buildSwebenchGradeScript(
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(packages.requirementsFile ? [pipInstall(`-r '/work/${packages.requirementsFile}'`, "packages")] : []),
 		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
+		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
+			? [pipInstall(quote(swebenchSpecBuildRequirements(entry)), "build-requirements")]
+			: []),
 		facts.fromSpec
 			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
@@ -197,6 +206,9 @@ export function buildSwebenchGradeScript(
 				]
 			: []),
 		"cd /work",
+		// Upstream `eval_commands` (locale-gen, LANG/LC_ALL exports — django) run in THIS shell so their exports
+		// reach the test commands below.
+		...("evalCommands" in entry ? entry.evalCommands.map((line) => `${line} 2>&1 || true`) : []),
 		"echo '===SWEBENCH_F2P==='",
 		`${quote(plan.failToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_P2P==='",

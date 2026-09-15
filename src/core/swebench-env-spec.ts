@@ -31,6 +31,8 @@ export interface SwebenchEnvSpec {
 	readonly install: string | null;
 	/** Upstream `pip_packages`: extra pins the era needs. */
 	readonly pipPackages: readonly string[];
+	/** Upstream `eval_commands`: shell run BEFORE the test command (locale setup, env exports — django). */
+	readonly evalCommands: readonly string[];
 	/** Upstream `test_cmd`: the runner invocation the selections are appended to. */
 	readonly testCmd: string;
 	/** Which parser reads this runner's output. */
@@ -58,6 +60,7 @@ export interface SwebenchResolvedEnv extends SwebenchTrancheEntry {
 	readonly packages: string | null;
 	readonly installCommand: string;
 	readonly testCmd: string;
+	readonly evalCommands: readonly string[];
 	readonly logParser: SwebenchLogParser;
 	/** "tranche" when a hand-proven entry supplied the env facts, "spec" when the upstream table did. */
 	readonly resolvedFrom: "tranche" | "spec";
@@ -101,6 +104,7 @@ function entryFromSpec(instance: SwebenchInstanceMetadata, spec: SwebenchEnvSpec
 		packages: spec.packages,
 		installCommand: spec.install ?? "pip install -e .",
 		testCmd: spec.testCmd,
+		evalCommands: [...spec.evalCommands],
 		logParser: spec.logParser,
 		resolvedFrom: "spec",
 	};
@@ -115,6 +119,7 @@ function entryFromTranche(entry: SwebenchTrancheEntry, spec: SwebenchEnvSpec | u
 		packages: null,
 		installCommand: "pip install -e .",
 		testCmd: "python -m pytest -rA -p no:cacheprovider",
+		evalCommands: [],
 		logParser: "pytest",
 		resolvedFrom: "tranche",
 	};
@@ -163,6 +168,7 @@ export function normalizeSwebenchSpecRow(repo: string, version: string, row: Rec
 		packages: str(row.packages),
 		install: str(row.install),
 		pipPackages: list(row.pip_packages),
+		evalCommands: list(row.eval_commands),
 		testCmd: str(row.test_cmd) ?? "pytest -rA",
 		logParser: SWEBENCH_REPO_LOG_PARSERS[repo] ?? "pytest",
 	};
@@ -411,6 +417,19 @@ export function parseCondaEnvironmentYml(yml: string): string[] {
 		pins.push(name.replace(/(?<![=<>!])=(?!=)/, "=="));
 	}
 	return pins;
+}
+
+/**
+ * The BUILD prerequisites a spec's source needs before its metadata can even be generated: upstream's `packages`
+ * space-list is exactly that (e.g. astropy 1.3 pins `setuptools==38.2.4` — modern setuptools cannot run its
+ * `setup.py egg_info`, live 2026-09-15), plus wheel and any cython/numpy pin the era needs at build time. Installed
+ * into the prepare/grade environment FIRST, with `--no-build-isolation` so the source actually uses them.
+ */
+export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): string[] {
+	const packages = classifySwebenchPackages(entry.packages);
+	const fromPins = packages.pins.filter((pin) => /^(setuptools|wheel|cython|numpy|pip)\b/i.test(pin));
+	const fromPip = entry.extraRequirements.filter((pin) => /^(setuptools|wheel|cython)\b/i.test(pin));
+	return [...new Set(["wheel", ...fromPins, ...fromPip])];
 }
 
 /**
