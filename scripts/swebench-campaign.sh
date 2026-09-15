@@ -12,7 +12,10 @@ DOCS="${1:?docs dir}"; shift
 ROOT="${NKLEIN_DRAINS_ROOT:-$HOME/.nklein/factory-drains}"
 LOG="$ROOT/swebench-campaign.log"
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOG"; }
-wait_idle_runner() { while pgrep -f "swebench-tranche-run.mts" >/dev/null; do sleep 60; done; }
+# Only the m5max-LOCAL arms share this slot: LM Link (legion/m4mini) and Claude-seat arms run concurrently and must not
+# hold the campaign (2026-09-15). Override with CAMPAIGN_RUNNER_PATTERN when the local arm names change.
+RUNNER_PATTERN="${CAMPAIGN_RUNNER_PATTERN:-swebench-tranche-run.mts --run-id swebench-(qwen3|muse|flash|armB)}"
+wait_idle_runner() { while pgrep -f "$RUNNER_PATTERN" >/dev/null; do sleep 60; done; }
 for spec in "$@"; do
 	IFS=':' read -r ARM MODEL PORT CTX <<< "$spec"
 	D="$ROOT/swebench-$ARM"
