@@ -10,7 +10,9 @@ import {
 	passedIdsFromDjangoOutput,
 	passedIdsFromSympyOutput,
 	resolveSwebenchEnv,
+	rewriteSwebenchRepoLine,
 	sealedInstallCommand,
+	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
 	swebenchSpecKey,
 	sympyTestFiles,
@@ -252,5 +254,25 @@ describe("sealed grading per spec (P1.SWEBENCHFULL slice 4)", () => {
 		expect(sealedInstallCommand("python -m pip install -e .", wheels)).toContain("-e /work");
 		expect(sealedInstallCommand("pip install .", wheels)).toContain(" /work");
 		expect(sealedInstallCommand("python setup.py develop", wheels)).toBe("cd /work && python setup.py develop");
+	});
+});
+
+describe("pre_install split (P1.SWEBENCHFULL 4b)", () => {
+	it("keeps system setup in the image and sends repo edits to grade time with /testbed rewritten", () => {
+		const { image, repo } = splitSwebenchPreInstall([
+			"apt-get update && apt-get install -y locales",
+			"locale-gen en_US.UTF-8",
+			'sed -i \'s/requires = \\["setuptools",/requires = ["setuptools==68.0.0",/\' pyproject.toml',
+			"pip install -U setuptools",
+			"mkdir -p /testbed/build && tar -xzf /tmp/qhull.tgz -C /testbed/build",
+		]);
+		expect(image).toEqual(["apt-get update && apt-get install -y locales", "locale-gen en_US.UTF-8"]);
+		expect(repo).toHaveLength(3);
+		expect(rewriteSwebenchRepoLine(repo[2] ?? "", "/work")).toBe(
+			"mkdir -p /work/build && tar -xzf /tmp/qhull.tgz -C /work/build",
+		);
+		// A spec whose pre_install is repo-only grades on the plain base image, not an env image.
+		const dockerfile = buildSwebenchEnvDockerfile({ pythonVersion: "3.9", preInstall: ["sed -i 's/a/b/' setup.py"] });
+		expect(dockerfile).not.toContain("sed -i");
 	});
 });

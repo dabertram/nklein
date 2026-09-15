@@ -27,8 +27,10 @@ import {
 	classifySwebenchPackages,
 	parseCondaEnvironmentYml,
 	passedIdsFromOutput,
+	rewriteSwebenchRepoLine,
 	type SwebenchResolvedEnv,
 	sealedInstallCommand,
+	splitSwebenchPreInstall,
 	swebenchGraderImageFor,
 } from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
@@ -86,9 +88,16 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
 	const needsHostBuildEnv = entry.preInstallRequirements.length > 0;
+	const repoPreInstall =
+		"preInstallShell" in entry
+			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
+					(line) => `(cd /src && ${rewriteSwebenchRepoLine(line, "/src")})`,
+				)
+			: [];
 	return [
 		"set -eu",
 		`mkdir -p /cache/wheels/${entry.instanceId}`,
+		...repoPreInstall,
 		...(needsHostBuildEnv
 			? [
 					`python -m pip install --disable-pip-version-check -q wheel ${entry.preInstallRequirements
@@ -148,6 +157,13 @@ export function buildSwebenchGradeScript(
 		"python -m venv /tmp/venv",
 		"export PATH=/tmp/venv/bin:$PATH",
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
+		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
+		...("preInstallShell" in entry
+			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
+					(line) =>
+						`(cd /work && ${rewriteSwebenchRepoLine(line, "/work")}) 2>&1 || echo "SWEBENCH_PREINSTALL_FAILED"`,
+				)
+			: []),
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(packages.requirementsFile ? [pipInstall(`-r '/work/${packages.requirementsFile}'`, "packages")] : []),
 		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),

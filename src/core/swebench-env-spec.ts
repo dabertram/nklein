@@ -302,7 +302,7 @@ export function swebenchGraderImageFor(entry: SwebenchTrancheEntry | SwebenchRes
 	if (!("resolvedFrom" in entry) || entry.resolvedFrom === "tranche") {
 		return "python:3.9-slim";
 	}
-	return entry.preInstallShell.length > 0
+	return splitSwebenchPreInstall(entry.preInstallShell).image.length > 0
 		? swebenchEnvImageTag(entry.specKey)
 		: swebenchBaseImageTag(entry.pythonVersion);
 }
@@ -321,8 +321,9 @@ export function buildSwebenchEnvDockerfile(input: {
 		"ENV DEBIAN_FRONTEND=noninteractive PIP_DISABLE_PIP_VERSION_CHECK=1",
 		"RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config git ca-certificates && rm -rf /var/lib/apt/lists/*",
 	];
-	if (input.preInstall.length > 0) {
-		lines.push(`RUN ${input.preInstall.map((line) => line.replace(/\n/g, " ")).join(" && ")}`);
+	const { image } = splitSwebenchPreInstall(input.preInstall);
+	if (image.length > 0) {
+		lines.push(`RUN ${image.map((line) => line.replace(/\n/g, " ")).join(" && ")}`);
 	}
 	return `${lines.join("\n")}\n`;
 }
@@ -420,4 +421,36 @@ export function sealedInstallCommand(installCommand: string, wheelsArgs: string)
 		/\s+/g,
 		" ",
 	);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// (4b) Upstream `pre_install` lines: which belong in the env IMAGE and which must run in the REPO at grade time.
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Upstream runs every `pre_install` line inside `/testbed` (the checked-out repo) before installing. Two kinds hide
+ * in that list: system setup (apt packages, locales, exported variables, tarballs fetched to /tmp) that belongs in
+ * the image built once per spec, and repo edits (`sed -i … pyproject.toml`, anything under `/testbed`) that must run
+ * against THE instance's checkout right before its install. A repo line at image-build time has no repo to edit; a
+ * system line at grade time has no network. This splits them; `/testbed` is rewritten to the sealed workspace path.
+ */
+export function splitSwebenchPreInstall(preInstall: readonly string[]): { image: string[]; repo: string[] } {
+	const image: string[] = [];
+	const repo: string[] = [];
+	for (const raw of preInstall) {
+		const line = raw.trim();
+		if (!line) continue;
+		const touchesRepo =
+			/\/testbed\b/.test(line) ||
+			/\bsed\s+-i\b/.test(line) ||
+			/\b(pyproject\.toml|setup\.(py|cfg)|requirements[\w.-]*\.txt|tox\.ini|environment\.ya?ml)\b/.test(line) ||
+			/^(python|pip|pip3)\b/.test(line);
+		(touchesRepo ? repo : image).push(line);
+	}
+	return { image, repo };
+}
+
+/** A repo-level pre_install line rewritten for the sealed workspace (`/testbed` → the mounted workspace). */
+export function rewriteSwebenchRepoLine(line: string, workspacePath: string): string {
+	return line.replace(/\/testbed\b/g, workspacePath);
 }

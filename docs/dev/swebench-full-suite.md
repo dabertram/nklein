@@ -30,6 +30,11 @@ ok`); a test missing from the output is a failure, never a pass.
   `environment.yml`; the grader reads that file into pip pins (`parseCondaEnvironmentYml`) and builds from source
   where no aarch64 wheel exists. The negative control (step 7) is the proof per instance — an env that cannot even
   run the unfixed tests is caught there, not in a model's score.
+- **`pre_install` is split.** Upstream runs every pre_install line inside the checkout; here the system lines (apt
+  packages, locales, tarballs to /tmp) go into the env image built once per spec, and the repo lines (`sed -i` on
+  pyproject/setup files, anything under `/testbed`) run in the instance's own workspace right before its install,
+  with `/testbed` rewritten to the sealed workspace path. A spec whose pre_install is repo-only grades on the plain
+  base image.
 - **Internet-bound graded tests** are declared per instance (`sealedFailToPassExclusions`, with cause) and named on
   the receipt; an instance whose gradable set would empty stays "not resolvable" (finding 7 of the campaign doc).
 - **Parallel runs** (`--parallel N`) need the arm HOME's `maxConcurrentTasks ≥ N` and a seat that answers
