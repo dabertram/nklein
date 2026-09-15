@@ -97,7 +97,9 @@ export function buildSwebenchPrepareScript(entry: SwebenchGraderEntry, extraPins
 				]
 			: []),
 		// The repo source resolves its own dependency constraints; pins ride along so their wheels land too.
-		`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q ${
+		// A SHARED pip HTTP cache under /cache: hundreds of instances of one repo resolve the same wheels, and the
+		// operator's uplink is a phone hotspot (full-suite run, 2026-09-15) — without it every prepare re-downloads.
+		`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
 			needsHostBuildEnv ? "--no-build-isolation " : ""
 		}--dest /cache/wheels/${entry.instanceId} /src${requirementsArg} ${pins.map((pin) => `'${pin}'`).join(" ")}`.trimEnd(),
 		`ls /cache/wheels/${entry.instanceId} | wc -l`,

@@ -25,7 +25,12 @@ const execFileAsync = promisify(execFile);
 const cacheRoot = swebenchCacheRoot(process.cwd());
 
 const DUMP_SCRIPT = `
-import json, sys
+import json, sys, types, os
+# The package __init__ imports the whole toolkit (bs4, datasets, docker…) — none of it is installed here and none of
+# it is needed for a constants table. Stub the parent packages with the right __path__ so only the submodules load.
+root = os.path.join(os.environ["SWEBENCH_UNPACKED"], "swebench")
+for name, path in (("swebench", root), ("swebench.harness", os.path.join(root, "harness"))):
+    module = types.ModuleType(name); module.__path__ = [path]; sys.modules[name] = module
 from swebench.harness.constants import MAP_REPO_VERSION_TO_SPECS
 parsers = {}
 try:
@@ -68,7 +73,7 @@ async function commandFetch(requestedVersion: string | undefined): Promise<void>
 		await mkdir(unpacked, { recursive: true });
 		await execFileAsync("python3", ["-c", `import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])`, join(work, wheel), unpacked]);
 		const { stdout } = await execFileAsync("python3", ["-c", DUMP_SCRIPT], {
-			env: { ...process.env, PYTHONPATH: unpacked },
+			env: { ...process.env, PYTHONPATH: unpacked, SWEBENCH_UNPACKED: unpacked },
 			maxBuffer: 64 * 1024 * 1024,
 		});
 		const dumped = JSON.parse(stdout) as { specs: Record<string, Record<string, Record<string, unknown>>>; parsers: Record<string, string> };
