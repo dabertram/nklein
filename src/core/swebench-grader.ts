@@ -263,6 +263,18 @@ export function buildSwebenchGradeScript(
 		...(!facts.fromSpec && entry.extraRequirements.length > 0
 			? [pipInstall(quote(entry.extraRequirements), "extras")]
 			: []),
+		// Upstream builds the repo in an ISOLATED build env, so `build-system.requires` never touches the runtime
+		// environment. We build with --no-build-isolation (there is no index under `--network none`), so those
+		// requirements install into the SAME venv and can move a pin the spec fixed: astropy 5.1 pins
+		// numpy==1.25.2, its `oldest-supported-numpy` build requirement dragged numpy down to 1.19.3, and the
+		// editable install — needing something newer — then jumped to the highest wheel in the cache, 2.0.2.
+		// pyerfa is compiled against the numpy 1.x ABI, so every one of the 322 pass-to-pass tests failed in a
+		// PRISTINE tree with `numpy.core.multiarray failed to import`. Re-asserting the spec's exact pins with
+		// --no-deps restores the environment the spec defines, and is a no-op when nothing moved.
+		...(() => {
+			const exact = specExactPins(packagePins);
+			return facts.fromSpec && exact.length > 0 ? [pipInstall(`--no-deps ${quote(exact)}`, "pins-reassert")] : [];
+		})(),
 		...(entry.httpbinService
 			? [
 					// Loopback httpbin INSIDE the none-network namespace: the era suite builds URLs from HTTPBIN_URL.
@@ -281,6 +293,14 @@ export function buildSwebenchGradeScript(
 		`${facts.testCmd} ${quote(plan.passToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_END==='",
 	].join("\n");
+}
+
+/**
+ * The `name==version` pins from a spec's package list. Only exact pins are re-assertable: a range would let pip
+ * pick again, which is the very thing the re-assertion exists to prevent.
+ */
+export function specExactPins(pins: readonly string[]): string[] {
+	return pins.filter((pin) => /^[A-Za-z0-9][A-Za-z0-9._-]*==[^\s;]+$/u.test(pin.trim())).map((pin) => pin.trim());
 }
 
 /** Split a grade run's combined stdout into the two pytest outputs. */

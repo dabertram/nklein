@@ -11,6 +11,7 @@ import {
 	parsePep518BuildRequires,
 	parseSwebenchSpecDump,
 	passedIdsFromDjangoOutput,
+	passedIdsFromOutput,
 	passedIdsFromSympyOutput,
 	resolveSwebenchEnv,
 	rewriteSwebenchRepoLine,
@@ -18,6 +19,7 @@ import {
 	SWEBENCH_REPO_REQUIREMENTS_PATHS,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
+	stripAnsiEscapes,
 	swebenchGraderImageFor,
 	swebenchSpecKey,
 	sympyTestFiles,
@@ -371,5 +373,24 @@ describe("legacy C build environment", () => {
 
 	it("carries no single quote — installEnv renders every value inside single quotes", () => {
 		expect(SWEBENCH_LEGACY_C_DIAGNOSTICS.some((flag) => flag.includes("'"))).toBe(false);
+	});
+});
+
+describe("coloured test output", () => {
+	it("reads a PASSED line that pytest wrapped in ANSI colour", () => {
+		const coloured =
+			"\u001B[32mPASSED\u001B[0m astropy/units/tests/test_quantity.py::\u001B[1mTestQuantityCreation::test_1\u001B[0m";
+		expect([...passedIdsFromOutput("pytest", coloured)]).toEqual([
+			"astropy/units/tests/test_quantity.py::TestQuantityCreation::test_1",
+		]);
+	});
+
+	it("leaves plain output untouched", () => {
+		expect(stripAnsiEscapes("PASSED a/b.py::test")).toBe("PASSED a/b.py::test");
+	});
+
+	it("reads a coloured django `... ok` line", () => {
+		const coloured = "\u001B[32mtest_x (app.tests.T) ... ok\u001B[0m";
+		expect([...passedIdsFromOutput("django", coloured)]).toEqual(["test_x (app.tests.T)"]);
 	});
 });

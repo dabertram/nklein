@@ -14,6 +14,7 @@ import {
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
 	planSealedGrade,
+	specExactPins,
 	splitSwebenchGradeOutput,
 	swebenchWheelCacheKey,
 } from "../../../src/core/swebench-grader";
@@ -282,5 +283,18 @@ describe("wheel-cache key (P1.SWEBENCHFULL: one prepare per spec, not per instan
 		expect(buildSwebenchGradeScript(resolved, buildSwebenchGradePlan(instance))).toContain(
 			"/cache/wheels/django__django__4.0",
 		);
+	});
+});
+
+describe("spec pin re-assertion", () => {
+	it("keeps only exact pins — a range would let pip choose again", () => {
+		expect(specExactPins(["numpy==1.25.2", "pytest>=7", "attrs==23.1.0", "-r reqs.txt", "wheel"])).toEqual([
+			"numpy==1.25.2",
+			"attrs==23.1.0",
+		]);
+	});
+
+	it("drops an environment-marker pin, which --no-deps cannot honour safely", () => {
+		expect(specExactPins(['numpy==1.19.3; python_version == "3.9"'])).toEqual([]);
 	});
 });

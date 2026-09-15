@@ -279,14 +279,27 @@ export function passedIdsFromSympyOutput(output: string): Set<string> {
 	return passed;
 }
 
+/**
+ * Strip ANSI SGR/CSI escapes before parsing. pytest colourises whenever a plugin or a repo conftest forces it
+ * (astropy 5.1 does, through pytest-astropy-header) — even with no TTY — and a coloured `\x1b[32mPASSED\x1b[0m`
+ * never matches `^PASSED`. Live 2026-09-16: all 322 pass-to-pass tests of `astropy__astropy-13977` PASSED in the
+ * container and the parser read every one as a regression. A grader that mistakes green for red is worse than
+ * one that crashes, so this strip guards every parser, not just pytest's.
+ */
+export function stripAnsiEscapes(output: string): string {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escapes is the point.
+	return output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "");
+}
+
 export function passedIdsFromOutput(logParser: SwebenchLogParser, output: string): Set<string> {
+	const plain = stripAnsiEscapes(output);
 	if (logParser === "django") {
-		return passedIdsFromDjangoOutput(output);
+		return passedIdsFromDjangoOutput(plain);
 	}
 	if (logParser === "sympy") {
-		return passedIdsFromSympyOutput(output);
+		return passedIdsFromSympyOutput(plain);
 	}
-	return passedIdsFromPytestOutput(output);
+	return passedIdsFromPytestOutput(plain);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
