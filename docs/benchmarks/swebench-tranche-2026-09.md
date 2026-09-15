@@ -124,6 +124,27 @@ requests-1921 attempt of 03:54 was voided as a seat outage (finding 8) and re-ru
 **Score: 9 / 10 resolved.** Mean 23.4 min per instance — about twice Opus's. The one failure, pylint-4970, is
 the instance Haiku also failed (a `similar.py` change that leaves one fail-to-pass red).
 
+### Haiku 4.5 arm — !Klein `83c39fe71`, `claude-haiku-4-5-20251001-hitl` (COMPLETE 2026-09-15 05:13)
+
+Seat: `claude -p --model claude-haiku-4-5-20251001` through the HITL model server (Claude Code 2.1.270 (Claude Code), CLI
+default effort, schema answer mode, responder concurrency 4 from 00:25). Receipts: `swebench-tranche-2026-09/haiku45/`.
+
+| instance | resolved | minutes | outcome | note |
+|---|---|---|---|---|
+| pallets__flask-5014 | yes | 26 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 59 pass-to-pass held; `src/flask/blueprints.py` |
+| psf__requests-1921 | yes | 8 | blocked_by_review_cards | resolved: 6/6 fail-to-pass now green, 105 pass-to-pass held; `requests/sessions.py` |
+| psf__requests-2317 | yes | 10 | blocked_by_review_cards | resolved: 7/7 fail-to-pass now green, 127 pass-to-pass held; `requests/sessions.py` |
+| psf__requests-5414 | no | 10 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `requests/models.py`, `test_fix.py` |
+| pytest-dev__pytest-5227 | yes | 34 | blocked_by_review_cards | resolved: 3/3 fail-to-pass now green, 31 pass-to-pass held; `src/_pytest/logging.py`, `testing/logging/test_formatter.py` |
+| pytest-dev__pytest-6202 | yes | 8 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 72 pass-to-pass held; `src/_pytest/python.py` |
+| pytest-dev__pytest-7521 | no | 13 | blocked_by_review_cards | unresolved: 2 fail-to-pass still failing; `test_carriage_return.py` |
+| pylint-dev__pylint-4970 | no | 17 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing; `pylint/checkers/similar.py` |
+| pylint-dev__pylint-6903 | no | 9 | blocked_by_review_cards | unresolved: 1 fail-to-pass still failing, 4 pass-to-pass REGRESSED; `pylint/lint/run.py` |
+| pylint-dev__pylint-7993 | yes | 16 | blocked_by_review_cards | resolved: 1/1 fail-to-pass now green, 10 pass-to-pass held; `pylint/reporters/text.py` |
+
+**Score: 6 / 10 resolved.** Mean 15.2 min per instance. Failures: requests-5414 and pytest-7521 (a test
+file written, no library fix), pylint-4970 (one fail-to-pass still red), pylint-6903 (four pass-to-pass regressed).
+
 ### Claude arms — !Klein `83c39fe71`, `claude-{sonnet-5,opus-5,fable-5-1,haiku-4-5}-hitl` (started 2026-09-14 22:14)
 
 First launch (22:00) burned one instance per arm with `session did not start … does not report a context window`

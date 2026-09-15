@@ -1,0 +1,8 @@
+{
+  "kind": "claude-cli",
+  "model": "claude-haiku-4-5-20251001",
+  "modelMap": {},
+  "concurrency": 4,
+  "claudeVersion": "2.1.270 (Claude Code)",
+  "startedAt": "2026-09-14T22:25:45.871Z"
+}

@@ -1,0 +1,7 @@
+{
+  "runId": "swebench-haiku45-psf__requests-1921",
+  "instanceId": "psf__requests-1921",
+  "startMessage": "Selected !Klein model openai-compatible:claude-haiku-4-5-20251001-hitl does not report a context window. !Klein requires at least 32,000 context tokens before this model can be activated.",
+  "startAttempts": 1,
+  "startedAt": "2026-09-14T22:00:35.170Z"
+}
