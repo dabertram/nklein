@@ -158,3 +158,16 @@ network on; ours is the local-only equivalent and says so on every receipt it to
 
 Costs so far through the Claude CLI seats (responder ledgers): Opus $39.77 for the whole tranche (~$4 per instance),
 Fable $86.91 for 7 (~$12), Haiku $7.06 for 6 (~$1.2), Sonnet $15.91 for 3 (~$5).
+
+## Morning 2026-09-15 (05:00–08:30): the local campaign resumes, and the LM Link alias collision
+
+Arm A finished 7/10; the campaign loaded qwen3.6-27b beside David's qwen3.8 and it scored 8/10 at ~16 min per instance,
+the best local seat. Then qwen3.6-35b-a3b: its first attempt ran on `qwen3.6-35b-a3b@legion` — the Legion arm's
+seat. The seat audit excluded it (the receipts under `results/mis-seated/`). Two layers: the campaign's "already
+loaded" check matched the LM Link instance (fixed to local-only), and the runtime's alias→machine map was
+last-writer-wins so the bare model key mapped to the Legion; pinning the arm to `workerUseAllLoadedHosts: ["local"]`
+then excluded the LOCAL instance as "legion" and the runtime fell back to qwen3.8 — a second excluded attempt.
+`a758c19a0` makes identifiers claim their alias exclusively and lets the local instance win contended keys. Pass 1
+keeps its pinned runtime, so the 35b arm waits behind the Legion arm; muse-glimmer runs now (first attempt verified
+on `muse-glimmer-30b`). Sonnet's requests-1921 "unresolved" at 03:54 was David's usage limit (every CLI call exit 1):
+voided as a seat outage and re-run → resolved; Sonnet final 9/10, Haiku final 6/10, Opus final 10/10.

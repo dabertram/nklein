@@ -229,7 +229,12 @@ that keeps every pass-1 arm on the same !Klein commit.
    that has the pinned model loaded unless `workerUseAllLoadedHosts` restricts it. The seat audit caught it (receipt
    excluded as a seat violation, quarantined under `results/mis-seated/`), the arm was reset and pinned to
    `["local"]`, and the campaign's "already loaded" check now ignores LM Link instances. Local arms are created with
-   the pin from now on (`swebench-arm-setup.sh`).
+   the pin from now on (`swebench-arm-setup.sh`). **Root cause, fixed in `a758c19a0`:** the runtime's alias→machine map
+   was last-writer-wins, and `lms ps` lists the LM Link copy after the local one with the same model key — so the
+   bare key mapped to the Legion (the pinned worker fanned out there), and with the `local` allowlist the LOCAL
+   instance itself was excluded as "legion" and the runtime fell back to qwen3.8. Identifiers now claim aliases
+   exclusively and contended secondary aliases prefer local. The pinned pass-1 runtime predates the fix, so the
+   m5max qwen3.6-35b-a3b arm is queued to run after the Legion arm finishes (no shared key loaded twice).
 
 ## Arms launched 2026-09-14 evening (all at !Klein `83c39fe71`, pass 1)
 
