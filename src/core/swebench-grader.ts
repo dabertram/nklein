@@ -28,6 +28,7 @@ import {
 	flattenSwebenchRequirements,
 	isSwebenchRequirementsSentinel,
 	parseCondaEnvironmentYml,
+	parsePep518BuildRequires,
 	passedIdsFromOutput,
 	rewriteSwebenchRepoLine,
 	SWEBENCH_REPO_REQUIREMENTS_PATHS,
@@ -96,6 +97,7 @@ export function buildSwebenchPrepareScript(
 	entry: SwebenchGraderEntry,
 	extraPins: readonly string[] = [],
 	repoRequirementsFile: string | null = null,
+	pep518BuildRequires: readonly string[] = [],
 ): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
@@ -109,7 +111,10 @@ export function buildSwebenchPrepareScript(
 		.join(" ");
 	const specBuildRequirements =
 		"resolvedFrom" in entry && entry.resolvedFrom === "spec" ? swebenchSpecBuildRequirements(entry) : [];
-	const needsHostBuildEnv = entry.preInstallRequirements.length > 0 || specBuildRequirements.length > 0;
+	const hostBuildPins = [
+		...new Set([...entry.preInstallRequirements, ...specBuildRequirements, ...pep518BuildRequires]),
+	];
+	const needsHostBuildEnv = hostBuildPins.length > 0;
 	const repoPreInstall =
 		"preInstallShell" in entry
 			? splitSwebenchPreInstall(entry.preInstallShell).repo.map(
@@ -129,7 +134,7 @@ export function buildSwebenchPrepareScript(
 			: []),
 		{
 			label: "toolchain",
-			args: swebenchToolchainRequirements(entry)
+			args: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])]
 				.map((pin) => `'${pin}'`)
 				.join(" "),
 			fatal: false,
@@ -145,10 +150,8 @@ export function buildSwebenchPrepareScript(
 		...repoPreInstall,
 		...(needsHostBuildEnv
 			? [
-					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel ${[
-						...entry.preInstallRequirements,
-						...specBuildRequirements.filter((requirement) => requirement !== "wheel"),
-					]
+					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel ${hostBuildPins
+						.filter((requirement) => requirement !== "wheel")
 						.map((requirement) => `'${requirement}'`)
 						.join(" ")}`.trimEnd(),
 				]
@@ -197,6 +200,7 @@ export function buildSwebenchGradeScript(
 	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
 	extraPins: readonly string[] = [],
 	repoRequirementsFile: string | null = null,
+	pep518BuildRequires: readonly string[] = [],
 ): string {
 	const wheels = `--no-index --find-links /cache/wheels/${swebenchWheelCacheKey(entry)}`;
 	const facts = graderEntryFacts(entry);
@@ -230,7 +234,12 @@ export function buildSwebenchGradeScript(
 			: []),
 		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
-			? [pipInstall(quote(swebenchSpecBuildRequirements(entry)), "build-requirements")]
+			? [
+					pipInstall(
+						quote([...new Set([...swebenchSpecBuildRequirements(entry), ...pep518BuildRequires])]),
+						"build-requirements",
+					),
+				]
 			: []),
 		facts.fromSpec
 			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
@@ -371,6 +380,7 @@ export async function prepareSwebenchWheels(
 	await mkdir(join(input.cacheRoot, "wheels"), { recursive: true });
 	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
 	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
+	const buildRequires = readPep518BuildRequires(input.sourceDir);
 	await deps.exec("docker", [
 		"run",
 		"--rm",
@@ -383,7 +393,7 @@ export async function prepareSwebenchWheels(
 		swebenchGraderImageFor(input.entry),
 		"bash",
 		"-lc",
-		buildSwebenchPrepareScript(input.entry, extraPins, repoRequirements),
+		buildSwebenchPrepareScript(input.entry, extraPins, repoRequirements, buildRequires),
 	]);
 }
 
@@ -392,6 +402,12 @@ export async function prepareSwebenchWheels(
  * (`requirements.txt`). Writes them beside the tree as `.nklein-swebench-requirements.txt` so both the prepare
  * download and the sealed install can `-r` it, and returns that file's basename (or null when no path matched).
  */
+/** The checkout's PEP 518 build requirements, read host-side (empty when there is no pyproject.toml). */
+function readPep518BuildRequires(treeDir: string): string[] {
+	const path = join(treeDir, "pyproject.toml");
+	return existsSync(path) ? parsePep518BuildRequires(readFileSync(path, "utf8")) : [];
+}
+
 async function materializeRepoRequirements(entry: SwebenchGraderEntry, treeDir: string): Promise<string | null> {
 	const facts = graderEntryFacts(entry);
 	if (!isSwebenchRequirementsSentinel(facts.packages)) {

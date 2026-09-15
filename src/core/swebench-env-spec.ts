@@ -535,7 +535,9 @@ export function flattenSwebenchRequirements(
 		const trimmed = line.trim();
 		if (trimmed.startsWith("-r")) {
 			const included = trimmed.slice(2).trim();
-			lines.push(...flattenSwebenchRequirements(directory ? `${directory}/${included}` : included, readFile, depth + 1));
+			lines.push(
+				...flattenSwebenchRequirements(directory ? `${directory}/${included}` : included, readFile, depth + 1),
+			);
 			continue;
 		}
 		if (!excluded(line)) {
@@ -543,4 +545,23 @@ export function flattenSwebenchRequirements(
 		}
 	}
 	return lines;
+}
+
+/**
+ * A repo's PEP 518 build requirements (`[build-system] requires` in pyproject.toml). We install the spec's build
+ * pins and then build WITHOUT isolation — which is what lets an era repo use its pinned setuptools — but that also
+ * means pip no longer fetches these for us (live 2026-09-15: astropy 4.3 died with
+ * `ModuleNotFoundError: No module named 'extension_helpers'`). So they join the build-requirements stage.
+ * Parsed with a narrow regex rather than a TOML dependency: the array is a flat list of quoted requirement strings.
+ */
+export function parsePep518BuildRequires(pyprojectToml: string): string[] {
+	const section = /\[build-system\]([\s\S]*?)(?:\n\[|$)/u.exec(pyprojectToml);
+	if (!section?.[1]) {
+		return [];
+	}
+	const requires = /requires\s*=\s*\[([\s\S]*?)\]/u.exec(section[1]);
+	if (!requires?.[1]) {
+		return [];
+	}
+	return [...requires[1].matchAll(/["']([^"']+)["']/gu)].map((match) => match[1] ?? "").filter(Boolean);
 }

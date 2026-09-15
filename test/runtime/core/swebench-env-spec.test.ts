@@ -8,6 +8,7 @@ import {
 	isSwebenchRequirementsSentinel,
 	normalizeSwebenchSpecRow,
 	parseCondaEnvironmentYml,
+	parsePep518BuildRequires,
 	parseSwebenchSpecDump,
 	passedIdsFromDjangoOutput,
 	passedIdsFromSympyOutput,
@@ -305,5 +306,29 @@ describe("repo requirements sentinel (upstream MAP_REPO_TO_REQS_PATHS)", () => {
 			"docutils >= 0.19",
 		]);
 		expect(flattenSwebenchRequirements("tests/requirements/missing.txt", () => null)).toEqual([]);
+	});
+});
+
+describe("PEP 518 build requirements", () => {
+	it("reads build-system.requires and ignores the rest of the file", () => {
+		const toml = [
+			"[build-system]",
+			'requires = ["setuptools",',
+			'            "setuptools_scm>=6.2",',
+			'            "extension-helpers",',
+			'            "numpy>=1.18"]',
+			'build-backend = "setuptools.build_meta"',
+			"",
+			"[project]",
+			'dependencies = ["never-a-build-require"]',
+		].join("\n");
+		expect(parsePep518BuildRequires(toml)).toEqual([
+			"setuptools",
+			"setuptools_scm>=6.2",
+			"extension-helpers",
+			"numpy>=1.18",
+		]);
+		expect(parsePep518BuildRequires("[project]\nname='x'\n")).toEqual([]);
+		expect(parsePep518BuildRequires("[build-system]\nbuild-backend = 'x'\n")).toEqual([]);
 	});
 });
