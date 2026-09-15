@@ -314,6 +314,11 @@ that keeps every pass-1 arm on the same !Klein commit.
    instance itself was excluded as "legion" and the runtime fell back to qwen3.8. Identifiers now claim aliases
    exclusively and contended secondary aliases prefer local. The pinned pass-1 runtime predates the fix, so the
    m5max qwen3.6-35b-a3b arm is queued to run after the Legion arm finishes (no shared key loaded twice).
+   **Operator note 2026-09-15 19:45:** the queued arm started a third mis-seated attempt at 19:33 (a transient `lms ps`
+   failure released the waiter; excluded by the seat audit, quarantined). While resetting it, `lms unload
+   qwen/qwen3.6-35b-a3b` (meant for the LOCAL copy the campaign had loaded) unloaded the LEGION's copy instead — LM
+   Link resolves a bare model key to the linked instance. That removed the collision, so the m5max arm now runs on the
+   local copy; the Legion seat (David's dsh route) was unloaded by the operator and needs reloading after the arm.
    **Operator note 2026-09-15 09:10:** David switched the Legion and the m5max to low power mode ("things are just
    slower"). Expect longer turn latencies and more 120-minute-cap hits on every arm graded after this point; the
    operator (me) wrongly paused the Legion, m4 mini and muse arms for two minutes on that notice — their in-flight
