@@ -44,6 +44,28 @@ ok`); a test missing from the output is a failure, never a pass.
   — the runtime mounts it read-only at `/opt/nklein/wheelhouse` and points `UV_FIND_LINKS` / `PIP_FIND_LINKS` at it.
   Anything not in the wheelhouse still goes through the arm's egress allowlist (`ecosystem:python`).
 
+## What the bring-up found (2026-09-15/16)
+
+Standing up the 500-instance Verified run surfaced nine defects — every one caught by RUNNING the pipeline, none by
+reading it. Listed in the order they bit, with the commit that closed each:
+
+| # | symptom | root cause | fix |
+|---|---|---|---|
+| 1 | `apt-get` exit 100 building python 3.5/3.6 images | those interpreters ride ARCHIVED Debian releases | archive.debian.org fallback, security/-updates suites dropped (`7d303eb5d`) |
+| 2 | astropy: `setup.py egg_info` failed | modern setuptools cannot build an era repo; upstream's `packages` pin is a BUILD prerequisite | install the spec's build pins first, `--no-build-isolation` (`ab2ed116a`) |
+| 3 | django locale tests would have failed | upstream `eval_commands` (locale-gen, LANG exports) were ignored | run them in the grade shell before the selections (`ab2ed116a`) |
+| 4 | ten django/pylint specs: "Could not open requirements file" | `packages: "requirements.txt"` is upstream's SENTINEL for a per-repo path | port `MAP_REPO_TO_REQS_PATHS` to the local checkout, follow `-r`, drop `-e .` (`ab2ed116a`) |
+| 5 | a failed prepare's empty dir read as "cached" | the wheel dir is created before the download | a hit needs wheels; a completion marker written only after the fatal repo stage (`7e7c31565`, `bfee649f5`) |
+| 6 | ten sphinx specs: `ResolutionImpossible` | one `pip download` resolved stages upstream never resolves together | one download per stage into the same dir (`7e7c31565`) |
+| 7 | astropy 4.3: `No module named 'extension_helpers'` | building without isolation also stops pip fetching `build-system.requires` | read PEP 518 requires from the checkout and install them (`ebff622b5`) |
+| 8 | django control died with ENOENT mid-copy | the root commit tripped git's `gc --auto`; a concurrent copy raced loose objects into a packfile | `gc.auto=0` in every materialized workspace (`b5ee5427f`) |
+| 9 | every sympy selection: "command not found" | its `test_cmd` is an env-var PREFIX and we quoted it as argv tokens | the spec's `test_cmd` stays a shell string; only selections are quoted (`d31e68e45` area) |
+| 10 | pytest: `No module named '_pytest._version'` | a tarball checkout has no tags, so setuptools-scm never wrote the version file | `SETUPTOOLS_SCM_PRETEND_VERSION` from the instance's own version (`d31e68e45`) |
+| 11 | every matplotlib env image: `mkdir -p ""` | the pre_install split stranded a shell assignment from its use | the split keeps the block contiguous; bases carry wget/curl (`ffa47793c`) |
+
+The pattern worth keeping: **the negative control is what proves an environment**, and most "pass-to-pass regressions"
+in a pristine tree were OUR harness diverging from upstream, not a broken repo.
+
 ## Known gaps (2026-09-16)
 
 - **Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).** Their `setup.py` bootstraps from
