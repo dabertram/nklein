@@ -4,7 +4,8 @@
  * model + seat (David 2026-09-14: "every benchmark score is tied to the exact models/seats that produced it").
  *
  *   tsx scripts/swebench-tranche-run.mts --run-id <id> --model <modelId> --runtime-port 3507 --home <runtimeHome> \
- *       [--runtime-host 127.0.0.1] [--instances all|<id>,<id>] [--no-plan] [--max-wait-ms 2700000] \
+ *       [--runtime-host 127.0.0.1] [--instances all|<id>,<id>|cached|dataset:lite|verified|full|file:<list>] [--no-plan] \
+ *       [--max-wait-ms 2700000] [--parallel 1] \
  *       [--poll-interval-ms 5000] [--cooldown-ms 0] [--public-acceptance] [--seat-kind lmstudio|hitl] [--seat-file FILE]
  *       [--workspace-parent DIR] [--out DIR]
  *       [--runtime-launcher FILE]
@@ -26,13 +27,16 @@ import { appendFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFil
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { readdirSync, readFileSync } from "node:fs";
 import { createDevRuntimeClient, executeDevTestScenario } from "../src/commands/dev-project-execution";
 import { ensureRuntimeWorkspace } from "../src/commands/task/task-runtime-workspace";
 import { createGitProcessEnv } from "../src/core/git-process-env";
 import { getKanbanRuntimeOrigin, setKanbanRuntimeHost, setKanbanRuntimePort } from "../src/core/runtime-endpoint";
+import { resolveSwebenchEnv, type SwebenchSpecTable, swebenchGraderImageFor } from "../src/core/swebench-env-spec";
 import { applyTestPatchToCopy, gradeSwebenchWorkspace, SWEBENCH_GRADER_IMAGE } from "../src/core/swebench-grader";
 import { buildSwebenchCard, detectGradedTestTampering, listGradedTestFiles } from "../src/core/swebench-instance";
-import { materializeSwebenchInstance, swebenchCacheRoot } from "../src/core/swebench-materialize";
+import { materializeSwebenchInstance, readSwebenchCacheEntry, swebenchCacheRoot } from "../src/core/swebench-materialize";
+import { loadSwebenchSpecTable } from "../src/core/swebench-spec-table";
 import { SWEBENCH_TRANCHE } from "../src/core/swebench-tranche";
 import { loadWorkspaceContext } from "../src/state/workspace-state";
 import { captureBenchmarkWorkspaceResult } from "../src/workspace/repository-benchmark-result";
@@ -51,6 +55,8 @@ interface Options {
 	pollIntervalMs: number;
 	/** Pause between instances (ms) — the m5max throttles under sustained load ("never benchmark hot"). */
 	cooldownMs: number;
+	/** P1.SWEBENCHFULL: instances in flight at once (a Claude seat answers concurrently; the arm HOME's maxConcurrentTasks must allow it). */
+	parallel: number;
 	/** Arm B: public acceptance (repro test in a new file + graded files' existing tests), visible test evidence, auto-review ON. */
 	publicAcceptance: boolean;
 	/** `lmstudio` (default: the model must be loaded per `lms ps`) or `hitl` (a Claude seat behind the HITL server). */
@@ -61,6 +67,52 @@ interface Options {
 	out: string;
 	runtimeLauncher: string | null;
 }
+
+const DATASET_BY_NAME: Readonly<Record<string, string>> = {
+	lite: "princeton-nlp/SWE-bench_Lite",
+	verified: "princeton-nlp/SWE-bench_Verified",
+	full: "princeton-nlp/SWE-bench",
+};
+
+/**
+ * P1.SWEBENCHFULL: which instances a run covers. `all` = the hand-proven tranche (unchanged); `cached` = every
+ * instance the cache holds; `dataset:<lite|verified|full>` = cached instances of that split; `file:<path>` = one
+ * id per line; else a comma list. Every id must be cached — the cache (never the network) is the runner's source.
+ */
+function resolveInstanceSelection(raw: string): string[] {
+	const cacheRoot = swebenchCacheRoot(process.cwd());
+	const cached = (): string[] =>
+		readdirSync(join(cacheRoot, "instances"))
+			.filter((name) => name.endsWith(".json"))
+			.map((name) => name.slice(0, -".json".length))
+			.sort();
+	let ids: string[];
+	if (raw === "all") ids = SWEBENCH_TRANCHE.map((entry) => entry.instanceId);
+	else if (raw === "cached") ids = cached();
+	else if (raw.startsWith("dataset:")) {
+		const dataset = DATASET_BY_NAME[raw.slice("dataset:".length).toLowerCase()];
+		if (!dataset) throw new Error(`unknown dataset in --instances ${raw} (use lite, verified, full)`);
+		ids = cached().filter((id) => {
+			const meta = JSON.parse(readFileSync(join(cacheRoot, "instances", `${id}.json`), "utf8")) as { datasets?: string[] };
+			return (meta.datasets ?? []).includes(dataset);
+		});
+	} else if (raw.startsWith("file:")) {
+		ids = readFileSync(raw.slice("file:".length), "utf8")
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => line && !line.startsWith("#"));
+	} else ids = raw.split(",").map((id) => id.trim()).filter(Boolean);
+	for (const id of ids) {
+		if (!existsSync(join(cacheRoot, "instances", `${id}.json`))) {
+			throw new Error(`${id} is not in the SWE-bench cache — run \`tsx scripts/swebench-fetch.mts materialize ${id}\` (explicit egress step)`);
+		}
+	}
+	if (ids.length === 0) throw new Error(`--instances ${raw} selects nothing`);
+	return ids;
+}
+
+/** The upstream spec table, loaded once per run (null = never fetched; only tranche instances can run then). */
+let specTable: SwebenchSpecTable | null = null;
 
 function parseArgs(argv: readonly string[]): Options {
 	const values = new Map<string, string>();
@@ -86,14 +138,7 @@ function parseArgs(argv: readonly string[]): Options {
 	};
 	const runId = need("run-id");
 	if (!/^[A-Za-z0-9_.-]+$/u.test(runId)) throw new Error("--run-id must contain only letters, digits, dot, underscore, or hyphen.");
-	const instancesRaw = values.get("instances")?.trim() || "all";
-	const instances =
-		instancesRaw === "all"
-			? SWEBENCH_TRANCHE.map((entry) => entry.instanceId)
-			: instancesRaw.split(",").map((id) => id.trim()).filter(Boolean);
-	for (const id of instances) {
-		if (!SWEBENCH_TRANCHE.some((entry) => entry.instanceId === id)) throw new Error(`${id} is not in SWEBENCH_TRANCHE.`);
-	}
+	const instances = resolveInstanceSelection(values.get("instances")?.trim() || "all");
 	const integer = (key: string, fallback: number): number => {
 		const raw = values.get(key);
 		if (raw === undefined) return fallback;
@@ -112,6 +157,7 @@ function parseArgs(argv: readonly string[]): Options {
 		maxWaitMs: integer("max-wait-ms", 45 * 60_000),
 		pollIntervalMs: integer("poll-interval-ms", 5_000),
 		cooldownMs: values.has("cooldown-ms") ? integer("cooldown-ms", 0) : 0,
+		parallel: Math.max(1, integer("parallel", 1)),
 		publicAcceptance: flags.has("public-acceptance"),
 		seatKind: values.get("seat-kind") === "hitl" ? "hitl" : "lmstudio",
 		seatFile: values.get("seat-file") ? resolve(values.get("seat-file") as string) : null,
@@ -243,8 +289,9 @@ async function writeNew(path: string, content: string): Promise<void> {
 }
 
 async function runInstance(options: Options, instanceId: string, harness: Record<string, unknown>) {
-	const entry = SWEBENCH_TRANCHE.find((candidate) => candidate.instanceId === instanceId);
-	if (!entry) throw new Error(`${instanceId} is not in SWEBENCH_TRANCHE.`);
+	// P1.SWEBENCHFULL: a hand-proven tranche entry wins, else the upstream spec row for (repo, version), else refuse.
+	const cached = await readSwebenchCacheEntry(swebenchCacheRoot(process.cwd()), instanceId);
+	const entry = resolveSwebenchEnv({ instance: cached.instance, table: specTable, overrides: SWEBENCH_TRANCHE });
 	const runId = `${options.runId}-${instanceId}`;
 	const receiptPath = join(options.out, `${instanceId}.receipt.json`);
 	if (existsSync(receiptPath)) {
@@ -267,7 +314,7 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		cacheRoot,
 		instanceId,
 		targetDir: workspacePath,
-		pythonVersion: entry.python,
+		pythonVersion: entry.pythonVersion,
 	});
 	const { instance } = materialized;
 	// The runtime writes its board/session state INTO the workspace (`.nklein/`); without this exclude the sealed
@@ -502,6 +549,13 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 		capture,
 		changedFiles: [...changed],
 		tampering,
+		env: {
+			resolvedFrom: entry.resolvedFrom,
+			specKey: entry.specKey,
+			pythonVersion: entry.pythonVersion,
+			graderImage: swebenchGraderImageFor(entry),
+			logParser: entry.logParser,
+		},
 		testPatchApplied,
 		verdict,
 		resolved,
@@ -547,17 +601,20 @@ async function main(): Promise<void> {
 		publicAcceptance: options.publicAcceptance,
 		agentSandboxImage: process.env.NKLEIN_AGENT_SANDBOX_IMAGE ?? "nklein/agent-sandbox:0.0.1 (default)",
 		graderImage: SWEBENCH_GRADER_IMAGE,
+		specTable: specTable ? specTable.source : null,
 		maxWaitMs: options.maxWaitMs,
 		cooldownMs: options.cooldownMs,
+		parallel: options.parallel,
 		runtimeLauncher: launcher,
 		runnerEnv: Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("NKLEIN_"))),
 	};
 	await mkdir(options.out, { recursive: true });
 	await mkdir(options.workspaceParent, { recursive: true });
+	specTable = await loadSwebenchSpecTable(swebenchCacheRoot(process.cwd()));
 	log(`run ${options.runId}: ${options.instances.length} instance(s), model ${options.model}, runtime ${runtimeOrigin}, nklein ${(runtimeCommit ?? nkleinCommit).slice(0, 9)} (runner ${nkleinCommit.slice(0, 9)}), plan mode ${options.startInPlanMode ? "ON" : "OFF"}`);
 	const receipts: Record<string, unknown>[] = [];
-	for (const [index, instanceId] of options.instances.entries()) {
-		if (index > 0 && options.cooldownMs > 0 && !existsSync(join(options.out, `${instanceId}.receipt.json`))) {
+	const runOne = async (instanceId: string, index: number): Promise<void> => {
+		if (options.parallel === 1 && index > 0 && options.cooldownMs > 0 && !existsSync(join(options.out, `${instanceId}.receipt.json`))) {
 			// Turn latency climbed 13 s → 96 s median across the first four instances of the 2026-09-14 tranche
 			// (thermal, sustained load) — a pause between instances keeps later cards from being measured hot.
 			log(`cooldown ${Math.round(options.cooldownMs / 1000)}s before ${instanceId}`);
@@ -571,7 +628,17 @@ async function main(): Promise<void> {
 			receipts.push({ instanceId, resolved: false, excludedFromScore: `runner error: ${message.split("\n")[0]}`, runnerError: message });
 			await appendFile(join(options.out, "summary.jsonl"), `${JSON.stringify({ instanceId, resolved: false, excludedFromScore: `runner error: ${message.split("\n")[0]}` })}\n`);
 		}
-	}
+	};
+	// P1.SWEBENCHFULL: `--parallel N` keeps N instances in flight (each with its own workspace, session and grade);
+	// the arm's runtime must admit that many tasks (maxConcurrentTasks) and its seat must answer concurrently.
+	const queue = options.instances.map((instanceId, index) => ({ instanceId, index }));
+	const workers = Array.from({ length: Math.min(options.parallel, queue.length) }, async () => {
+		for (let next = queue.shift(); next; next = queue.shift()) await runOne(next.instanceId, next.index);
+	});
+	await Promise.all(workers);
+	receipts.sort(
+		(left, right) => options.instances.indexOf(String(left.instanceId)) - options.instances.indexOf(String(right.instanceId)),
+	);
 	const counted = receipts.filter((receipt) => !receipt.excludedFromScore);
 	const resolvedCount = counted.filter((receipt) => receipt.resolved === true).length;
 	const summary = {
