@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-sonnet5-psf__requests-5414",
+  "instanceId": "psf__requests-5414",
+  "repo": "psf/requests",
+  "baseCommit": "39d0fdd9096f7dceccbc8f82e1eda7dd64717a8e",
+  "tarballSha256": "3f584cc5cd8ce4846c5ae7439461878d0813246efdc10eb18d049a00cf2ceb83",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "f74601bc78d49c550f864870126276fb5cd961a2",
+    "runtimeOrigin": "http://127.0.0.1:3515",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-sonnet5/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"sonnet5\": !Klein 83c39fe71 driven by claude-sonnet-5 (HITL seat on :8096) from its own HOME on :3515.\n# Same env as the HITL drain: no local LLM at all — custodian/merge-fallback off; long review walls (the seat answers at\n# agent speed, not endpoint speed); alternate wires off.\nD=\"/Users/david/.nklein/factory-drains/swebench-sonnet5\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_CUSTODIAN_MODEL=\"\" NKLEIN_MERGE_FALLBACK_MODEL=\"\"\nexport NKLEIN_REVIEW_TIMEOUT_MS=2400000 NKLEIN_REVIEW_VERDICT_RESERVE_MS=360000\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\nexport NKLEIN_ALTERNATE_ENDPOINT=off NKLEIN_SKILL_API_DIRECT=off\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3515 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3515"
+    }
+  },
+  "model": {
+    "kind": "claude-cli",
+    "identifier": "claude-sonnet-5-hitl",
+    "model": "claude-sonnet-5",
+    "modelMap": {},
+    "concurrency": 4,
+    "claudeVersion": "2.1.270 (Claude Code)",
+    "startedAt": "2026-09-14T22:25:42.538Z"
+  },
+  "startedAt": "2026-09-14T22:53:47.181Z",
+  "finishedAt": "2026-09-14T23:58:17.826Z",
+  "durationMs": 3870645,
+  "startAttempts": 1,
+  "started": true,
+  "startMessage": null,
+  "workflowOutcome": "blocked_by_review_cards",
+  "workflowSummary": "Blocked by review cards: 1 card(s) awaiting review, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {
+    "claude-sonnet-5-hitl": 1
+  },
+  "seatVerified": true,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 567,
+    "baseCommit": "70d56fb8003ab7507644e1453e8c9af82164ec84",
+    "resultCommit": "db0590c9bf4bc7957ec7cdcd309c0ed605893c7f",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-sonnet5-psf__requests-5414-c6d75b3abd"
+  },
+  "changedFiles": [
+    "requests/adapters.py"
+  ],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": [
+      "requests/adapters.py"
+    ]
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": true,
+    "failToPassPassed": [
+      "tests/test_requests.py::TestRequests::test_invalid_url[InvalidURL-http://.example.com]"
+    ],
+    "failToPassFailed": [],
+    "passToPassFailed": [],
+    "reason": "resolved: 1/1 fail-to-pass now green, 124 pass-to-pass held (6 ungradable dataset id(s) excluded)",
+    "graderStdoutTail": "://%2Fvar%2Frun%2Fsocket/path%7E-http+unix://%2Fvar%2Frun%2Fsocket/path~1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org0]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[mailto:user@example.org-mailto:user@example.org1]\nPASSED tests/test_requests.py::TestPreparingURLs::test_url_mutation[data:SSDimaUgUHl0aG9uIQ==-data:SSDimaUgUHl0aG9uIQ==]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params0-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[http+unix://%2Fvar%2Frun%2Fsocket/path-params1-http+unix://%2Fvar%2Frun%2Fsocket/path?key=value]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params2-mailto:user@example.org]\nPASSED tests/test_requests.py::TestPreparingURLs::test_parameters_for_nonstandard_schemes[mailto:user@example.org-params3-mailto:user@example.org]\n============================= 124 passed in 0.12s ==============================\n===SWEBENCH_END===\n"
+  },
+  "resolved": true,
+  "excludedFromScore": null,
+  "pinnedResult": "db0590c9bf4bc7957ec7cdcd309c0ed605893c7f",
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-sonnet5/workspaces/swebench-sonnet5-psf__requests-5414"
+}

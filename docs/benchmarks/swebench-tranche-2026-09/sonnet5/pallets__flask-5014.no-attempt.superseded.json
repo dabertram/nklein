@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "runId": "swebench-sonnet5-pallets__flask-5014",
+  "instanceId": "pallets__flask-5014",
+  "repo": "pallets/flask",
+  "baseCommit": "7ee9ceb71e868944a46e1ff00b506772a53a4f1d",
+  "tarballSha256": "b1a4c83b7d12981b81e5f8d2028a73eacfbd153f4e425504c254a6f177b99997",
+  "harness": {
+    "nkleinCommit": "83c39fe719c93ce82118d1086469f459d3621490",
+    "runnerCommit": "a5cc5c5f07fbe53ba86e3c84acd4024c9e968d6a",
+    "runtimeOrigin": "http://127.0.0.1:3515",
+    "runtimeHome": "/Users/david/.nklein/factory-drains/swebench-sonnet5/home",
+    "startInPlanMode": false,
+    "autoReviewEnabled": false,
+    "testEvidencePolicy": "externally_held_out",
+    "publicAcceptance": false,
+    "agentSandboxImage": "nklein/agent-sandbox:0.0.1 (default)",
+    "graderImage": "python:3.9-slim",
+    "maxWaitMs": 7200000,
+    "cooldownMs": 0,
+    "runtimeLauncher": "#!/bin/zsh\n# SWE-bench arm \"sonnet5\": !Klein 83c39fe71 driven by claude-sonnet-5 (HITL seat on :8096) from its own HOME on :3515.\n# Same env as the HITL drain: no local LLM at all — custodian/merge-fallback off; long review walls (the seat answers at\n# agent speed, not endpoint speed); alternate wires off.\nD=\"/Users/david/.nklein/factory-drains/swebench-sonnet5\"\ncd \"$D/src\" || exit 1\nexport HOME=\"$D/home\"\nexport NODE_ENV=development\nexport NODE_OPTIONS=\"--max-old-space-size=16384\"\nexport NKLEIN_CUSTODIAN_MODEL=\"\" NKLEIN_MERGE_FALLBACK_MODEL=\"\"\nexport NKLEIN_REVIEW_TIMEOUT_MS=2400000 NKLEIN_REVIEW_VERDICT_RESERVE_MS=360000\nexport NKLEIN_EGRESS_PROXY_BUNDLE=\"/Users/david/GIT/nklein/dist/egress-proxy/entrypoint.mjs\"\nexport NKLEIN_ALTERNATE_ENDPOINT=off NKLEIN_SKILL_API_DIRECT=off\nexec node_modules/.bin/tsx src/cli.ts --host 127.0.0.1 --port 3515 --no-open\n",
+    "runnerEnv": {
+      "NKLEIN_RUNTIME_HOST": "127.0.0.1",
+      "NKLEIN_RUNTIME_PORT": "3515"
+    }
+  },
+  "model": {
+    "kind": "claude-cli",
+    "identifier": "claude-sonnet-5-hitl",
+    "model": "claude-sonnet-5",
+    "claudeVersion": "2.1.270 (Claude Code)",
+    "startedAt": "2026-09-14T21:45:41.780Z"
+  },
+  "startedAt": "2026-09-14T21:47:43.584Z",
+  "finishedAt": "2026-09-14T21:52:48.701Z",
+  "durationMs": 305117,
+  "startAttempts": 1,
+  "started": false,
+  "startMessage": "Selected LM Studio model \"claude-sonnet-5-hitl\" is not currently loaded. Load it in LM Studio, refresh models, then choose it before starting the task.",
+  "workflowOutcome": "stagnant",
+  "workflowSummary": "Stagnant: 1 card(s) remain, none in progress (acceptance not run).",
+  "completedCardCount": 0,
+  "attemptModels": {},
+  "seatVerified": false,
+  "seatViolation": null,
+  "capture": {
+    "ok": true,
+    "patchBytes": 0,
+    "baseCommit": "d93f83da34987abf9f3db3b707af3499a3311795",
+    "resultCommit": "d93f83da34987abf9f3db3b707af3499a3311795",
+    "evidenceRef": "refs/nklein/benchmark-evidence/swebench-sonnet5-pallets__flask-5014-f1e8cc5d0a"
+  },
+  "changedFiles": [],
+  "tampering": {
+    "tampered": false,
+    "modifiedGradedFiles": [],
+    "otherChangedFiles": []
+  },
+  "testPatchApplied": {
+    "applied": true
+  },
+  "verdict": {
+    "resolved": false,
+    "failToPassPassed": [],
+    "failToPassFailed": [
+      "tests/test_blueprints.py::test_empty_name_not_allowed"
+    ],
+    "passToPassFailed": [],
+    "reason": "unresolved: 1 fail-to-pass still failing",
+    "graderStdoutTail": "ints.py::test_add_template_test_with_name_and_template\nPASSED tests/test_blueprints.py::test_context_processing\nPASSED tests/test_blueprints.py::test_template_global\nPASSED tests/test_blueprints.py::test_request_processing\nPASSED tests/test_blueprints.py::test_app_request_processing\nPASSED tests/test_blueprints.py::test_app_url_processors\nPASSED tests/test_blueprints.py::test_nested_blueprint\nPASSED tests/test_blueprints.py::test_nested_callback_order\nPASSED tests/test_blueprints.py::test_nesting_url_prefixes[/parent-/child-None-None]\nPASSED tests/test_blueprints.py::test_nesting_url_prefixes[/parent-None-None-/child]\nPASSED tests/test_blueprints.py::test_nesting_url_prefixes[None-None-/parent-/child]\nPASSED tests/test_blueprints.py::test_nesting_url_prefixes[/other-/something-/parent-/child]\nPASSED tests/test_blueprints.py::test_nesting_subdomains\nPASSED tests/test_blueprints.py::test_child_and_parent_subdomain\nPASSED tests/test_blueprints.py::test_unique_blueprint_names\nPASSED tests/test_blueprints.py::test_self_registration\nPASSED tests/test_blueprints.py::test_blueprint_renaming\n============================== 59 passed in 0.11s ==============================\n===SWEBENCH_END===\n"
+  },
+  "resolved": false,
+  "excludedFromScore": null,
+  "pinnedResult": null,
+  "workspacePath": "/Users/david/.nklein/factory-drains/swebench-sonnet5/workspaces/swebench-sonnet5-pallets__flask-5014"
+}
