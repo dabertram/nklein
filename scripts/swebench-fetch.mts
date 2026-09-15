@@ -17,13 +17,23 @@
  *   pins.json                  — instance_id → {repo, baseCommit, tarballSha256, bytes} for reproducibility
  */
 
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const CACHE_ROOT = join(process.cwd(), ".nklein-bench", "swebench");
 const DATASETS = ["princeton-nlp/SWE-bench_Lite", "princeton-nlp/SWE-bench_Verified"] as const;
+/** P1.SWEBENCHFULL: the datasets `index` can pull by name (`--datasets lite,verified,full`). */
+const DATASET_BY_NAME: Readonly<Record<string, string>> = {
+	lite: "princeton-nlp/SWE-bench_Lite",
+	verified: "princeton-nlp/SWE-bench_Verified",
+	full: "princeton-nlp/SWE-bench",
+};
 /** Pure-python, small-enough repos from the Lite/Verified pool — the N8 suitability bar. */
 const SUITABLE_REPOS = new Set(["psf/requests", "pallets/flask", "pytest-dev/pytest", "pylint-dev/pylint"]);
 
@@ -81,16 +91,21 @@ interface Candidate {
 	readonly version: string | null;
 }
 
-async function commandIndex(): Promise<void> {
+/**
+ * `index [--all] [--datasets lite,verified,full]` — P1.SWEBENCHFULL: `--all` drops the N8 pure-python repo bar
+ * (every repo of the pool is a candidate once its env resolves through the upstream spec table); `--datasets`
+ * picks which splits to pull (default Lite+Verified; `full` is the 2,294-row test split).
+ */
+async function commandIndex(options: { readonly all: boolean; readonly datasets: readonly string[] }): Promise<void> {
 	process.stdout.write(
-		`⚠ EGRESS (explicit operator step): fetching the SWE-bench Lite+Verified index from huggingface.co…\n`,
+		`⚠ EGRESS (explicit operator step): fetching the SWE-bench index (${options.datasets.join(", ")}) from huggingface.co…\n`,
 	);
 	const byId = new Map<string, Candidate>();
-	for (const dataset of DATASETS) {
+	for (const dataset of options.datasets) {
 		const rows = await fetchDatasetRows(dataset);
 		process.stdout.write(`  ${dataset}: ${rows.length} rows\n`);
 		for (const row of rows) {
-			if (!SUITABLE_REPOS.has(row.repo)) {
+			if (!options.all && !SUITABLE_REPOS.has(row.repo)) {
 				continue;
 			}
 			const existing = byId.get(row.instance_id);
@@ -162,6 +177,21 @@ async function commandMaterialize(instanceIds: readonly string[]): Promise<void>
 		}
 		const candidate = JSON.parse(await readFile(stagingPath, "utf8")) as Candidate;
 		const tarballPath = join(CACHE_ROOT, "repos", `${instanceId}.tar.gz`);
+		if (!existsSync(tarballPath) && (await mirrorHasCommit(candidate.repo, candidate.baseCommit))) {
+			// P1.SWEBENCHFULL: a mirrored repo serves ANY base_commit offline — the same single-top-level-dir
+			// tarball shape codeload produces, sha-pinned exactly like a downloaded one.
+			await execFileAsync("git", [
+				"-C",
+				mirrorDir(candidate.repo),
+				"archive",
+				"--format=tar.gz",
+				`--prefix=${candidate.repo.split("/")[1]}-${candidate.baseCommit}/`,
+				"-o",
+				tarballPath,
+				candidate.baseCommit,
+			]);
+			process.stdout.write(`  ${instanceId}: archived from the ${candidate.repo} mirror (offline)\n`);
+		}
 		if (!existsSync(tarballPath)) {
 			const url = `https://codeload.github.com/${candidate.repo}/tar.gz/${candidate.baseCommit}`;
 			process.stdout.write(`⚠ EGRESS: ${url}\n`);
@@ -189,12 +219,73 @@ async function commandMaterialize(instanceIds: readonly string[]): Promise<void>
 	process.stdout.write(`pins → ${pinsPath}\n`);
 }
 
+function mirrorDir(repo: string): string {
+	return join(CACHE_ROOT, "mirrors", `${repo.replace("/", "__")}.git`);
+}
+
+async function mirrorHasCommit(repo: string, commit: string): Promise<boolean> {
+	if (!existsSync(mirrorDir(repo))) {
+		return false;
+	}
+	try {
+		await execFileAsync("git", ["-C", mirrorDir(repo), "cat-file", "-e", `${commit}^{commit}`]);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * `mirror <owner/name>...` — P1.SWEBENCHFULL (⚠ egress once per repo): one bare `git clone --mirror` per repo
+ * under `.nklein-bench/swebench/mirrors/`, refreshed with `remote update` when it already exists. After this,
+ * `materialize` needs no network for any instance of that repo. `mirror --from-index` mirrors every repo the
+ * index names.
+ */
+async function commandMirror(args: readonly string[]): Promise<void> {
+	let repos = args.filter((arg) => !arg.startsWith("--"));
+	if (args.includes("--from-index")) {
+		const index = JSON.parse(await readFile(join(CACHE_ROOT, "index.json"), "utf8")) as { repo: string }[];
+		repos = [...new Set([...repos, ...index.map((row) => row.repo)])].sort();
+	}
+	if (repos.length === 0) {
+		throw new Error("mirror needs repo names (owner/name) or --from-index");
+	}
+	await mkdir(join(CACHE_ROOT, "mirrors"), { recursive: true });
+	for (const repo of repos) {
+		const dir = mirrorDir(repo);
+		const url = `https://github.com/${repo}.git`;
+		if (existsSync(dir)) {
+			process.stdout.write(`⚠ EGRESS: git remote update ${url}\n`);
+			await execFileAsync("git", ["-C", dir, "remote", "update", "--prune"], { maxBuffer: 16 * 1024 * 1024 });
+		} else {
+			process.stdout.write(`⚠ EGRESS: git clone --mirror ${url}\n`);
+			await execFileAsync("git", ["clone", "--mirror", "--quiet", url, dir], { maxBuffer: 16 * 1024 * 1024 });
+		}
+		const { stdout } = await execFileAsync("du", ["-sh", dir]);
+		process.stdout.write(`  mirrored ${repo}: ${stdout.trim().split("\t")[0]}\n`);
+	}
+}
+
 const [mode, ...args] = process.argv.slice(2);
 if (mode === "index") {
-	await commandIndex();
+	const datasetsArg = args.find((arg) => arg.startsWith("--datasets="))?.slice("--datasets=".length);
+	const datasets = datasetsArg
+		? datasetsArg.split(",").map((name) => {
+				const dataset = DATASET_BY_NAME[name.trim().toLowerCase()];
+				if (!dataset) {
+					throw new Error(`unknown dataset "${name}" — use lite, verified, full`);
+				}
+				return dataset;
+			})
+		: [...DATASETS];
+	await commandIndex({ all: args.includes("--all"), datasets });
 } else if (mode === "materialize") {
 	await commandMaterialize(args);
+} else if (mode === "mirror") {
+	await commandMirror(args);
 } else {
-	process.stderr.write("usage: swebench-fetch.mts index | materialize <instance_id...>\n");
+	process.stderr.write(
+		"usage: swebench-fetch.mts index [--all] [--datasets=lite,verified,full] | mirror <owner/name...>|--from-index | materialize <instance_id...>\n",
+	);
 	process.exit(64);
 }
