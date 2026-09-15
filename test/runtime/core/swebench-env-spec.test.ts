@@ -214,7 +214,11 @@ describe("sealed grading per spec (P1.SWEBENCHFULL slice 4)", () => {
 	it("writes a Dockerfile with the toolchain layer and the spec's pre-install joined into one layer", () => {
 		const dockerfile = buildSwebenchEnvDockerfile({
 			pythonVersion: "3.8",
-			preInstall: ["apt-get update && apt-get install -y locales", "locale-gen en_US.UTF-8", "export LC_ALL=C.UTF-8"],
+			preInstall: [
+				"apt-get update && apt-get install -y locales",
+				"locale-gen en_US.UTF-8",
+				"export LC_ALL=C.UTF-8",
+			],
 		});
 		expect(dockerfile).toContain("FROM python:3.8-slim");
 		expect(dockerfile).toContain("build-essential");
@@ -327,5 +331,24 @@ describe("PEP 518 build requirements", () => {
 		]);
 		expect(parsePep518BuildRequires("[project]\nname='x'\n")).toEqual([]);
 		expect(parsePep518BuildRequires("[build-system]\nbuild-backend = 'x'\n")).toEqual([]);
+	});
+});
+
+describe("PEP 518 requirements with environment markers", () => {
+	it("keeps a double-quoted requirement whose marker contains single quotes intact", () => {
+		const toml = [
+			"[build-system]",
+			"requires = [",
+			'    "setuptools<60.0",',
+			'    "Cython>=0.29.33",',
+			"    # a comment",
+			`    "oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'",`,
+			"]",
+		].join("\n");
+		expect(parsePep518BuildRequires(toml)).toEqual([
+			"setuptools<60.0",
+			"Cython>=0.29.33",
+			"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'",
+		]);
 	});
 });

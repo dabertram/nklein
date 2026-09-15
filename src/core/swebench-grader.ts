@@ -51,6 +51,11 @@ export type SwebenchGraderEntry = SwebenchTrancheEntry | SwebenchResolvedEnv;
  * (repo, version) rows, and every instance of one row resolves the same dependency closure, so one prepare per spec
  * replaces hundreds (and the `--network none` grade finds the same wheels either way).
  */
+/** POSIX single-quote a value that may itself contain single quotes (environment markers do). */
+function shellQuote(value: string): string {
+	return `'${value.replace(/'/gu, `'"'"'`)}'`;
+}
+
 export const SWEBENCH_PREPARE_MARKER = "SWEBENCH_PREPARE_OK";
 
 export function swebenchWheelCacheKey(entry: SwebenchGraderEntry): string {
@@ -127,7 +132,7 @@ export function buildSwebenchPrepareScript(
 			? [
 					{
 						label: "packages",
-						args: [...new Set([...packages.pins, ...extraPins])].map((pin) => `'${pin}'`).join(" "),
+						args: [...new Set([...packages.pins, ...extraPins])].map((pin) => shellQuote(pin)).join(" "),
 						fatal: false,
 					},
 				]
@@ -135,13 +140,13 @@ export function buildSwebenchPrepareScript(
 		{
 			label: "toolchain",
 			args: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])]
-				.map((pin) => `'${pin}'`)
+				.map((pin) => shellQuote(pin))
 				.join(" "),
 			fatal: false,
 		},
 		{ label: "repo", args: "/src", fatal: true },
 		...(entry.extraRequirements.length > 0
-			? [{ label: "extras", args: entry.extraRequirements.map((pin) => `'${pin}'`).join(" "), fatal: false }]
+			? [{ label: "extras", args: entry.extraRequirements.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
 			: []),
 	];
 	return [
@@ -152,7 +157,7 @@ export function buildSwebenchPrepareScript(
 			? [
 					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel ${hostBuildPins
 						.filter((requirement) => requirement !== "wheel")
-						.map((requirement) => `'${requirement}'`)
+						.map((requirement) => shellQuote(requirement))
 						.join(" ")}`.trimEnd(),
 				]
 			: []),
@@ -213,7 +218,7 @@ export function buildSwebenchGradeScript(
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
-	const quote = (parts: readonly string[]) => parts.map((part) => `'${part}'`).join(" ");
+	const quote = (parts: readonly string[]) => parts.map((part) => shellQuote(part)).join(" ");
 	const pipInstall = (what: string, stage: string) =>
 		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
 	return [

@@ -575,5 +575,10 @@ export function parsePep518BuildRequires(pyprojectToml: string): string[] {
 	if (!requires?.[1]) {
 		return [];
 	}
-	return [...requires[1].matchAll(/["']([^"']+)["']/gu)].map((match) => match[1] ?? "").filter(Boolean);
+	// Match TOML strings by their OWN quote type: a double-quoted requirement legitimately contains single quotes
+	// (scikit-learn: `"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'"`). A naive
+	// character class split that marker into fragments and pip died with `InvalidMarker: 'python_version!='`.
+	return [...requires[1].matchAll(/"([^"]*)"|'([^']*)'/gu)]
+		.map((match) => (match[1] ?? match[2] ?? "").trim())
+		.filter(Boolean);
 }
