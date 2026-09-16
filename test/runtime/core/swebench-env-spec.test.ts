@@ -24,10 +24,10 @@ import {
 	swebenchEraConstraintLines,
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
+	swebenchLegacyCBuildEnvLines,
 	swebenchSpecKey,
 	swebenchTestCommand,
 	sympyTestFiles,
-	withSwebenchLegacyCBuildEnv,
 } from "../../../src/core/swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
 import type { SwebenchTrancheEntry } from "../../../src/core/swebench-tranche";
@@ -362,20 +362,19 @@ describe("PEP 518 requirements with environment markers", () => {
 });
 
 describe("legacy C build environment", () => {
-	it("demotes the diagnostics GCC 14 promoted to hard errors back to warnings", () => {
-		const env = withSwebenchLegacyCBuildEnv({});
-		expect(env.CFLAGS).toContain("-Wno-error=incompatible-pointer-types");
-		expect(env.CFLAGS).toContain("-Wno-error=implicit-function-declaration");
+	it("probes each flag against the compiler that will use it", () => {
+		const lines = swebenchLegacyCBuildEnvLines().join("\n");
+		// An OLD gcc treats `-Wno-error=<unknown warning>` as a hard ERROR, so the flag set cannot be fixed
+		// host-side across images spanning GCC 8 to GCC 14.
+		expect(lines).toContain('gcc "$flag" -x c -c /dev/null');
+		expect(lines).toContain("-Wno-error=incompatible-pointer-types");
 	});
 
-	it("appends to a spec's own CFLAGS instead of replacing them", () => {
-		const env = withSwebenchLegacyCBuildEnv({ CFLAGS: "-O0", OTHER: "kept" });
-		expect(env.OTHER).toBe("kept");
-		expect(env.CFLAGS.startsWith("-O0 ")).toBe(true);
-		expect(env.CFLAGS).toContain("-Wno-error=int-conversion");
+	it("appends to any CFLAGS already in the environment rather than replacing it", () => {
+		expect(swebenchLegacyCBuildEnvLines().at(-1)).toBe('export CFLAGS="${CFLAGS:-}$SWEBENCH_CFLAGS"');
 	});
 
-	it("carries no single quote — installEnv renders every value inside single quotes", () => {
+	it("carries no single quote — the flags ride inside a single-quoted shell string", () => {
 		expect(SWEBENCH_LEGACY_C_DIAGNOSTICS.some((flag) => flag.includes("'"))).toBe(false);
 	});
 });

@@ -39,10 +39,10 @@ import {
 	swebenchEraConstraintLines,
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
+	swebenchLegacyCBuildEnvLines,
 	swebenchSpecBuildRequirements,
 	swebenchSpecPinConstraintArg,
 	swebenchTestCommand,
-	withSwebenchLegacyCBuildEnv,
 } from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
 import { buildSwebenchGradePlan, parseSwebenchGradeOutput, type SwebenchGradeVerdict } from "./swebench-instance";
@@ -216,6 +216,7 @@ export function buildSwebenchPrepareScript(
 		// 0.48.0, which requires packaging>=24.0 and therefore cannot coexist with matplotlib 3.7's pinned
 		// packaging==23.1; constrained, pip simply picks the last `wheel` that fits.
 		...swebenchEraConstraintLines(prepareSpecPins),
+		...swebenchLegacyCBuildEnvLines(),
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
@@ -403,6 +404,7 @@ export function buildSwebenchInstallLines(input: {
 		// ResolutionImpossible. Constrained, pip picks the pandas that fits the pinned numpy — which is what conda
 		// did for upstream.
 		...swebenchEraConstraintLines(specPins),
+		...swebenchLegacyCBuildEnvLines(),
 		// FIRST, before anything else is resolved: `python -m venv` seeds the interpreter's OWN bundled pip, and on
 		// the python 3.6 image that is pip 18.1 — which predates PEP 600 and cannot read a `manylinux_2_28` or
 		// abi3 wheel at all. The download runs under the image's newer system pip and fetched
@@ -660,7 +662,7 @@ export async function prepareSwebenchWheels(
 	// build astropy while the grade built it fine, which is the probe lying about the closure.
 	const probeEntry = {
 		...input.entry,
-		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
+		installEnv: { ...input.entry.installEnv, ...scmEnv },
 	} as SwebenchGraderEntry;
 	const prepared = await deps.exec("docker", [
 		"run",
@@ -675,7 +677,7 @@ export async function prepareSwebenchWheels(
 		"bash",
 		"-lc",
 		buildSwebenchPrepareScript(
-			{ ...input.entry, installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }) },
+			{ ...input.entry, installEnv: { ...input.entry.installEnv, ...scmEnv } },
 			extraPins,
 			repoRequirements,
 			buildRequires,
@@ -943,7 +945,7 @@ export async function gradeSwebenchWorkspace(
 	const scmEnv = setuptoolsScmPretendVersion(input.workspaceCopyDir, input.instance.version);
 	const gradeEntry = {
 		...input.entry,
-		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
+		installEnv: { ...input.entry.installEnv, ...scmEnv },
 	} as SwebenchGraderEntry;
 	const unresolvedPins = readUnresolvedPins(input.cacheRoot, input.entry);
 	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir, unresolvedPins);

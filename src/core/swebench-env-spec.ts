@@ -700,12 +700,21 @@ export const SWEBENCH_LEGACY_C_DIAGNOSTICS: readonly string[] = [
 ];
 
 /**
- * `installEnv` with the legacy C diagnostics appended to `CFLAGS`. distutils APPENDS the environment's `CFLAGS`
- * to the interpreter's own compile options, so appending here is additive for a spec that already sets the
- * variable rather than a silent override of it.
+ * Shell lines that export `CFLAGS` with the legacy C diagnostics THIS image's compiler actually understands.
+ *
+ * The flag set cannot be fixed host-side: the images span GCC 8 (Debian buster, python 3.7) to GCC 14.2
+ * (Debian trixie, python 3.9+), and an OLD gcc treats `-Wno-error=<unknown warning>` as a hard error —
+ * `cc1: error: '-Wno-error=return-mismatch': no option '-Wreturn-mismatch'` killed matplotlib 3.0's build with
+ * flags that exist only to help GCC 14. So each flag is probed against the compiler that will use it, and only
+ * the supported ones are exported. distutils APPENDS the environment's `CFLAGS` to the interpreter's own
+ * options, so this adds to the build rather than replacing anything.
  */
-export function withSwebenchLegacyCBuildEnv(installEnv: Readonly<Record<string, string>>): Record<string, string> {
-	const flags = SWEBENCH_LEGACY_C_DIAGNOSTICS.join(" ");
-	const existing = installEnv.CFLAGS?.trim();
-	return { ...installEnv, CFLAGS: existing ? `${existing} ${flags}` : flags };
+export function swebenchLegacyCBuildEnvLines(): string[] {
+	return [
+		"SWEBENCH_CFLAGS=''",
+		`for flag in ${SWEBENCH_LEGACY_C_DIAGNOSTICS.join(" ")}; do`,
+		'  gcc "$flag" -x c -c /dev/null -o /dev/null 2>/dev/null && SWEBENCH_CFLAGS="$SWEBENCH_CFLAGS $flag"',
+		"done",
+		'export CFLAGS="${CFLAGS:-}$SWEBENCH_CFLAGS"',
+	];
 }
