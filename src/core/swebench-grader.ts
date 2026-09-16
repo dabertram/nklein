@@ -1156,6 +1156,36 @@ export async function prepareSwebenchWheels(
 		// `[ 1/39] Cythonizing sklearn/ensemble/_gradient_boosting.pyx`, Cython 0.29.37 builds it. The spec pins
 		// `cython` with no version, so nothing but the failure itself says which era is meant. Tried once, and only
 		// after a failure — a repo that genuinely needs Cython 3 never reaches here.
+		// pytest 7.2 added `PytestRemovedIn8Warning` for nose-style `setup`/`teardown` methods, and astropy's own
+		// test helper turns deprecations into ERRORS by policy. astropy 3.1's `TestHeaderFunctions` uses those
+		// methods, so 7 of its 11 pass-to-pass tests errored at setup in a PRISTINE tree — the dataset's ids were
+		// recorded against the era's pytest, which had no such warning. `py` rides along because pytest 7.1 still
+		// imports it and nothing else in the closure pulls it in.
+		const needsEraPytest =
+			!guessed.has("pytest<7.2") &&
+			probed.stdout.includes("PytestRemovedIn8Warning") &&
+			/nose/iu.test(probed.stdout);
+		if (needsEraPytest) {
+			guessed.add("pytest<7.2");
+			await deps.exec("docker", [
+				"run",
+				"--rm",
+				"-v",
+				`${input.cacheRoot}:/cache`,
+				swebenchGraderImageFor(input.entry),
+				"bash",
+				"-lc",
+				[
+					"set -u",
+					...swebenchEraConstraintLines(),
+					`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} 'pytest<7.2' 'py' || true`,
+				].join("\n"),
+			]);
+			const path = join(input.cacheRoot, "wheels", key, SWEBENCH_RUNTIME_REQUIREMENTS);
+			const merged = [...new Set([...readRuntimeRequirements(input.cacheRoot, input.entry), "pytest<7.2", "py"])];
+			await writeFile(path, `${merged.join("\n")}\n`);
+			continue;
+		}
 		const needsEraCython =
 			!guessed.has("Cython<3") &&
 			probed.stdout.includes("Cythonizing") &&

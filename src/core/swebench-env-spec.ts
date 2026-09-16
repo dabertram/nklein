@@ -462,6 +462,9 @@ export function buildSwebenchEnvDockerfile(input: {
 			"\trm -rf /var/lib/apt/lists/*",
 		].join("\n"),
 	];
+	// Not only libraries: `graphviz` is a BINARY some suites shell out to, and sphinx 7.2 skipped four of its five
+	// inheritance-diagram tests with `graphviz "dot" is not available` — a skip is not a pass, and the dataset
+	// lists them as pass-to-pass because upstream's image has it.
 	// The scientific and C-extension stacks build against system libraries upstream gets from conda: scikit-learn
 	// 0.20 died with `NotFoundError: No lapack/blas resources found`, django 1.11's `cffi` sdist with
 	// `fatal error: ffi.h: No such file or directory`, and the older matplotlib specs want freetype and png
@@ -470,7 +473,7 @@ export function buildSwebenchEnvDockerfile(input: {
 	lines.push(
 		[
 			"RUN set -eu; \\",
-			'\tpkgs="gfortran libopenblas-dev liblapack-dev libfreetype6-dev libpng-dev zlib1g-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev libjpeg-dev libmemcached-dev"; \\',
+			'\tpkgs="gfortran libopenblas-dev liblapack-dev libfreetype6-dev libpng-dev zlib1g-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev libjpeg-dev libmemcached-dev graphviz"; \\',
 			"\t( apt-get update && apt-get install -y --no-install-recommends $pkgs ) || \\",
 			"\t\t( apt-get -o Acquire::Check-Valid-Until=false update && for p in $pkgs; do \\",
 			'\t\t\tapt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends "$p" || true; \\',
