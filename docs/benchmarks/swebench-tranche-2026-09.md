@@ -23,7 +23,11 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
   is EXCLUDED and named (the runner audits every `attempt_started` in the runtime HOME's telemetry).
 - **Runner:** `scripts/swebench-tranche-run.mts` (materialize → pinned session → stop → pin the delivered
   `nklein/tasks` result branch → retire → sealed grade → receipt). Arms are created by
-  `scripts/swebench-arm-setup.sh <arm> <model> <port> <commit>` (own HOME, own port, worktree snapshot).
+  `scripts/swebench-arm-setup.sh <arm> <model> <port> <commit>` (own HOME, own port, worktree snapshot). A CLI-seat
+  arm — a frontier model answering the HITL model server instead of a local endpoint — comes from
+  `scripts/swebench-arm-setup-claude.sh` (the `claude` CLI) or `scripts/swebench-arm-setup-codex.sh` (the `codex`
+  CLI); both write `queue/seat.json` with the CLI's model id and version, which the runner copies into every receipt
+  so a score is tied to the seat that produced it.
 
 ## Harness card (ETCSOVG, P20.8)
 
@@ -48,6 +52,27 @@ their corrections) and the per-arm `summary.json`/`summary.md` are copied into `
 | flash-next-q3kxl | `qwen3.8-flash-next` | Q3_K_XL GGUF (512×56B, qwen4exp) | 90.0 GB | 262,144 | (set at load) — cannot coexist with qwen3.8 |
 
 ## Results
+
+## Codex seats (added 2026-09-16, NOT yet run)
+
+Four OpenAI seats are available to this account and each has an arm created at !Klein `3615cdfef`, ready to start
+and not started — the environment gate is not finished, and a score from an unproven environment is not worth
+recording. Each answers through the same HITL model server the Claude seats use; `codex exec --json` emits no
+streaming deltas, so turns arrive whole.
+
+| arm | seat | wire id | runtime | HITL |
+|---|---|---|---|---|
+| `codex-sol` | `gpt-5.6-sol` | `gpt-5.6-sol-hitl` | :3520 | :8110 |
+| `codex-terra` | `gpt-5.6-terra` | `gpt-5.6-terra-hitl` | :3521 | :8111 |
+| `codex-luna` | `gpt-5.6-luna` | `gpt-5.6-luna-hitl` | :3522 | :8112 |
+| `codex-gpt55` | `gpt-5.5` | `gpt-5.5-hitl` | :3523 | :8113 |
+
+Start order is the Claude arms': `server.sh` → `responder.sh` → `runtime.sh` → `run.sh all`. Reasoning effort
+defaults to `medium` (CODEX_DEFAULT_EFFORT); Codex adds `ultra` above `max`. The CLI is NOT on PATH — the
+responder falls back to `~/.codex/plugins/.plugin-appserver/codex`, and `CODEX_BIN` overrides it.
+
+Verified on creation: `codex-sol`'s server answered a completion through the arm's own endpoint, and its
+`queue/seat.json` recorded `codex-cli 0.150.0-alpha.12.2` for the receipt.
 
 ## Pass-1 scoreboard (all arms, !Klein `83c39fe71`, sealed offline grading, updated 2026-09-15 22:50)
 
