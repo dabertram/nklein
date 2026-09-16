@@ -15,7 +15,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { copyFile, link, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -542,7 +542,10 @@ export function buildSwebenchInstallLines(input: {
 			: []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [
-					`python -m pip install --disable-pip-version-check -q ${wheels} ${quote([
+					// NOT quiet: the re-assertion below decides by reading "Installing collected packages" out of
+					// this log, and `-q` suppresses exactly that line. astropy 5.1 lost all 322 pass-to-pass tests
+					// the one time this stage was quiet — numpy looked untouched, so its pin was never restored.
+					`python -m pip install --disable-pip-version-check ${wheels} ${quote([
 						...new Set([
 							...swebenchSpecBuildRequirements(entry),
 							...pep518BuildRequires,
@@ -553,7 +556,7 @@ export function buildSwebenchInstallLines(input: {
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root)} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
@@ -682,6 +685,36 @@ export function resolutionFailures(transcript: string): { requirement: string; a
 			candidates.length === 0 || candidates[0] === "none" || (pinned !== undefined && !candidates.includes(pinned));
 		return { requirement, absent };
 	});
+}
+
+/**
+ * Whether the checkout's suite builds its URLs from `HTTPBIN_URL`, and therefore can be graded offline against
+ * a loopback httpbin instead of the real httpbin.org.
+ *
+ * The era requests suites read `HTTPBIN = os.environ.get('HTTPBIN_URL', 'http://httpbin.org/')`. Under
+ * `--network none` the default loses 35 of requests 2.0's 79 pass-to-pass tests to `requests.exceptions` in a
+ * PRISTINE tree — a network result, not a code result. The hand-proven tranche entries already carry a local
+ * httpbin for exactly this; spec-resolved entries get it by detection instead of by hand.
+ */
+export function detectsHttpbinUrl(treeDir: string): boolean {
+	for (const name of readdirSync(treeDir, { withFileTypes: true })) {
+		if (!name.isFile() || !name.name.endsWith(".py")) {
+			continue;
+		}
+		if (readFileSync(join(treeDir, name.name), "utf8").includes("HTTPBIN_URL")) {
+			return true;
+		}
+	}
+	const tests = join(treeDir, "tests");
+	if (!existsSync(tests)) {
+		return false;
+	}
+	return readdirSync(tests, { withFileTypes: true }).some(
+		(name) =>
+			name.isFile() &&
+			name.name.endsWith(".py") &&
+			readFileSync(join(tests, name.name), "utf8").includes("HTTPBIN_URL"),
+	);
 }
 
 /** The pins the prepare recorded as unresolvable on this platform for this spec's wheel cache. */
@@ -815,6 +848,8 @@ export async function prepareSwebenchWheels(
 		: [];
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
 	const setupRequires = readSetupRequires(input.sourceDir);
+	// The loopback httpbin the grade will serve has to be IN the closure, or the sealed install cannot start it.
+	const httpbinRequirement = detectsHttpbinUrl(input.sourceDir) && !input.entry.httpbinService ? ["httpbin"] : [];
 	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
 	// The probe must install in the SAME environment the grade will: the legacy C diagnostics and the
 	// setuptools-scm pretend version are part of the install, not decoration. Without them the probe failed to
@@ -840,7 +875,7 @@ export async function prepareSwebenchWheels(
 			extraPins,
 			repoRequirements,
 			buildRequires,
-			setupRequires,
+			[...setupRequires, ...httpbinRequirement],
 			repoRequirementLines,
 		),
 	]);
@@ -1213,6 +1248,10 @@ export async function gradeSwebenchWorkspace(
 	const gradeEntry = {
 		...input.entry,
 		installEnv: { ...input.entry.installEnv, ...scmEnv },
+		// A suite that reads HTTPBIN_URL can be graded against a loopback httpbin instead of the internet.
+		...(input.entry.httpbinService || !detectsHttpbinUrl(input.workspaceCopyDir)
+			? {}
+			: { httpbinService: { port: 8998 } }),
 	} as SwebenchGraderEntry;
 	const unresolvedPins = readUnresolvedPins(input.cacheRoot, input.entry);
 	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir, unresolvedPins);
