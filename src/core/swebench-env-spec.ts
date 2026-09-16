@@ -275,9 +275,19 @@ export function buildSwebenchSelectionArguments(input: {
 export function passedIdsFromPytestOutput(output: string): Set<string> {
 	const passed = new Set<string>();
 	for (const line of output.split("\n")) {
-		const match = /^PASSED\s+(\S+)/.exec(line.trim());
-		if (match?.[1]) {
-			passed.add(match[1]);
+		const trimmed = line.trim();
+		// Two orders, both real. Modern pytest's `-rA` summary writes `PASSED <id>`; the era pytest astropy 1.3
+		// runs writes the verbose line `<id> PASSED` and emits no short summary at all. Matching only the first
+		// scored six passing astropy tests as six regressions — the same "green read as red" failure as the ANSI
+		// one, and just as invisible.
+		const summary = /^PASSED\s+(\S+)/u.exec(trimmed);
+		if (summary?.[1]) {
+			passed.add(summary[1]);
+			continue;
+		}
+		const verbose = /^(\S+::\S+)\s+PASSED\b/u.exec(trimmed);
+		if (verbose?.[1]) {
+			passed.add(verbose[1]);
 		}
 	}
 	return passed;

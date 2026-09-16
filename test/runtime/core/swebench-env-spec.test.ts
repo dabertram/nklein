@@ -501,3 +501,17 @@ describe("PEP 518 build requires with an extras marker", () => {
 		]);
 	});
 });
+
+describe("pytest verbose order", () => {
+	it("reads `<id> PASSED` as well as `PASSED <id>`", () => {
+		const output = [
+			"astropy/utils/tests/test_misc.py::test_isiterable PASSED",
+			"PASSED astropy/utils/tests/test_misc.py::test_skip_hidden",
+			"astropy/utils/tests/test_misc.py::test_broken FAILED",
+		].join("\n");
+		expect([...passedIdsFromOutput("pytest", output)]).toEqual([
+			"astropy/utils/tests/test_misc.py::test_isiterable",
+			"astropy/utils/tests/test_misc.py::test_skip_hidden",
+		]);
+	});
+});
