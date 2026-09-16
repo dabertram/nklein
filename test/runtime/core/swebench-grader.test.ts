@@ -90,9 +90,12 @@ describe("buildSwebenchGradeScript", () => {
 		expect(extras).toContain("'py'");
 		// pytest diagnostics (collection errors land on stderr) must reach the parsed stream.
 		expect(script).toContain("===SWEBENCH_F2P===");
+		// A tranche entry's plan carries the whole runner argv, not bare node ids, so it keeps the plain call —
+		// which is also what keeps pass-1 comparability. Only pure-node-id selections get the collect intersection.
 		expect(
 			script.split("\n").filter((line) => line.includes("'pytest' '-rA'") && line.includes("2>&1")),
 		).toHaveLength(2);
+		expect(script).not.toContain("--collect-only");
 	});
 });
 
