@@ -704,11 +704,36 @@ export function buildSwebenchGradeScript(
 		// Upstream `eval_commands` (locale-gen, LANG/LC_ALL exports — django) run in THIS shell so their exports
 		// reach the test commands below.
 		...("evalCommands" in entry ? entry.evalCommands.map((line) => `${line} 2>&1 || true`) : []),
-		"echo '===SWEBENCH_F2P==='",
-		`${swebenchTestCommand(facts.testCmd)} ${quote(plan.failToPassCommand)} 2>&1 || true`,
-		"echo '===SWEBENCH_P2P==='",
-		`${swebenchTestCommand(facts.testCmd)} ${quote(plan.passToPassCommand)} 2>&1 || true`,
-		"echo '===SWEBENCH_END==='",
+		...(() => {
+			// pytest ABORTS a whole selection when one id cannot be found: `ERROR: not found: …` and then
+			// "no tests ran", however many of the others were collectable. requests 2.27's ids embed a runtime
+			// path (`test_unzipped_paths_unchanged[/test_utils.py]`) that does not reproduce, and three such ids
+			// cost all 175 of its pass-to-pass tests. So the selection is intersected with what pytest can
+			// actually collect, and the ids that fall out are NAMED rather than silently dropped.
+			const run = (selection: readonly string[], label: string): string[] => {
+				const command = swebenchTestCommand(facts.testCmd);
+				if (facts.logParser !== "pytest" || selection.length === 0) {
+					return [`${command} ${quote(selection)} 2>&1 || true`];
+				}
+				const files = [...new Set(selection.map((id) => id.split("::")[0] ?? "").filter(Boolean))];
+				return [
+					`printf '%s\n' ${quote(selection)} > /tmp/swebench-${label}-wanted.txt`,
+					`python -m pytest --collect-only -q ${quote(files)} 2>/dev/null | sed 's/[[:space:]]*$//' > /tmp/swebench-${label}-collected.txt || true`,
+					`grep -xF -f /tmp/swebench-${label}-wanted.txt /tmp/swebench-${label}-collected.txt > /tmp/swebench-${label}-final.txt || true`,
+					`comm -23 <(sort -u /tmp/swebench-${label}-wanted.txt) <(sort -u /tmp/swebench-${label}-final.txt) | sed 's/^/SWEBENCH_ID_NOT_COLLECTED /' || true`,
+					// An empty intersection means the collect-only pass itself failed; run the original selection
+					// rather than silently running nothing.
+					`if [ -s /tmp/swebench-${label}-final.txt ]; then ${command} $(tr '\n' ' ' < /tmp/swebench-${label}-final.txt) 2>&1 || true; else ${command} ${quote(selection)} 2>&1 || true; fi`,
+				];
+			};
+			return [
+				"echo '===SWEBENCH_F2P==='",
+				...run(plan.failToPassCommand, "f2p"),
+				"echo '===SWEBENCH_P2P==='",
+				...run(plan.passToPassCommand, "p2p"),
+				"echo '===SWEBENCH_END==='",
+			];
+		})(),
 	].join("\n");
 }
 
@@ -1451,7 +1476,15 @@ export async function gradeSwebenchWorkspace(
 				),
 			]),
 		].filter((name) => name && !notPackages.has(name.toLowerCase()));
-		const networkBound = networkBoundFailures(passToPassOutput);
+		// An id pytest cannot COLLECT does not exist in this checkout — requests 2.27's ids embed a runtime path
+		// that does not reproduce. That is not a regression; it is an id with nothing behind it, and the seal
+		// names it rather than counting it against the model.
+		const uncollectable = [
+			...new Set([...stdout.matchAll(/SWEBENCH_ID_NOT_COLLECTED (\S+)/gu)].map((m) => m[1] ?? "")),
+		]
+			.filter(Boolean)
+			.map((id) => ({ id, cause: "not collectable in this checkout" }));
+		const networkBound = [...networkBoundFailures(passToPassOutput), ...uncollectable];
 		if (networkBound.length > 0) {
 			try {
 				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));
