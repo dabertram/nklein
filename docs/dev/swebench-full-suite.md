@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced twenty defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced twenty-five defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -71,9 +71,20 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 18 | sphinx: tox ran `.tox/py39`'s empty interpreter | `tox --current-env` is INERT on tox 4.16 — tox-current-env 0.0.11 still registers the flag but tox builds the venv anyway | rewrite that one flag to `--runner current-env` (`ad7e889fd`) |
 | 19 | sphinx: collection aborted with `No module named 'pkg_resources'` | setuptools 82 removed it, and tox's `usedevelop = True` runs its OWN `pip install -e .` inside the graded env, so a pin could not hold | an era constraints file exported as PIP_CONSTRAINT, honoured by nested pip and applied to the download too (`ad7e889fd`) |
 | 20 | six matplotlib specs: `metadata-generation-failed` | matplotlib's setup.py resolves `setup_requires` by spawning `pip wheel`, which carried none of our offline flags and reached for PyPI under `--network none` | export PIP_NO_INDEX and PIP_FIND_LINKS so nested pip reads the same cache (`ad7e889fd`) |
+| 21 | matplotlib 3.6: `setup_requires` packages absent from the cache | setuptools resolves `setup_requires` at build time via its own `pip wheel`, so `pip download /src` never sees them | the prepare reads the literal list and downloads it as its own stage (`64f7067a3`) |
+| 22 | matplotlib 3.7: `ModuleNotFoundError: No module named 'mesonpy'` while downloading | --no-build-isolation was forced on EVERY download stage, so an sdist could not fetch its own PEP 517 backend | the flag is for the repo stage alone; the prepare has network for the rest (`7ab52c4c5`) |
+| 23 | matplotlib 3.7: `ResolutionImpossible` — `pandas==3.0.5` against `numpy==1.25.2` | upstream's package lists are conda environments whose entries mostly carry no version, and pip resolves those to TODAY's releases | the spec's own exact pins constrain every resolution, download included — which is what conda did for upstream (`7ab52c4c5`) |
+| 24 | matplotlib 3.7: `Failed to download qhull-2020-src-8.0.2.tgz` and the same for freetype | a repo's build fetches sources OUTSIDE pip: a pre_install wget into `build/`, and an XDG-cached freetype during `build_ext`. Both work while preparing and cannot work under `--network none` | the prepare's probe warms both and every grade replays them (`7ab52c4c5`) |
+| 25 | one unavailable pin killed a whole stage (conda-only `pyqt`, `pygobject`, `wxpython`, `gtk4`) | the stage resolved as a unit, so `numpy` was lost along with the GUI toolkit beside it | non-fatal stages retry pin by pin, record what cannot resolve here, and the grade drops exactly those and NAMES them in the verdict (`7ab52c4c5`) |
 
-The pattern worth keeping: **the negative control is what proves an environment**, and most "pass-to-pass regressions"
-in a pristine tree were OUR harness diverging from upstream, not a broken repo.
+The pattern worth keeping: **the negative control is what proves an environment**, and EVERY "pass-to-pass
+regression" in a pristine tree so far was our harness diverging from upstream, not a broken repo.
+
+The structural answer to finding these one instance at a time is the **closure probe**: `prepare` now performs the
+sealed grade's own install, offline against the cache it just filled, and refuses to mark the cache complete unless
+that install succeeds. It also drives the closure to completion — each round downloads exactly what the sealed
+install named as missing, three rounds at most. Run `NKLEIN_SWEBENCH_GRADER_LOG_DIR=<dir>` to keep full grader
+transcripts; the receipt's 2 kB tail cannot diagnose an install.
 
 ## Known gaps (2026-09-16)
 
