@@ -463,7 +463,23 @@ export function buildSwebenchInstallLines(input: {
 		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
 			? [pipInstall(`${specPinArg}-r '${root}/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
 			: []),
-		...(packagePins.length > 0 ? [pipInstall(`${specPinArg}${quote(packagePins)}`, "packages")] : []),
+		// The package stage installs as a unit, then PIN BY PIN when that unit cannot resolve — the same shape the
+		// download uses, and for the same reason. Upstream's lists are conda environments carrying documentation
+		// extras the graded tests never import: matplotlib 3.5's `numpydoc==1.11.0`, `sphinx` and
+		// `sphinx-panels==0.6.0` cannot coexist under pip, and resolving them as one unit lost numpy with them.
+		// A pin that cannot be installed alone is named on the line, recorded by the probe, and dropped by the
+		// grade — visible, never silent.
+		...(packagePins.length > 0
+			? [
+					[
+						`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}${quote(packagePins)} 2>&1; then`,
+						`  for pin in ${quote(packagePins)}; do`,
+						`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$pin" 2>&1 || echo "SWEBENCH_PIN_SKIPPED $pin"`,
+						"  done",
+						"fi",
+					].join("\n"),
+				]
+			: []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [
 					pipInstall(
@@ -558,6 +574,29 @@ export function buildSwebenchGradeScript(
  */
 export function specExactPins(pins: readonly string[]): string[] {
 	return pins.filter((pin) => /^[A-Za-z0-9][A-Za-z0-9._-]*==[^\s;]+$/u.test(pin.trim())).map((pin) => pin.trim());
+}
+
+/**
+ * pip's "Could not find a version that satisfies the requirement X (from versions: …)" lines, split by whether
+ * the distribution is ABSENT (worth fetching) or merely UNUSABLE (every candidate present was discarded).
+ * An exact `==` pin counts as absent when its own version is not among the candidates listed.
+ */
+export function resolutionFailures(transcript: string): { requirement: string; absent: boolean }[] {
+	return [
+		...transcript.matchAll(
+			/Could not find a version that satisfies the requirement (\S+) \(from versions: ([^)]*)\)/gu,
+		),
+	].map((match) => {
+		const requirement = match[1] ?? "";
+		const candidates = (match[2] ?? "")
+			.split(",")
+			.map((part) => part.trim())
+			.filter(Boolean);
+		const pinned = /==\s*([^\s,;]+)$/u.exec(requirement)?.[1];
+		const absent =
+			candidates.length === 0 || candidates[0] === "none" || (pinned !== undefined && !candidates.includes(pinned));
+		return { requirement, absent };
+	});
 }
 
 /** The pins the prepare recorded as unresolvable on this platform for this spec's wheel cache. */
@@ -795,23 +834,29 @@ export async function prepareSwebenchWheels(
 		];
 		const repoName = input.entry.repo.split("/").pop()?.toLowerCase() ?? "";
 		const normalize = (pin: string) => (pin.split(/[<>=!~;[\s]/u)[0] ?? "").trim().toLowerCase().replace(/_/gu, "-");
-		// pip distinguishes the two cases precisely, in the same sentence: "(from versions: none)" means the
-		// distribution is ABSENT from the cache and can be fetched, while a NON-EMPTY list means every candidate
-		// present was discarded — matplotlib 3.3.4's sdist is in scikit-learn 0.20's cache and its
-		// `setup.py egg_info` fails for want of freetype headers. Fetching it again would change nothing.
+		// pip says both which requirement failed and which candidates it had, and the two cases need opposite
+		// answers. "(from versions: none)" — or an exact `==` pin whose version is NOT among the candidates —
+		// means the distribution is ABSENT and fetching it is the fix: scipy 1.5.2's build env asks for
+		// `numpy==1.14.5` while the cache holds only 1.19.x. A requirement with candidates that were all
+		// DISCARDED is the opposite: matplotlib 3.3.4's sdist sits in scikit-learn 0.20's cache and its
+		// `setup.py egg_info` fails for want of headers, so fetching it again would change nothing.
 		const unbuildable = [
 			...new Set([
 				...[...probed.stdout.matchAll(/Failed building wheel for (\S+)/gu)].map((match) => match[1] ?? ""),
-				...[
-					...probed.stdout.matchAll(
-						/Could not find a version that satisfies the requirement (\S+) \(from versions: (?!none\))/gu,
-					),
-				].map((match) => match[1] ?? ""),
+				...resolutionFailures(probed.stdout)
+					.filter((failure) => !failure.absent)
+					.map((failure) => failure.requirement),
 			]),
 		]
 			.map((name) => name.toLowerCase().replace(/_/gu, "-"))
 			.filter((name) => name && name !== repoName);
-		const newlyUnresolvable = candidatePins.filter((pin) => unbuildable.includes(normalize(pin)));
+		// A pin the per-pin fallback had to skip is unresolvable in this environment, by direct evidence.
+		const skipped = [...probed.stdout.matchAll(/SWEBENCH_PIN_SKIPPED (.+)/gu)].map((match) =>
+			(match[1] ?? "").trim(),
+		);
+		const newlyUnresolvable = [
+			...new Set([...candidatePins.filter((pin) => unbuildable.includes(normalize(pin))), ...skipped]),
+		].filter(Boolean);
 		if (newlyUnresolvable.length > 0) {
 			const path = join(input.cacheRoot, "wheels", key, SWEBENCH_UNRESOLVED_PINS);
 			const already = readUnresolvedPins(input.cacheRoot, input.entry);
@@ -827,11 +872,9 @@ export async function prepareSwebenchWheels(
 		const alreadyUnresolvable = readUnresolvedPins(input.cacheRoot, input.entry);
 		const missing = [
 			...new Set(
-				[
-					...probed.stdout.matchAll(
-						/Could not find a version that satisfies the requirement (\S+) \(from versions: none\)/gu,
-					),
-				].map((match) => match[1] ?? ""),
+				resolutionFailures(probed.stdout)
+					.filter((failure) => failure.absent)
+					.map((failure) => failure.requirement),
 			),
 		].filter((requirement) => requirement && !alreadyUnresolvable.includes(requirement));
 		// A module name is a GUESS at a distribution name, and its failure is deliberately NOT recorded: recording

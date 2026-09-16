@@ -15,6 +15,7 @@ import {
 	buildSwebenchPrepareScript,
 	buildSwebenchProbeScript,
 	planSealedGrade,
+	resolutionFailures,
 	specExactPins,
 	splitSwebenchGradeOutput,
 	swebenchWheelCacheKey,
@@ -242,11 +243,14 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			const script = buildSwebenchGradeScript(env, sealed.plan, [], ".nklein-swebench-requirements.txt");
 			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
 			expect(pipLines[0]).toContain("--upgrade pip");
-			expect(pipLines[2]).toContain("-r '/work/.nklein-swebench-requirements.txt'");
-			expect(pipLines[3]).toContain("'pytz'");
-			// The spec's BUILD prerequisites (wheel + any setuptools/cython pin) land before the editable install.
-			expect(pipLines[4]).toContain("'wheel'");
-			expect(pipLines[5]).toContain("--no-build-isolation -e /work");
+			// Order matters more than position: requirements file, then the spec's pins, then the BUILD
+			// prerequisites, then the editable install. (The pin stage emits a per-pin fallback too.)
+			const at = (needle: string) => pipLines.findIndex((line) => line.includes(needle));
+			expect(at("-r '/work/.nklein-swebench-requirements.txt'")).toBeGreaterThan(0);
+			expect(at("'pytz'")).toBeGreaterThan(at("-r '/work/.nklein-swebench-requirements.txt'"));
+			expect(at("SWEBENCH_PIP_FAILED build-requirements")).toBeGreaterThan(at("'pytz'"));
+			expect(pipLines[at("SWEBENCH_PIP_FAILED build-requirements")]).toContain("'wheel'");
+			expect(at("--no-build-isolation -e /work")).toBeGreaterThan(at("SWEBENCH_PIP_FAILED build-requirements"));
 			// Without a resolved file the sentinel must NOT become a literal `-r requirements.txt`.
 			expect(buildSwebenchGradeScript(env, sealed.plan)).not.toContain("-r '/work/requirements.txt'");
 			expect(script).toContain(
@@ -364,5 +368,24 @@ describe("closure probe", () => {
 
 	it("keeps whatever the repo's own pre_install fetched into build/", () => {
 		expect(buildSwebenchProbeScript({ entry })).toContain("/cache/build/");
+	});
+});
+
+describe("resolution failures", () => {
+	it("treats an exact pin whose version is not among the candidates as ABSENT", () => {
+		const line =
+			"ERROR: Could not find a version that satisfies the requirement numpy==1.14.5 (from versions: 1.19.2, 1.19.5)";
+		expect(resolutionFailures(line)).toEqual([{ requirement: "numpy==1.14.5", absent: true }]);
+	});
+
+	it("treats a requirement whose candidates were all discarded as UNUSABLE", () => {
+		const line = "ERROR: Could not find a version that satisfies the requirement matplotlib (from versions: 3.3.4)";
+		expect(resolutionFailures(line)).toEqual([{ requirement: "matplotlib", absent: false }]);
+	});
+
+	it("treats `from versions: none` as ABSENT", () => {
+		const line =
+			"ERROR: Could not find a version that satisfies the requirement cython>=3.0.10 (from versions: none)";
+		expect(resolutionFailures(line)).toEqual([{ requirement: "cython>=3.0.10", absent: true }]);
 	});
 });
