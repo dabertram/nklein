@@ -81,6 +81,33 @@ export const SWEBENCH_UNRESOLVED_PINS = "SWEBENCH_UNRESOLVED.txt";
  */
 export const SWEBENCH_EXTRA_BUILD_REQUIREMENTS = "SWEBENCH_BUILD_REQS.txt";
 
+/**
+ * Runtime imports the environment needs that nothing declares — discovered by the negative CONTROL, because the
+ * closure probe proves an INSTALL and this only shows up when tests are collected. sphinx 3.2's
+ * `writers/latex.py` does `from roman import toRoman`, which modern docutils no longer brings along, and every
+ * test aborted at collection with `No module named 'roman'`.
+ *
+ * Recording happens only under NKLEIN_SWEBENCH_RECORD_RUNTIME_REQS, which the control sweep sets and a scored
+ * run never does: a graded arm must not quietly repair its own environment mid-benchmark.
+ */
+export const SWEBENCH_RUNTIME_REQUIREMENTS = "SWEBENCH_RUNTIME_REQS.txt";
+
+/** The runtime requirements a control recorded for this spec's wheel cache. */
+export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
+	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_RUNTIME_REQUIREMENTS);
+	if (!existsSync(path)) {
+		return [];
+	}
+	return [
+		...new Set(
+			readFileSync(path, "utf8")
+				.split("\n")
+				.map((line) => line.trim())
+				.filter(Boolean),
+		),
+	];
+}
+
 /** The build requirements the probe discovered for this spec's wheel cache. */
 export function readExtraBuildRequirements(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
 	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_EXTRA_BUILD_REQUIREMENTS);
@@ -396,6 +423,8 @@ export function buildSwebenchInstallLines(input: {
 	readonly runRepoPreInstall?: boolean;
 	/** Build requirements the probe DISCOVERED, recorded beside the wheels; see SWEBENCH_EXTRA_BUILD_REQUIREMENTS. */
 	readonly extraBuildRequirements?: readonly string[];
+	/** Runtime imports a CONTROL discovered; see SWEBENCH_RUNTIME_REQUIREMENTS. */
+	readonly runtimeRequirements?: readonly string[];
 }): string[] {
 	const { entry, root, xdgHome } = input;
 	const runRepoPreInstall = input.runRepoPreInstall ?? true;
@@ -457,6 +486,13 @@ export function buildSwebenchInstallLines(input: {
 					]
 				: [];
 		})(),
+		// A VCS dependency cannot be satisfied under `--network none`: sphinx 3.2's tox.ini lists
+		// `git+https://github.com/html5lib/html5lib-python`, tox runs `pip install git+…`, the clone fails with
+		// exit 128 and tox aborts BEFORE running a single test — five specs, scored as total regressions. The URL
+		// is rewritten to the project name so pip resolves it from the sealed cache instead. A documented
+		// substitution: the pinned ref becomes the release the closure holds, which is what an offline grade can
+		// honestly offer.
+		`if [ -f ${root}/tox.ini ]; then sed -i -E -e 's#git[+]https?://[^[:space:]]*/([A-Za-z0-9_.-]+)-python([[:space:]]|$)#\\1\\2#g' -e 's#git[+]https?://[^[:space:]]*/([A-Za-z0-9_.-]+)([[:space:]]|$)#\\1\\2#g' ${root}/tox.ini; fi`,
 		// A repo-level pre_install may DOWNLOAD build assets into `build/` at the top of the checkout: matplotlib's
 		// spec wgets and untars qhull there. That works while preparing, where the network is on, and cannot work
 		// in a `--network none` grade — the editable install died on `Failed to download qhull-2020-src-8.0.2.tgz`.
@@ -536,6 +572,11 @@ export function buildSwebenchInstallLines(input: {
 			const exact = specExactPins(packagePins);
 			return facts.fromSpec && exact.length > 0 ? [pipInstall(`--no-deps ${quote(exact)}`, "pins-reassert")] : [];
 		})(),
+		// Last, so nothing can clobber them: the runtime imports a control found missing. Installed with --no-deps
+		// because the environment is otherwise already the spec's, and a dependency cascade here would undo it.
+		...((input.runtimeRequirements ?? []).length > 0
+			? [pipInstall(`--no-deps ${quote(input.runtimeRequirements ?? [])}`, "runtime-requirements")]
+			: []),
 	];
 }
 
@@ -547,6 +588,7 @@ export function buildSwebenchGradeScript(
 	pep518BuildRequires: readonly string[] = [],
 	unresolvedPins: readonly string[] = [],
 	extraBuildRequirements: readonly string[] = [],
+	runtimeRequirements: readonly string[] = [],
 ): string {
 	const facts = graderEntryFacts(entry);
 	const quote = (parts: readonly string[]) => parts.map((part) => shellQuote(part)).join(" ");
@@ -566,6 +608,7 @@ export function buildSwebenchGradeScript(
 			pep518BuildRequires,
 			unresolvedPins,
 			extraBuildRequirements,
+			runtimeRequirements,
 		}),
 		...(entry.httpbinService
 			? [
@@ -1178,6 +1221,7 @@ export async function gradeSwebenchWorkspace(
 				readPep518BuildRequires(input.workspaceCopyDir),
 				unresolvedPins,
 				readExtraBuildRequirements(input.cacheRoot, input.entry),
+				readRuntimeRequirements(input.cacheRoot, input.entry),
 			),
 		]);
 		stdout = result.stdout;
@@ -1213,6 +1257,29 @@ export async function gradeSwebenchWorkspace(
 	// an environment defect lives in the INSTALL stages, thousands of lines above the tail. Naming a directory
 	// here writes the whole grader transcript there, one file per instance. Opt-in, because a full Verified run
 	// would otherwise leave 500 multi-megabyte logs behind.
+	// A CONTROL may discover a runtime import nothing declares — the closure probe proves an INSTALL, and these
+	// only appear when tests are collected. Recording is gated on an env var the control sweep sets and a scored
+	// run never does: a graded arm must not quietly repair its own environment mid-benchmark.
+	if (process.env.NKLEIN_SWEBENCH_RECORD_RUNTIME_REQS) {
+		const discovered = [
+			...new Set(
+				[...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? ""),
+			),
+		].filter(Boolean);
+		const known = readRuntimeRequirements(input.cacheRoot, input.entry);
+		const added = discovered.filter((name) => !known.includes(name));
+		if (added.length > 0) {
+			try {
+				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));
+				await writeFile(join(dir, SWEBENCH_RUNTIME_REQUIREMENTS), `${[...known, ...added].join("\n")}\n`);
+				// The closure is no longer complete once we know it lacks something, so the marker goes: the next
+				// `prepare` re-proves it, and its probe — which installs these too — pulls the wheels in.
+				await rm(join(dir, SWEBENCH_PREPARE_MARKER), { force: true });
+			} catch {
+				// A diagnostic sink must never change a verdict.
+			}
+		}
+	}
 	const logDir = process.env.NKLEIN_SWEBENCH_GRADER_LOG_DIR;
 	if (logDir) {
 		try {
