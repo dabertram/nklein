@@ -29,6 +29,7 @@ import {
 	isSwebenchRequirementsSentinel,
 	parseCondaEnvironmentYml,
 	parsePep518BuildRequires,
+	parseSetupRequires,
 	passedIdsFromOutput,
 	rewriteSwebenchRepoLine,
 	SWEBENCH_REPO_REQUIREMENTS_PATHS,
@@ -107,6 +108,7 @@ export function buildSwebenchPrepareScript(
 	extraPins: readonly string[] = [],
 	repoRequirementsFile: string | null = null,
 	pep518BuildRequires: readonly string[] = [],
+	setupRequires: readonly string[] = [],
 ): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
@@ -156,6 +158,9 @@ export function buildSwebenchPrepareScript(
 		},
 		...(entry.extraRequirements.length > 0
 			? [{ label: "extras", args: entry.extraRequirements.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
+			: []),
+		...(setupRequires.length > 0
+			? [{ label: "setup-requires", args: setupRequires.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
 			: []),
 	];
 	return [
@@ -434,6 +439,7 @@ export async function prepareSwebenchWheels(
 	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
 	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
+	const setupRequires = readSetupRequires(input.sourceDir);
 	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
 	const prepared = await deps.exec("docker", [
 		"run",
@@ -452,6 +458,7 @@ export async function prepareSwebenchWheels(
 			extraPins,
 			repoRequirements,
 			buildRequires,
+			setupRequires,
 		),
 	]);
 	// A stage that could not resolve leaves the cache short of wheels the sealed grade will ask for, and a silent
@@ -496,6 +503,15 @@ function setuptoolsScmPretendVersion(treeDir: string, instanceVersion: string | 
 function readPep518BuildRequires(treeDir: string): string[] {
 	const path = join(treeDir, "pyproject.toml");
 	return existsSync(path) ? parsePep518BuildRequires(readFileSync(path, "utf8")) : [];
+}
+
+/**
+ * The checkout's `setup_requires`, read host-side. setuptools resolves these by spawning its own pip at build
+ * time, so they belong in the wheel closure even though nothing else asks for them.
+ */
+function readSetupRequires(treeDir: string): string[] {
+	const path = join(treeDir, "setup.py");
+	return existsSync(path) ? parseSetupRequires(readFileSync(path, "utf8")) : [];
 }
 
 async function materializeRepoRequirements(entry: SwebenchGraderEntry, treeDir: string): Promise<string | null> {

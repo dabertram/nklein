@@ -9,6 +9,7 @@ import {
 	normalizeSwebenchSpecRow,
 	parseCondaEnvironmentYml,
 	parsePep518BuildRequires,
+	parseSetupRequires,
 	parseSwebenchSpecDump,
 	passedIdsFromDjangoOutput,
 	passedIdsFromOutput,
@@ -421,5 +422,25 @@ describe("era constraints", () => {
 		const lines = swebenchEraConstraintLines();
 		expect(lines[0]).toContain("setuptools<82");
 		expect(lines[1]).toBe("export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt");
+	});
+});
+
+describe("setup_requires", () => {
+	it("reads the literal list a legacy setup.py declares", () => {
+		const setupPy = [
+			"setup(",
+			'    name="matplotlib",',
+			"    setup_requires=[",
+			'        "certifi>=2020.06.20",',
+			'        "numpy>=1.19",',
+			'        "setuptools_scm>=7",',
+			"    ],",
+			")",
+		].join("\n");
+		expect(parseSetupRequires(setupPy)).toEqual(["certifi>=2020.06.20", "numpy>=1.19", "setuptools_scm>=7"]);
+	});
+
+	it("reads nothing when there is no setup_requires", () => {
+		expect(parseSetupRequires('setup(name="x", install_requires=["a"])')).toEqual([]);
 	});
 });

@@ -495,6 +495,27 @@ export function swebenchEraConstraintLines(): string[] {
 	];
 }
 
+/**
+ * The `setup_requires=[...]` literal from a legacy `setup.py`.
+ *
+ * These are neither install requirements nor PEP 518 build requirements: setuptools resolves them AT BUILD TIME
+ * by spawning its own `pip wheel`, so `pip download /src` never sees them and they never enter the wheel cache.
+ * matplotlib 3.6's setup.py asks for `certifi>=2020.06.20`, the nested pip found nothing in the sealed cache,
+ * and the editable install died with `metadata-generation-failed` — six specs, every pass-to-pass test lost.
+ *
+ * Deliberately literal: only a straight list of string literals is read. A computed `setup_requires` cannot be
+ * resolved without executing the file, and guessing is worse than the honest miss the prepare now reports.
+ */
+export function parseSetupRequires(setupPy: string): string[] {
+	const block = /setup_requires\s*=\s*\[([\s\S]*?)\]/u.exec(setupPy);
+	if (!block?.[1]) {
+		return [];
+	}
+	return [...block[1].matchAll(/"([^"]*)"|'([^']*)'/gu)]
+		.map((match) => (match[1] ?? match[2] ?? "").trim())
+		.filter(Boolean);
+}
+
 export function swebenchTestCommand(testCmd: string): string {
 	return testCmd.replace(/(^|\s)--current-env(\s|$)/u, "$1--runner current-env$2");
 }
