@@ -104,6 +104,26 @@ that install succeeds. It also drives the closure to completion — each round d
 install named as missing, three rounds at most. Run `NKLEIN_SWEBENCH_GRADER_LOG_DIR=<dir>` to keep full grader
 transcripts; the receipt's 2 kB tail cannot diagnose an install.
 
+## The gate is closed (2026-09-16)
+
+**81 of 81 environments pass their negative control** — every one graded with the test patch applied and NO fix,
+where all 10,729 pass-to-pass ids must pass by construction. The per-spec receipts are archived beside this
+runbook as `docs/benchmarks/swebench-controls-2026-09-16.jsonl`.
+
+Getting here took **57 defects**, every one in this harness rather than in a repository. Two would have
+corrupted scores silently rather than failing loudly, and they are the ones to remember:
+
+- **tox ran the tests in an environment we never built.** Even with `--runner current-env` it prepends
+  `.tox/<env>/bin` to PATH, so pytest and every import resolved from a virtualenv the sealed install never
+  touched. Nine sphinx specs failed and six PASSED BY LUCK, because that private environment happened to hold
+  what they needed.
+- **green read as red, twice.** ANSI colour made `PASSED` lines invisible to the parser, and the era pytest
+  writes `<id> PASSED` where the modern one writes `PASSED <id>`. A suite printing `322 passed` scored zero.
+
+**71 ids are sealed across 11 specs**, each with its cause on the receipt: tests that reach the internet, ids
+that do not exist in this checkout, and a handful that fail in a pristine tree for reasons the environment does
+not explain. A score always says what it did not run.
+
 ## Known gaps (2026-09-16)
 
 - ~~**Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).**~~ CLOSED 2026-09-16
