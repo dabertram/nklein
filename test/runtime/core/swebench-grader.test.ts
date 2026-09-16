@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
-import { parseSwebenchSpecDump, resolveSwebenchEnv } from "../../../src/core/swebench-env-spec";
+import { parseSwebenchSpecDump, resolveSwebenchEnv, swebenchPipRequirement } from "../../../src/core/swebench-env-spec";
 import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
@@ -79,7 +79,7 @@ describe("buildSwebenchGradeScript", () => {
 			expect(line, `not diagnosable: ${line}`).toContain("SWEBENCH_PIP_FAILED");
 		}
 		const [pipUpgrade, toolchain, editable, extras] = pipLines;
-		expect(pipUpgrade).toContain("--upgrade pip");
+		expect(pipUpgrade).toContain("--upgrade 'pip'");
 		expect(toolchain).toContain("'wheel'");
 		expect(toolchain).toContain("'setuptools<81'");
 		expect(toolchain).toContain("'setuptools-scm'");
@@ -242,7 +242,7 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			// passed in (here: the flattened file the grader writes beside the tree).
 			const script = buildSwebenchGradeScript(env, sealed.plan, [], ".nklein-swebench-requirements.txt");
 			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
-			expect(pipLines[0]).toContain("--upgrade pip");
+			expect(pipLines[0]).toContain("--upgrade 'pip'");
 			// Order matters more than position: requirements file, then the spec's pins, then the BUILD
 			// prerequisites, then the editable install. (The pin stage emits a per-pin fallback too.)
 			const at = (needle: string) => pipLines.findIndex((line) => line.includes(needle));
@@ -387,5 +387,17 @@ describe("resolution failures", () => {
 		const line =
 			"ERROR: Could not find a version that satisfies the requirement cython>=3.0.10 (from versions: none)";
 		expect(resolutionFailures(line)).toEqual([{ requirement: "cython>=3.0.10", absent: true }]);
+	});
+});
+
+describe("pip era", () => {
+	it("keeps the pip that still HAS --no-use-pep517 when the spec passes it", () => {
+		expect(swebenchPipRequirement("python -m pip install -v --no-use-pep517 --no-build-isolation -e .")).toBe(
+			"pip<23.1",
+		);
+	});
+
+	it("takes the newest pip otherwise", () => {
+		expect(swebenchPipRequirement("python -m pip install -e .")).toBe("pip");
 	});
 });

@@ -40,6 +40,7 @@ import {
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
 	swebenchLegacyCBuildEnvLines,
+	swebenchPipRequirement,
 	swebenchSpecBuildRequirements,
 	swebenchSpecPinConstraintArg,
 	swebenchTestCommand,
@@ -350,8 +351,11 @@ export function buildSwebenchProbeScript(input: {
 export function swebenchToolchainRequirements(entry: SwebenchGraderEntry): string[] {
 	const pinnedSetuptools = entry.preInstallRequirements.find((requirement) => requirement.startsWith("setuptools"));
 	return [
-		// The venv's bundled pip is far too old to read modern wheel tags; it is upgraded first, from here.
+		// The venv's bundled pip is far too old to read modern wheel tags; it is upgraded first, from here. A spec
+		// that still passes `--no-use-pep517` needs the pip era that still HAS the option — see
+		// swebenchPipRequirement — so both candidates ride into the cache.
 		"pip",
+		swebenchPipRequirement(graderEntryFacts(entry).installCommand),
 		"wheel",
 		pinnedSetuptools ?? "setuptools",
 		...entry.buildRequirements,
@@ -438,7 +442,7 @@ export function buildSwebenchInstallLines(input: {
 		// `bcrypt-4.0.1-cp36-abi3-manylinux_2_28_aarch64.whl`; the venv's pip then reported "from versions: )" for
 		// a file sitting in front of it, and django 3.0/3.2's whole requirements install failed over it. `pip`
 		// alone is a no-op to a pip that considers itself satisfied, hence --upgrade.
-		pipInstall("--upgrade pip", "pip-upgrade"),
+		pipInstall(`--upgrade ${shellQuote(swebenchPipRequirement(facts.installCommand))}`, "pip-upgrade"),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -461,7 +465,22 @@ export function buildSwebenchInstallLines(input: {
 		`if [ -d /cache/build/${swebenchWheelCacheKey(entry)} ]; then mkdir -p ${root}/build && cp -a /cache/build/${swebenchWheelCacheKey(entry)}/. ${root}/build/ 2>/dev/null || true; fi`,
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
-			? [pipInstall(`${specPinArg}-r '${root}/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
+			? [
+					// A requirements FILE resolves as a unit too, and one line can lose the other two hundred:
+					// django's list pulls `pylibmc`, whose C extension needs memcached headers. Same joint-then-
+					// per-line shape as the pin stage, reading the lines back from the file itself.
+					(() => {
+						const file = `${root}/${repoRequirementsFile ?? packages.requirementsFile}`;
+						return [
+							`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}-r '${file}' 2>&1; then`,
+							`  while read -r req; do`,
+							'    case "$req" in ""|"#"*) continue;; esac',
+							`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$req" 2>&1 || echo "SWEBENCH_PIN_SKIPPED $req"`,
+							`  done < '${file}'`,
+							"fi",
+						].join("\n");
+					})(),
+				]
 			: []),
 		// The package stage installs as a unit, then PIN BY PIN when that unit cannot resolve — the same shape the
 		// download uses, and for the same reason. Upstream's lists are conda environments carrying documentation

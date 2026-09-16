@@ -368,7 +368,7 @@ export function buildSwebenchEnvDockerfile(input: {
 	lines.push(
 		[
 			"RUN set -eu; \\",
-			'\tpkgs="gfortran libopenblas-dev liblapack-dev libfreetype6-dev libpng-dev zlib1g-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev libjpeg-dev"; \\',
+			'\tpkgs="gfortran libopenblas-dev liblapack-dev libfreetype6-dev libpng-dev zlib1g-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev libjpeg-dev libmemcached-dev"; \\',
 			"\t( apt-get update && apt-get install -y --no-install-recommends $pkgs ) || \\",
 			"\t\t( apt-get -o Acquire::Check-Valid-Until=false update && for p in $pkgs; do \\",
 			'\t\t\tapt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends "$p" || true; \\',
@@ -555,6 +555,20 @@ export function swebenchInstallExtras(installCommand: string): string {
 	return /(?:^|\s)(?:-e\s+)?\.(\[[^\]]*\])/u.exec(installCommand)?.[1] ?? "";
 }
 
+/**
+ * The pip the venv should be upgraded to for this install command.
+ *
+ * `--no-use-pep517` was REMOVED in pip 23.1, and it is not decoration: scikit-learn 1.3 declares
+ * `setuptools<60.0` as its build backend, and setuptools gained PEP 660's `build_editable` only in 64. Without
+ * the flag, modern pip refuses with "uses a build backend that is missing the 'build_editable' hook"; with it on
+ * a modern pip, `no such option`. The flag's PRESENCE is the spec telling us which pip era it was written for,
+ * so that is the pip we install. Everything else gets the newest, because the interpreter's bundled pip is
+ * routinely too old to read modern wheel tags at all.
+ */
+export function swebenchPipRequirement(installCommand: string): string {
+	return /--no-use-pep517/u.test(installCommand) ? "pip<23.1" : "pip";
+}
+
 export function sealedInstallCommand(installCommand: string, wheelsArgs: string, root = "/work"): string {
 	const pip = /(?:python(?:3)?\s+-m\s+)?pip\s+install\s+(.*)$/.exec(installCommand.trim());
 	if (!pip) {
@@ -570,6 +584,7 @@ export function sealedInstallCommand(installCommand: string, wheelsArgs: string,
 			(_m, lead: string, extras: string | undefined) => `${lead}${root}${extras ?? ""}`,
 		)
 		.replace(/--no-build-isolation/g, "")
+
 		.trim();
 	return `python -m pip install --disable-pip-version-check -q ${wheelsArgs} --no-build-isolation ${rest}`.replace(
 		/\s+/g,
