@@ -732,7 +732,11 @@ export function flattenSwebenchRequirements(
 			continue;
 		}
 		if (!excluded(line)) {
-			lines.push(trimmed);
+			// Strip pip's inline comments HERE, so the flattened file's lines are usable as arguments too. pip
+			// strips them when reading a requirements FILE and not when reading an argument, and the per-line
+			// fallback passes arguments: `astroid==3.0.0a8  # Pinned for tests` failed as a pin that is perfectly
+			// good. Only a `#` preceded by whitespace is a comment — `...#egg=name` is part of the URL.
+			lines.push(trimmed.replace(/\s+#.*$/u, "").trim());
 		}
 	}
 	return lines;

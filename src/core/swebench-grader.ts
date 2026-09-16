@@ -509,8 +509,13 @@ export function buildSwebenchInstallLines(input: {
 						const file = `${root}/${repoRequirementsFile ?? packages.requirementsFile}`;
 						return [
 							`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}-r '${file}' 2>&1; then`,
-							`  while read -r req; do`,
-							'    case "$req" in ""|"#"*) continue;; esac',
+							`  while read -r line; do`,
+							// pip strips a requirements file's inline comments; it does NOT strip them from an
+							// ARGUMENT. Passing `astroid==3.0.0a8  # Pinned for tests` verbatim made pip fail on a
+							// perfectly good pin, which the probe then recorded as unavailable and the grade dropped
+							// — pylint 3.0 fell back to the spec's older astroid and lost 17 pass-to-pass tests.
+							`    req=$(printf '%s' "$line" | sed -E 's/[[:space:]]*#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//')`,
+							'    case "$req" in "") continue;; esac',
 							`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$req" 2>&1 || echo "SWEBENCH_PIN_SKIPPED $req"`,
 							`  done < '${file}'`,
 							"fi",
@@ -537,26 +542,25 @@ export function buildSwebenchInstallLines(input: {
 			: []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [
-					pipInstall(
-						quote([
-							...new Set([
-								...swebenchSpecBuildRequirements(entry),
-								...pep518BuildRequires,
-								...(input.extraBuildRequirements ?? []),
-							]),
+					`python -m pip install --disable-pip-version-check -q ${wheels} ${quote([
+						...new Set([
+							...swebenchSpecBuildRequirements(entry),
+							...pep518BuildRequires,
+							...(input.extraBuildRequirements ?? []),
 						]),
-						"build-requirements",
-					),
+					])} > /tmp/swebench-build-requirements.log 2>&1 || echo "SWEBENCH_PIP_FAILED build-requirements"`,
+					"cat /tmp/swebench-build-requirements.log",
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root)} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
 						.trim(),
 					"editable",
 				)}`,
+		"cat /tmp/swebench-editable.log 2>/dev/null || true",
 		...(!facts.fromSpec && entry.extraRequirements.length > 0
 			? [pipInstall(quote(entry.extraRequirements), "extras")]
 			: []),
@@ -570,7 +574,26 @@ export function buildSwebenchInstallLines(input: {
 		// --no-deps restores the environment the spec defines, and is a no-op when nothing moved.
 		...(() => {
 			const exact = specExactPins(packagePins);
-			return facts.fromSpec && exact.length > 0 ? [pipInstall(`--no-deps ${quote(exact)}`, "pins-reassert")] : [];
+			if (!facts.fromSpec || exact.length === 0) {
+				return [];
+			}
+			// WHICH pins to restore is the whole question, and the two stages answer it differently.
+			// A pin the BUILD-REQUIREMENTS stage moved was moved by US — astropy 5.1's `oldest-supported-numpy`
+			// dragged numpy to 1.19.3, the editable install then jumped to 2.0.2, and pyerfa's ABI broke.
+			// A pin the EDITABLE install moved was moved by the REPO, deliberately: pylint 3.0 needs an astroid
+			// newer than the spec's `astroid==3.0.0a6`, and forcing a6 back produced
+			// `module 'astroid.nodes' has no attribute 'Try'` at collection — 18 pass-to-pass tests lost in a
+			// pristine tree. Upstream never re-asserts after the install, so neither do we for those.
+			return [
+				'SWEBENCH_REASSERT=""',
+				`for pin in ${quote(exact)}; do`,
+				"  name=$(printf '%s' \"$pin\" | sed -E 's/[<>=!~[].*//' | tr 'A-Z_' 'a-z-')",
+				'  moved_by_build=$(grep -ciE "Installing collected packages:.*(^|[ ,])$name([ ,]|$)" /tmp/swebench-build-requirements.log 2>/dev/null || true)',
+				'  moved_by_repo=$(grep -ciE "Installing collected packages:.*(^|[ ,])$name([ ,]|$)" /tmp/swebench-editable.log 2>/dev/null || true)',
+				'  if [ "${moved_by_build:-0}" != "0" ] || [ "${moved_by_repo:-0}" = "0" ]; then SWEBENCH_REASSERT="$SWEBENCH_REASSERT $pin"; fi',
+				"done",
+				`if [ -n "$SWEBENCH_REASSERT" ]; then python -m pip install --disable-pip-version-check -q ${wheels} --no-deps $SWEBENCH_REASSERT 2>&1 || echo "SWEBENCH_PIP_FAILED pins-reassert"; fi`,
+			];
 		})(),
 		// Last, so nothing can clobber them: the runtime imports a control found missing. Installed with --no-deps
 		// because the environment is otherwise already the spec's, and a dependency cascade here would undo it.
