@@ -2874,8 +2874,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   parser (green read as red — the worst kind), a prepare marker written over an incomplete closure, the install
   command's extras missing from the closure, `tox --current-env` being inert on tox 4.16, setuptools 82 removing
   `pkg_resources`, and a repo's own nested `pip` carrying none of our offline flags.
-  **REMAINING:** finish the per-spec control gate (re-sweep after each fix until every spec is clean or has a recorded
-  gap), then run the arms;
+  The structural answer to finding these one instance at a time is the **closure probe**: `prepare` now performs the
+  sealed grade's OWN install — offline against the cache it just filled, in a throwaway venv, in a second container
+  run — and refuses to mark the cache complete unless that install succeeds. One shared definition of the install
+  (`buildSwebenchInstallLines`), because a probe that installs differently from the grade proves nothing about the
+  grade. It also DRIVES the closure: each round downloads exactly what the sealed install named as missing, three
+  rounds at most. Five more defects fell out of it (findings 21–25) plus the venv's own pip 18.1, which predates
+  PEP 600 and cannot read a `manylinux_2_28` wheel the download had already fetched.
+  **REMAINING:** finish the per-spec control gate (re-prove all 81 closures, re-sweep controls until every spec is
+  clean or has a recorded gap), then run the arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
