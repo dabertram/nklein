@@ -360,6 +360,21 @@ export function buildSwebenchEnvDockerfile(input: {
 			"\trm -rf /var/lib/apt/lists/*",
 		].join("\n"),
 	];
+	// The scientific stack builds against system libraries upstream gets from conda: scikit-learn 0.20's editable
+	// install died with `numpy.distutils.system_info.NotFoundError: No lapack/blas resources found`, and the older
+	// matplotlib specs want freetype and png headers. Best-effort ON PURPOSE — an archived suite may not carry
+	// every name, and a missing optional library must not cost us the whole image.
+	lines.push(
+		[
+			"RUN set -eu; \\",
+			'\tpkgs="gfortran libopenblas-dev liblapack-dev libfreetype6-dev libpng-dev zlib1g-dev"; \\',
+			"\t( apt-get update && apt-get install -y --no-install-recommends $pkgs ) || \\",
+			"\t\t( apt-get -o Acquire::Check-Valid-Until=false update && for p in $pkgs; do \\",
+			'\t\t\tapt-get -o Acquire::Check-Valid-Until=false install -y --no-install-recommends "$p" || true; \\',
+			"\t\tdone ) || true; \\",
+			"\trm -rf /var/lib/apt/lists/*",
+		].join("\n"),
+	);
 	const { image } = splitSwebenchPreInstall(input.preInstall);
 	if (image.length > 0) {
 		lines.push(`RUN ${image.map((line) => line.replace(/\n/g, " ")).join(" && ")}`);

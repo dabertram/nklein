@@ -758,13 +758,22 @@ export async function prepareSwebenchWheels(
 		];
 		const repoName = input.entry.repo.split("/").pop()?.toLowerCase() ?? "";
 		const normalize = (pin: string) => (pin.split(/[<>=!~;[\s]/u)[0] ?? "").trim().toLowerCase().replace(/_/gu, "-");
+		// pip distinguishes the two cases precisely, in the same sentence: "(from versions: none)" means the
+		// distribution is ABSENT from the cache and can be fetched, while a NON-EMPTY list means every candidate
+		// present was discarded — matplotlib 3.3.4's sdist is in scikit-learn 0.20's cache and its
+		// `setup.py egg_info` fails for want of freetype headers. Fetching it again would change nothing.
 		const unbuildable = [
-			...new Set(
-				[...probed.stdout.matchAll(/Failed building wheel for (\S+)/gu)].map((match) =>
-					(match[1] ?? "").toLowerCase().replace(/_/gu, "-"),
-				),
-			),
-		].filter((name) => name && name !== repoName);
+			...new Set([
+				...[...probed.stdout.matchAll(/Failed building wheel for (\S+)/gu)].map((match) => match[1] ?? ""),
+				...[
+					...probed.stdout.matchAll(
+						/Could not find a version that satisfies the requirement (\S+) \(from versions: (?!none\))/gu,
+					),
+				].map((match) => match[1] ?? ""),
+			]),
+		]
+			.map((name) => name.toLowerCase().replace(/_/gu, "-"))
+			.filter((name) => name && name !== repoName);
 		const newlyUnresolvable = candidatePins.filter((pin) => unbuildable.includes(normalize(pin)));
 		if (newlyUnresolvable.length > 0) {
 			const path = join(input.cacheRoot, "wheels", key, SWEBENCH_UNRESOLVED_PINS);
@@ -775,9 +784,11 @@ export async function prepareSwebenchWheels(
 		}
 		const missing = [
 			...new Set(
-				[...probed.stdout.matchAll(/Could not find a version that satisfies the requirement (\S+)/gu)].map(
-					(match) => match[1] ?? "",
-				),
+				[
+					...probed.stdout.matchAll(
+						/Could not find a version that satisfies the requirement (\S+) \(from versions: none\)/gu,
+					),
+				].map((match) => match[1] ?? ""),
 			),
 		].filter((requirement) => requirement && !readUnresolvedPins(input.cacheRoot, input.entry).includes(requirement));
 		if (missing.length === 0 || round === 6) {
