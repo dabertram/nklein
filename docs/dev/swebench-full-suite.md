@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced twenty-five defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced thirty-one defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -76,6 +76,12 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 23 | matplotlib 3.7: `ResolutionImpossible` — `pandas==3.0.5` against `numpy==1.25.2` | upstream's package lists are conda environments whose entries mostly carry no version, and pip resolves those to TODAY's releases | the spec's own exact pins constrain every resolution, download included — which is what conda did for upstream (`7ab52c4c5`) |
 | 24 | matplotlib 3.7: `Failed to download qhull-2020-src-8.0.2.tgz` and the same for freetype | a repo's build fetches sources OUTSIDE pip: a pre_install wget into `build/`, and an XDG-cached freetype during `build_ext`. Both work while preparing and cannot work under `--network none` | the prepare's probe warms both and every grade replays them (`7ab52c4c5`) |
 | 25 | one unavailable pin killed a whole stage (conda-only `pyqt`, `pygobject`, `wxpython`, `gtk4`) | the stage resolved as a unit, so `numpy` was lost along with the GUI toolkit beside it | non-fatal stages retry pin by pin, record what cannot resolve here, and the grade drops exactly those and NAMES them in the verdict (`7ab52c4c5`) |
+| 26 | django 3.0/3.2: `No matching distribution found for bcrypt` for a wheel sitting in the cache | `python -m venv` seeds the interpreter's OWN bundled pip — pip 18.1 on the python 3.6 image — which predates PEP 600 and cannot read a `manylinux_2_28` or abi3 tag | upgrade the venv's pip from the cache before anything else resolves (`99312822f`) |
+| 27 | sphinx and scikit-learn: ResolutionImpossible after the matplotlib fix | making the spec's pins a GLOBAL constraint contradicts the spec itself — sphinx pins `Jinja2==3.0.3` while its own pre_install rewrites setup.py to `Jinja2<3.0`, which upstream satisfies by installing in sequence | the pins constrain the PACKAGE stages only, via `-c` (`99312822f`, `89a9bbbbb`) |
+| 28 | sphinx: `install_requires` rejected as an invalid specifier | the probe re-ran a repo pre_install the download had already applied to the same tree, and those `sed` lines are not idempotent | the probe skips it; the grade still runs it on its fresh copy (`265a5b0d1`) |
+| 29 | matplotlib 3.5/3.6: packages stage lost numpy | `wxpython` downloads as an sdist and then compiles wxWidgets, needing GTK development libraries — a pin can download and still fail to build | the probe reads `Failed building wheel for X` and records it; pip's own "(from versions: none)" vs a non-empty list separates absent from unusable (`3163aa397`, `c1df40b2b`) |
+| 30 | matplotlib 3.0: `cc1: error: '-Wno-error=return-mismatch': no option '-Wreturn-mismatch'` | an OLD gcc treats an unknown `-Wno-error=` as a hard ERROR, and the images span GCC 8 to GCC 14.2 | each flag is probed against the image's own compiler; only supported ones are exported (`fba9abf25`) |
+| 31 | scikit-learn 0.20–1.3: `NotFoundError: No lapack/blas resources found` | upstream's environments are conda, which ships BLAS/LAPACK as packages; a `python:X-slim` image ships none | the base layer installs gfortran, OpenBLAS, LAPACK, freetype, png and zlib, best-effort per package on archived suites (`c1df40b2b`) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and EVERY "pass-to-pass
 regression" in a pristine tree so far was our harness diverging from upstream, not a broken repo.
@@ -88,11 +94,13 @@ transcripts; the receipt's 2 kB tail cannot diagnose an install.
 
 ## Known gaps (2026-09-16)
 
-- **Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).** Their `setup.py` bootstraps from
-  the `astropy_helpers` GIT SUBMODULE, and a mirror `git archive` cannot carry submodule contents, so the tree has an
-  empty `astropy_helpers/` and metadata generation fails (`python setup.py egg_info`). Fixing it means materializing
-  submodules (a second mirror per submodule + `git archive` per submodule commit). Until then these two specs have no
-  wheel cache and their instances are not runnable; every other Verified spec prepared.
+- ~~**Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).**~~ CLOSED 2026-09-16
+  (`8b914eb28`): `materialize` reads the gitlinks out of the parent tree, pairs each with the URL `.gitmodules`
+  records, mirrors that repository once, archives it at the commit the parent pins, and re-tars the whole tree.
+- **Platform substitutions are recorded, not silent.** Some pins have no distribution that works on aarch64 or on an
+  era interpreter — conda-only GUI toolkits (`pyqt`, `pygobject`, `wxpython`, `gtk3`/`gtk4`), `scipy==1.5.2` with no
+  cp36 wheel, `bcrypt` on cp36. The prepare records them in `SWEBENCH_UNRESOLVED.txt` beside the wheels, the grade
+  drops exactly those, and the verdict NAMES them as an environment substitution.
 - **matplotlib env images** install texlive per upstream's `pre_install` (multiple GB each, 6 images). They need
   Docker disk headroom; build them alone, not beside the download sweep.
 
