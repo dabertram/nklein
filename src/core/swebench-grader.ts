@@ -35,8 +35,11 @@ import {
 	type SwebenchResolvedEnv,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
+	swebenchEraConstraintLines,
 	swebenchGraderImageFor,
+	swebenchInstallExtras,
 	swebenchSpecBuildRequirements,
+	swebenchTestCommand,
 	withSwebenchLegacyCBuildEnv,
 } from "./swebench-env-spec";
 import type { SwebenchInstanceMetadata } from "./swebench-instance";
@@ -145,7 +148,12 @@ export function buildSwebenchPrepareScript(
 				.join(" "),
 			fatal: false,
 		},
-		{ label: "repo", args: "/src", fatal: true },
+		{
+			// The extras the install command names ride along: they are part of the environment being cached.
+			label: "repo",
+			args: shellQuote(`/src${swebenchInstallExtras(graderEntryFacts(entry).installCommand)}`),
+			fatal: true,
+		},
 		...(entry.extraRequirements.length > 0
 			? [{ label: "extras", args: entry.extraRequirements.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
 			: []),
@@ -154,6 +162,8 @@ export function buildSwebenchPrepareScript(
 		"set -eu",
 		// Accumulates the labels of non-fatal stages that failed; the completion marker is gated on it being empty.
 		'incomplete=""',
+		// The same era constraints the grade uses, so a release the grade must not resolve never enters the cache.
+		...swebenchEraConstraintLines(),
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
@@ -230,6 +240,15 @@ export function buildSwebenchGradeScript(
 		"set -u",
 		"python -m venv /tmp/venv",
 		"export PATH=/tmp/venv/bin:$PATH",
+		// Our own pip calls carry --no-index --find-links, but a repo's build can spawn pip ITSELF and that child
+		// carries neither. matplotlib's setup.py resolves `setup_requires` by running
+		// `pip wheel --no-deps -w <tmp> 'numpy>=1.19'`, which reaches for PyPI, and under `--network none` the
+		// editable install died with `metadata-generation-failed` — six matplotlib specs, every pass-to-pass test
+		// scored as a regression. pip reads these variables on EVERY invocation, so they reach the nested call too.
+		"export PIP_NO_INDEX=1",
+		`export PIP_FIND_LINKS=/cache/wheels/${swebenchWheelCacheKey(entry)}`,
+		"export PIP_DISABLE_PIP_VERSION_CHECK=1",
+		...swebenchEraConstraintLines(),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -292,9 +311,9 @@ export function buildSwebenchGradeScript(
 		// reach the test commands below.
 		...("evalCommands" in entry ? entry.evalCommands.map((line) => `${line} 2>&1 || true`) : []),
 		"echo '===SWEBENCH_F2P==='",
-		`${facts.testCmd} ${quote(plan.failToPassCommand)} 2>&1 || true`,
+		`${swebenchTestCommand(facts.testCmd)} ${quote(plan.failToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_P2P==='",
-		`${facts.testCmd} ${quote(plan.passToPassCommand)} 2>&1 || true`,
+		`${swebenchTestCommand(facts.testCmd)} ${quote(plan.passToPassCommand)} 2>&1 || true`,
 		"echo '===SWEBENCH_END==='",
 	].join("\n");
 }

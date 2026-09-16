@@ -453,6 +453,56 @@ export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): strin
  * keep their extras (`-e .[test]` → `-e /work[test]`) and gain `--no-index --find-links` + `--no-build-isolation`;
  * anything else (`python setup.py develop`) runs verbatim inside /work.
  */
+/**
+ * The extras the spec's install command asks for, as pip spells them (`"[test]"`, or `""`). The PREPARE download
+ * must target the same thing the install does: sphinx's spec installs `-e .[test]`, we downloaded a bare `/src`,
+ * and the `[test]` extra's requirements — pytest among them — never entered the wheel closure. Every sealed
+ * sphinx grade then failed the editable install with "No matching distribution found for pytest" and tox ran a
+ * pristine `.tox/py39` with nothing in it: fifteen specs, every pass-to-pass test scored as a regression.
+ */
+/**
+ * The spec's `test_cmd`, with one rewrite: `tox --current-env` becomes `tox --runner current-env`.
+ *
+ * tox-current-env 0.0.11 still REGISTERS `--current-env` on tox 4.16 — `tox --help` lists it — but the flag is
+ * inert there: tox builds `.tox/py39` anyway and runs its empty interpreter. Proven side by side in the sealed
+ * container on 2026-09-16: `--current-env` gave `No module named pytest` from `/work/.tox/py39/bin/python`,
+ * while `--runner current-env` ran the tests in the environment we installed. Fifteen sphinx specs depend on it.
+ */
+/**
+ * Caps on packages whose MODERN releases break era code, applied to every pip invocation in both the prepare
+ * download and the sealed grade (pip honours `PIP_CONSTRAINT` in nested calls too, which is the point — a
+ * repo's own build spawns pip and carries none of our flags).
+ *
+ * Upstream's published images froze their dependency resolution in 2024; ours resolves today. Where that drift
+ * is merely newer, it is harmless. Where a package REMOVED something the era depends on, it is fatal, and the
+ * only durable fix is to keep the offending release out of the wheel cache entirely — a constraint the grade
+ * cannot then resolve around.
+ *
+ * Each entry names the evidence:
+ * - `setuptools<82`: setuptools 82 removed `pkg_resources`. sphinx 4.1's `sphinx/registry.py` imports
+ *   `iter_entry_points` from it, so every sealed sphinx grade aborted at collection with
+ *   `No module named 'pkg_resources'`. Capping at 80.10.2 (verified to still ship it) fixes fifteen specs.
+ *   The upgrade did not come from our own install line — tox's `usedevelop = True` runs its OWN `pip install -e .`
+ *   inside the graded environment, which is exactly why this has to be a constraint and not a pin.
+ */
+export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82"];
+
+/** The shell lines that materialize the era constraints and point every pip invocation at them. */
+export function swebenchEraConstraintLines(): string[] {
+	return [
+		`printf '%s\\n' ${SWEBENCH_ERA_CONSTRAINTS.map((line) => `'${line}'`).join(" ")} > /tmp/swebench-era-constraints.txt`,
+		"export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt",
+	];
+}
+
+export function swebenchTestCommand(testCmd: string): string {
+	return testCmd.replace(/(^|\s)--current-env(\s|$)/u, "$1--runner current-env$2");
+}
+
+export function swebenchInstallExtras(installCommand: string): string {
+	return /(?:^|\s)(?:-e\s+)?\.(\[[^\]]*\])/u.exec(installCommand)?.[1] ?? "";
+}
+
 export function sealedInstallCommand(installCommand: string, wheelsArgs: string): string {
 	const pip = /(?:python(?:3)?\s+-m\s+)?pip\s+install\s+(.*)$/.exec(installCommand.trim());
 	if (!pip) {

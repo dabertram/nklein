@@ -20,8 +20,11 @@ import {
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
 	stripAnsiEscapes,
+	swebenchEraConstraintLines,
 	swebenchGraderImageFor,
+	swebenchInstallExtras,
 	swebenchSpecKey,
+	swebenchTestCommand,
 	sympyTestFiles,
 	withSwebenchLegacyCBuildEnv,
 } from "../../../src/core/swebench-env-spec";
@@ -392,5 +395,31 @@ describe("coloured test output", () => {
 	it("reads a coloured django `... ok` line", () => {
 		const coloured = "\u001B[32mtest_x (app.tests.T) ... ok\u001B[0m";
 		expect([...passedIdsFromOutput("django", coloured)]).toEqual(["test_x (app.tests.T)"]);
+	});
+});
+
+describe("install extras", () => {
+	it("reads the extra an install command asks for", () => {
+		expect(swebenchInstallExtras("python -m pip install -e .[test]")).toBe("[test]");
+		expect(swebenchInstallExtras("pip install -v --no-build-isolation -e .")).toBe("");
+		expect(swebenchInstallExtras("pip install .[dev,test]")).toBe("[dev,test]");
+	});
+});
+
+describe("tox current-env", () => {
+	it("rewrites the inert --current-env flag to the runner form", () => {
+		expect(swebenchTestCommand("tox --current-env -epy39 -v --")).toBe("tox --runner current-env -epy39 -v --");
+	});
+
+	it("leaves a plain pytest command alone", () => {
+		expect(swebenchTestCommand("pytest -rA")).toBe("pytest -rA");
+	});
+});
+
+describe("era constraints", () => {
+	it("points every pip invocation at a constraints file it writes first", () => {
+		const lines = swebenchEraConstraintLines();
+		expect(lines[0]).toContain("setuptools<82");
+		expect(lines[1]).toBe("export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt");
 	});
 });
