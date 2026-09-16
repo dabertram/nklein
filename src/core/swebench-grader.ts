@@ -92,6 +92,46 @@ export const SWEBENCH_EXTRA_BUILD_REQUIREMENTS = "SWEBENCH_BUILD_REQS.txt";
  */
 export const SWEBENCH_RUNTIME_REQUIREMENTS = "SWEBENCH_RUNTIME_REQS.txt";
 
+/**
+ * Pass-to-pass tests a control found to be NETWORK-BOUND, one `id\tcause` per line beside the wheels.
+ *
+ * Some graded tests reach the internet by design — matplotlib's `test_https_imread_smoketest` fetches an https
+ * URL, requests' timeout tests dial an unroutable host. Upstream grades online and they pass; a sealed grade
+ * cannot run them at all, and counting them as regressions would blame the model for the network. The seal
+ * excludes exactly these, and the verdict NAMES each one with the exception that proved it.
+ */
+export const SWEBENCH_SEALED_P2P = "SWEBENCH_SEALED_P2P.txt";
+
+/** A pytest short-summary reason that means "this test needed the network", never "this test is broken". */
+const NETWORK_FAILURE =
+	/\b(URLError|HTTPError|ConnectionError|ConnectTimeout|ConnectionResetError|NewConnectionError|MaxRetryError|socket\.gaierror|gaierror|Temporary failure in name resolution|Network is unreachable|Name or service not known|Max retries exceeded)\b/u;
+
+/** The network-bound pass-to-pass exclusions a control recorded for this spec. */
+export function readSealedPassToPassExclusions(
+	cacheRoot: string,
+	entry: SwebenchGraderEntry,
+): { id: string; cause: string }[] {
+	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_SEALED_P2P);
+	if (!existsSync(path)) {
+		return [];
+	}
+	return readFileSync(path, "utf8")
+		.split("\n")
+		.map((line) => line.split("\t"))
+		.flatMap(([id, cause]) => (id?.trim() ? [{ id: id.trim(), cause: cause?.trim() || "network-bound" }] : []));
+}
+
+/** Network-bound failures in a pytest run's short summary, as `id` → the exception that named them. */
+export function networkBoundFailures(output: string): { id: string; cause: string }[] {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: the summary carries ANSI colour.
+	const plain = output.replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "");
+	return [...plain.matchAll(/^FAILED\s+(\S+)\s+-\s+(.+)$/gmu)].flatMap((match) => {
+		const id = match[1] ?? "";
+		const reason = (match[2] ?? "").trim();
+		return id && NETWORK_FAILURE.test(reason) ? [{ id, cause: reason.slice(0, 120) }] : [];
+	});
+}
+
 /** The runtime requirements a control recorded for this spec's wheel cache. */
 export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
 	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_RUNTIME_REQUIREMENTS);
@@ -457,6 +497,10 @@ export function buildSwebenchInstallLines(input: {
 		"export PIP_NO_INDEX=1",
 		`export PIP_FIND_LINKS=/cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		"export PIP_DISABLE_PIP_VERSION_CHECK=1",
+		// pytest truncates its short-summary lines to the terminal width, and with no terminal that is 80 columns:
+		// `FAILED …::test_https_imread_smoketest - urll...` says almost nothing. The width is what decides whether
+		// a failure's reason is readable at all, so it is set explicitly.
+		"export COLUMNS=200",
 		// The spec's own exact pins are constraints for EVERY resolution in the environment, not just the stage that
 		// names them. Upstream's package lists are conda environments whose entries mostly carry no version, and
 		// pip resolves those to today's releases: matplotlib 3.7's unversioned `pandas` came back as 3.0.5, which
@@ -1252,6 +1296,12 @@ export async function gradeSwebenchWorkspace(
 		...(input.entry.httpbinService || !detectsHttpbinUrl(input.workspaceCopyDir)
 			? {}
 			: { httpbinService: { port: 8998 } }),
+		// The network-bound pass-to-pass tests a control proved cannot run sealed. Named on the verdict, never
+		// silently dropped.
+		sealedPassToPassExclusions: [
+			...(input.entry.sealedPassToPassExclusions ?? []),
+			...readSealedPassToPassExclusions(input.cacheRoot, input.entry),
+		],
 	} as SwebenchGraderEntry;
 	const unresolvedPins = readUnresolvedPins(input.cacheRoot, input.entry);
 	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir, unresolvedPins);
@@ -1328,6 +1378,25 @@ export async function gradeSwebenchWorkspace(
 				[...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? ""),
 			),
 		].filter(Boolean);
+		const networkBound = networkBoundFailures(passToPassOutput);
+		if (networkBound.length > 0) {
+			try {
+				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));
+				const existing = readSealedPassToPassExclusions(input.cacheRoot, input.entry);
+				const merged = [...existing];
+				for (const entry of networkBound) {
+					if (!merged.some((row) => row.id === entry.id)) {
+						merged.push(entry);
+					}
+				}
+				await writeFile(
+					join(dir, SWEBENCH_SEALED_P2P),
+					`${merged.map((row) => `${row.id}\t${row.cause}`).join("\n")}\n`,
+				);
+			} catch {
+				// A diagnostic sink must never change a verdict.
+			}
+		}
 		const known = readRuntimeRequirements(input.cacheRoot, input.entry);
 		const added = discovered.filter((name) => !known.includes(name));
 		if (added.length > 0) {

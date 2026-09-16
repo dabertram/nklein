@@ -14,6 +14,7 @@ import {
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
 	buildSwebenchProbeScript,
+	networkBoundFailures,
 	planSealedGrade,
 	resolutionFailures,
 	specExactPins,
@@ -399,5 +400,27 @@ describe("pip era", () => {
 
 	it("takes the newest pip otherwise", () => {
 		expect(swebenchPipRequirement("python -m pip install -e .")).toBe("pip");
+	});
+});
+
+describe("network-bound failures", () => {
+	it("recognises a failure the sealed namespace caused, not the code", () => {
+		const output = [
+			"FAILED lib/matplotlib/tests/test_image.py::test_https_imread_smoketest - urllib.error.URLError: <urlopen error>",
+			"FAILED test_requests.py::TestTimeout::test_connect_timeout - requests.exceptions.ConnectionError: nope",
+		].join("\n");
+		expect(networkBoundFailures(output).map((row) => row.id)).toEqual([
+			"lib/matplotlib/tests/test_image.py::test_https_imread_smoketest",
+			"test_requests.py::TestTimeout::test_connect_timeout",
+		]);
+	});
+
+	it("leaves an ordinary assertion failure alone", () => {
+		expect(networkBoundFailures("FAILED tests/test_x.py::test_y - AssertionError: 1 != 2")).toEqual([]);
+	});
+
+	it("reads through ANSI colour", () => {
+		const coloured = "\u001B[31mFAILED\u001B[0m tests/t.py::test_a - requests.exceptions.ConnectTimeout: x";
+		expect(networkBoundFailures(coloured).map((row) => row.id)).toEqual(["tests/t.py::test_a"]);
 	});
 });
