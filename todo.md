@@ -2881,8 +2881,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   grade. It also DRIVES the closure: each round downloads exactly what the sealed install named as missing, three
   rounds at most. Five more defects fell out of it (findings 21–25) plus the venv's own pip 18.1, which predates
   PEP 600 and cannot read a `manylinux_2_28` wheel the download had already fetched.
-  **REMAINING:** finish the per-spec control gate (re-prove all 81 closures, re-sweep controls until every spec is
-  clean or has a recorded gap), then run the arms;
+  **GATE CLOSED 2026-09-16: 81 of 81 controls clean** (all 10,729 pass-to-pass ids, receipts archived at
+  `docs/benchmarks/swebench-controls-2026-09-16.jsonl`), all 86 wheel closures proving themselves against a sealed
+  offline install, 57 defects found and fixed — every one OURS. 71 ids sealed across 11 specs with their cause on
+  the receipt. Both former gaps are gone (astropy's submodules, scikit-learn's build). Codex seats added as a fifth
+  rig family (`scripts/hitl-codex-responder.mjs`, `scripts/swebench-arm-setup-codex.sh`, four arms created).
+  **REMAINING:** run the arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
