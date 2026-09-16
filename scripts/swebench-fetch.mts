@@ -20,7 +20,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -180,17 +180,31 @@ async function commandMaterialize(instanceIds: readonly string[]): Promise<void>
 		if (!existsSync(tarballPath) && (await mirrorHasCommit(candidate.repo, candidate.baseCommit))) {
 			// P1.SWEBENCHFULL: a mirrored repo serves ANY base_commit offline — the same single-top-level-dir
 			// tarball shape codeload produces, sha-pinned exactly like a downloaded one.
-			await execFileAsync("git", [
-				"-C",
-				mirrorDir(candidate.repo),
-				"archive",
-				"--format=tar.gz",
-				`--prefix=${candidate.repo.split("/")[1]}-${candidate.baseCommit}/`,
-				"-o",
-				tarballPath,
-				candidate.baseCommit,
-			]);
-			process.stdout.write(`  ${instanceId}: archived from the ${candidate.repo} mirror (offline)\n`);
+			const prefix = `${candidate.repo.split("/")[1]}-${candidate.baseCommit}`;
+			const submodules = await submoduleGitlinks(candidate.repo, candidate.baseCommit);
+			if (submodules.length === 0) {
+				await execFileAsync("git", [
+					"-C",
+					mirrorDir(candidate.repo),
+					"archive",
+					"--format=tar.gz",
+					`--prefix=${prefix}/`,
+					"-o",
+					tarballPath,
+					candidate.baseCommit,
+				]);
+			} else {
+				// `git archive` writes a gitlink as an EMPTY directory, so a repo that bootstraps its build from a
+				// submodule arrives unbuildable: astropy 1.3 and 3.1 fetch `astropy_helpers` that way and their
+				// `setup.py egg_info` failed for six Verified instances. Each submodule is archived from its own
+				// mirror at the commit the parent tree records, and the whole tree is re-tarred.
+				await materializeWithSubmodules({ repo: candidate.repo, commit: candidate.baseCommit, prefix, tarballPath, submodules });
+			}
+			process.stdout.write(
+				`  ${instanceId}: archived from the ${candidate.repo} mirror (offline)${
+					submodules.length > 0 ? ` + ${submodules.length} submodule(s)` : ""
+				}\n`,
+			);
 		}
 		if (!existsSync(tarballPath)) {
 			const url = `https://codeload.github.com/${candidate.repo}/tar.gz/${candidate.baseCommit}`;
@@ -217,6 +231,85 @@ async function commandMaterialize(instanceIds: readonly string[]): Promise<void>
 	}
 	await writeFile(pinsPath, `${JSON.stringify(pins, null, 1)}\n`);
 	process.stdout.write(`pins → ${pinsPath}\n`);
+}
+
+/**
+ * The gitlink entries (mode 160000) of a commit's tree, paired with the submodule URL `.gitmodules` records for
+ * each path. A gitlink is the one thing `git archive` cannot carry: it writes an empty directory and says
+ * nothing about it.
+ */
+async function submoduleGitlinks(
+	repo: string,
+	commit: string,
+): Promise<{ path: string; sha: string; url: string }[]> {
+	const { stdout: tree } = await execFileAsync("git", ["-C", mirrorDir(repo), "ls-tree", "-r", commit]);
+	const links = [...tree.matchAll(/^160000 commit ([0-9a-f]{40})\t(.+)$/gmu)].map((match) => ({
+		sha: match[1] ?? "",
+		path: match[2] ?? "",
+	}));
+	if (links.length === 0) {
+		return [];
+	}
+	const modules = await execFileAsync("git", ["-C", mirrorDir(repo), "show", `${commit}:.gitmodules`]).catch(() => ({
+		stdout: "",
+	}));
+	const urlByPath = new Map<string, string>();
+	let currentPath: string | null = null;
+	for (const line of modules.stdout.split("\n")) {
+		const path = /^\s*path\s*=\s*(.+)$/u.exec(line);
+		const url = /^\s*url\s*=\s*(.+)$/u.exec(line);
+		if (path?.[1]) currentPath = path[1].trim();
+		if (url?.[1] && currentPath) urlByPath.set(currentPath, url[1].trim());
+	}
+	return links.flatMap((link) => {
+		const url = urlByPath.get(link.path);
+		return url ? [{ ...link, url }] : [];
+	});
+}
+
+/** github.com/owner/name(.git) → the `owner/name` a mirror directory is named for. */
+function repoFromGitUrl(url: string): string | null {
+	return /github\.com[/:]([^/]+\/[^/]+?)(?:\.git)?\/?$/u.exec(url)?.[1] ?? null;
+}
+
+/** Extract the parent commit AND each submodule commit into one tree, then re-tar it in codeload's shape. */
+async function materializeWithSubmodules(input: {
+	repo: string;
+	commit: string;
+	prefix: string;
+	tarballPath: string;
+	submodules: readonly { path: string; sha: string; url: string }[];
+}): Promise<void> {
+	const staging = join(CACHE_ROOT, "staging-archive", `${input.prefix}`);
+	await rm(staging, { recursive: true, force: true });
+	await mkdir(join(staging, input.prefix), { recursive: true });
+	const extract = async (gitDir: string, commit: string, into: string) => {
+		await mkdir(into, { recursive: true });
+		const tar = join(staging, "archive.tar");
+		await execFileAsync("git", ["-C", gitDir, "archive", "--format=tar", "-o", tar, commit]);
+		await execFileAsync("tar", ["-xf", tar, "-C", into]);
+		await rm(tar, { force: true });
+	};
+	try {
+		await extract(mirrorDir(input.repo), input.commit, join(staging, input.prefix));
+		for (const submodule of input.submodules) {
+			const subRepo = repoFromGitUrl(submodule.url);
+			if (!subRepo) {
+				throw new Error(`cannot mirror submodule ${submodule.path}: unsupported url ${submodule.url}`);
+			}
+			if (!existsSync(mirrorDir(subRepo))) {
+				process.stdout.write(`⚠ EGRESS (once): mirroring submodule ${subRepo}\n`);
+				await mkdir(join(CACHE_ROOT, "mirrors"), { recursive: true });
+				await execFileAsync("git", ["clone", "--mirror", `https://github.com/${subRepo}.git`, mirrorDir(subRepo)], {
+					maxBuffer: 64 * 1024 * 1024,
+				});
+			}
+			await extract(mirrorDir(subRepo), submodule.sha, join(staging, input.prefix, submodule.path));
+		}
+		await execFileAsync("tar", ["-czf", input.tarballPath, "-C", staging, input.prefix]);
+	} finally {
+		await rm(staging, { recursive: true, force: true });
+	}
 }
 
 function mirrorDir(repo: string): string {

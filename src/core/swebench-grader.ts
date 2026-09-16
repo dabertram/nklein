@@ -714,7 +714,8 @@ export async function prepareSwebenchWheels(
 	// metadata in an isolated env, so that sdist's own PEP 518 build requirements are fetched there and never
 	// land in our cache — matplotlib 3.7's closure was missing `cython>=3.0.10` for exactly that reason, and only
 	// a grade ever said so. Each round downloads precisely the requirements the sealed install named as missing
-	// and probes again. Three rounds, because a closure that still has not converged is a finding, not a retry.
+	// and probes again. Six rounds, because an sdist's build requirements can themselves be sdists with build
+	// requirements; a closure that still has not converged by then is a finding, not a retry.
 	const key = swebenchWheelCacheKey(input.entry);
 	// The download recorded what it could not resolve; the probe must install the FILTERED requirements file, the
 	// same one the grade will write for itself.
@@ -724,7 +725,7 @@ export async function prepareSwebenchWheels(
 		readUnresolvedPins(input.cacheRoot, input.entry),
 	);
 	let probed = { stdout: "", stderr: "" };
-	for (let round = 1; round <= 3; round += 1) {
+	for (let round = 1; round <= 6; round += 1) {
 		probed = await deps.exec("docker", [
 			"run",
 			"--rm",
@@ -779,7 +780,7 @@ export async function prepareSwebenchWheels(
 				),
 			),
 		].filter((requirement) => requirement && !readUnresolvedPins(input.cacheRoot, input.entry).includes(requirement));
-		if (missing.length === 0 || round === 3) {
+		if (missing.length === 0 || round === 6) {
 			throw new Error(
 				`wheel closure incomplete for ${key} — the sealed install does not succeed against it; the cache was NOT marked complete\n  ${resolverSays(probed.stdout)}`,
 			);
