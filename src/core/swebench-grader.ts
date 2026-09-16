@@ -152,6 +152,8 @@ export function buildSwebenchPrepareScript(
 	];
 	return [
 		"set -eu",
+		// Accumulates the labels of non-fatal stages that failed; the completion marker is gated on it being empty.
+		'incomplete=""',
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
@@ -170,15 +172,17 @@ export function buildSwebenchPrepareScript(
 		...stages.map(({ label, args, fatal }) =>
 			`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
 				needsHostBuildEnv ? "--no-build-isolation " : ""
-			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${fatal ? "" : ` || echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"`}`.replace(
-				/\s+/g,
-				" ",
-			),
+			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${
+				fatal ? "" : ` || { echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"; incomplete="$incomplete ${label}"; }`
+			}`.replace(/\s+/g, " "),
 		),
-		// The completion marker: written ONLY after the fatal repo stage succeeded, so a partial closure (some
-		// stages downloaded, the repo's own resolution failed) can never read as a cache hit and let a sealed
-		// grade run against missing dependencies. Live 2026-09-15: four failed specs left partial wheel dirs.
-		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)} && touch /cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_PREPARE_MARKER}`,
+		// The completion marker: written ONLY when EVERY stage closed. The fatal repo stage aborts the script on
+		// its own; a non-fatal stage that failed sets `incomplete`, and a cache missing that stage's wheels is not
+		// a cache hit. Live 2026-09-15: four failed specs left partial wheel dirs. Live 2026-09-16: scikit-learn
+		// 0.22's `pip_packages` stage could not resolve `numpy==1.19.2` for cp36/aarch64, the marker was written
+		// anyway, and every sealed grade for the spec then died with "No matching distribution found for numpy" —
+		// with the prepare still cheerfully reporting "already cached".
+		`if [ -n "$incomplete" ]; then echo "SWEBENCH_PREPARE_INCOMPLETE$incomplete"; else mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)} && touch /cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_PREPARE_MARKER}; fi`,
 		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
 	].join("\n");
 }
@@ -412,7 +416,7 @@ export async function prepareSwebenchWheels(
 	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
 	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
-	await deps.exec("docker", [
+	const prepared = await deps.exec("docker", [
 		"run",
 		"--rm",
 		"-v",
@@ -431,6 +435,15 @@ export async function prepareSwebenchWheels(
 			buildRequires,
 		),
 	]);
+	// A stage that could not resolve leaves the cache short of wheels the sealed grade will ask for, and a silent
+	// partial cache is the worst possible outcome: the prepare reports "already cached" forever and every grade
+	// for the spec fails on a missing distribution. Refuse the closure instead, naming the stages.
+	const incomplete = /SWEBENCH_PREPARE_INCOMPLETE(.*)/u.exec(prepared.stdout)?.[1]?.trim();
+	if (incomplete) {
+		throw new Error(
+			`wheel closure incomplete for ${swebenchWheelCacheKey(input.entry)} — stage(s) ${incomplete} could not resolve; the cache was NOT marked complete`,
+		);
+	}
 }
 
 /**

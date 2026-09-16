@@ -298,3 +298,33 @@ describe("spec pin re-assertion", () => {
 		expect(specExactPins(['numpy==1.19.3; python_version == "3.9"'])).toEqual([]);
 	});
 });
+
+describe("prepare completion marker", () => {
+	it("gates the marker on every non-fatal stage having closed", () => {
+		const entry = resolveSwebenchEnv({
+			instance: {
+				instanceId: "astropy__astropy-12907",
+				repo: "astropy/astropy",
+				version: "4.3",
+				failToPass: [],
+				passToPass: [],
+				testPatch: "",
+			} as never,
+			table: parseSwebenchSpecDump({
+				source: {
+					package: "swebench",
+					version: "3.0.17",
+					sha256: "0".repeat(64),
+					generatedAt: "2026-09-16T00:00:00Z",
+				},
+				specs: { "astropy/astropy": { "4.3": { python: "3.9", pip_packages: ["numpy==1.25.2"] } } },
+			}),
+			overrides: [],
+		});
+		const script = buildSwebenchPrepareScript(entry);
+		expect(script).toContain('incomplete=""');
+		expect(script).toContain('if [ -n "$incomplete" ]; then echo "SWEBENCH_PREPARE_INCOMPLETE');
+		// The marker touch must sit on the ELSE branch, never unconditionally.
+		expect(script).not.toMatch(/\n[^|]*touch \/cache\/wheels\/[^\n]*SWEBENCH_PREPARE_OK\n/u);
+	});
+});
