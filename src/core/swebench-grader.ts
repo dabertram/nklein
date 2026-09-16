@@ -388,6 +388,7 @@ export function buildSwebenchProbeScript(input: {
 	readonly pep518BuildRequires?: readonly string[];
 	readonly unresolvedPins?: readonly string[];
 	readonly extraBuildRequirements?: readonly string[];
+	readonly runtimeRequirements?: readonly string[];
 }): string {
 	const key = swebenchWheelCacheKey(input.entry);
 	return [
@@ -990,6 +991,10 @@ export async function prepareSwebenchWheels(
 				pep518BuildRequires: buildRequires,
 				unresolvedPins: readUnresolvedPins(input.cacheRoot, input.entry),
 				extraBuildRequirements: readExtraBuildRequirements(input.cacheRoot, input.entry),
+				// The probe must ask for the runtime requirements too, or they are recorded and installed at GRADE
+				// time out of a cache that never fetched them. Seven sphinx specs recorded `roman`, re-proved their
+				// closures, and still had no `roman` wheel — the probe never mentioned it, so nothing downloaded it.
+				runtimeRequirements: readRuntimeRequirements(input.cacheRoot, input.entry),
 			}),
 		]);
 		if (!probed.stdout.includes("SWEBENCH_PROBE_FAILED")) {
