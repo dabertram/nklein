@@ -117,6 +117,7 @@ export function buildSwebenchPrepareScript(
 	repoRequirementsFile: string | null = null,
 	pep518BuildRequires: readonly string[] = [],
 	setupRequires: readonly string[] = [],
+	repoRequirementLines: readonly string[] = [],
 ): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
@@ -143,7 +144,16 @@ export function buildSwebenchPrepareScript(
 	const unresolvedPath = `/cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_UNRESOLVED_PINS}`;
 	const stages: { label: string; args: string; pins: readonly string[]; fatal: boolean }[] = [
 		...(requirementsFile
-			? [{ label: "requirements", args: `-r '/src/${requirementsFile}'`, pins: [], fatal: false }]
+			? [
+					{
+						label: "requirements",
+						args: `-r '/src/${requirementsFile}'`,
+						// The file's own lines are the per-line fallback: one requirement with no distribution for
+						// this platform must not take the other two hundred down with it.
+						pins: repoRequirementLines,
+						fatal: false,
+					},
+				]
 			: []),
 		...(packages.pins.length > 0 || extraPins.length > 0
 			? [
@@ -607,9 +617,22 @@ export async function prepareSwebenchWheels(
 	await mkdir(join(input.cacheRoot, "wheels"), { recursive: true });
 	const extraPins = await environmentYmlPins(input.entry, input.sourceDir);
 	const repoRequirements = await materializeRepoRequirements(input.entry, input.sourceDir);
+	const repoRequirementLines = repoRequirements
+		? readFileSync(join(input.sourceDir, repoRequirements), "utf8")
+				.split("\n")
+				.map((line) => line.trim())
+				.filter(Boolean)
+		: [];
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
 	const setupRequires = readSetupRequires(input.sourceDir);
 	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
+	// The probe must install in the SAME environment the grade will: the legacy C diagnostics and the
+	// setuptools-scm pretend version are part of the install, not decoration. Without them the probe failed to
+	// build astropy while the grade built it fine, which is the probe lying about the closure.
+	const probeEntry = {
+		...input.entry,
+		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
+	} as SwebenchGraderEntry;
 	const prepared = await deps.exec("docker", [
 		"run",
 		"--rm",
@@ -628,6 +651,7 @@ export async function prepareSwebenchWheels(
 			repoRequirements,
 			buildRequires,
 			setupRequires,
+			repoRequirementLines,
 		),
 	]);
 	// A stage that could not resolve leaves the cache short of wheels the sealed grade will ask for, and a silent
@@ -661,6 +685,13 @@ export async function prepareSwebenchWheels(
 	// a grade ever said so. Each round downloads precisely the requirements the sealed install named as missing
 	// and probes again. Three rounds, because a closure that still has not converged is a finding, not a retry.
 	const key = swebenchWheelCacheKey(input.entry);
+	// The download recorded what it could not resolve; the probe must install the FILTERED requirements file, the
+	// same one the grade will write for itself.
+	const probeRequirements = await materializeRepoRequirements(
+		input.entry,
+		input.sourceDir,
+		readUnresolvedPins(input.cacheRoot, input.entry),
+	);
 	let probed = { stdout: "", stderr: "" };
 	for (let round = 1; round <= 3; round += 1) {
 		probed = await deps.exec("docker", [
@@ -674,9 +705,9 @@ export async function prepareSwebenchWheels(
 			"bash",
 			"-lc",
 			buildSwebenchProbeScript({
-				entry: input.entry,
+				entry: probeEntry,
 				extraPins,
-				repoRequirementsFile: repoRequirements,
+				repoRequirementsFile: probeRequirements,
 				pep518BuildRequires: buildRequires,
 				unresolvedPins: readUnresolvedPins(input.cacheRoot, input.entry),
 			}),
@@ -764,7 +795,11 @@ function readSetupRequires(treeDir: string): string[] {
 	return existsSync(path) ? parseSetupRequires(readFileSync(path, "utf8")) : [];
 }
 
-async function materializeRepoRequirements(entry: SwebenchGraderEntry, treeDir: string): Promise<string | null> {
+async function materializeRepoRequirements(
+	entry: SwebenchGraderEntry,
+	treeDir: string,
+	unresolved: readonly string[] = [],
+): Promise<string | null> {
 	const facts = graderEntryFacts(entry);
 	if (!isSwebenchRequirementsSentinel(facts.packages)) {
 		return null;
@@ -782,7 +817,11 @@ async function materializeRepoRequirements(entry: SwebenchGraderEntry, treeDir: 
 			continue;
 		}
 		const name = ".nklein-swebench-requirements.txt";
-		await writeFile(join(treeDir, name), `${lines.join("\n")}\n`);
+		// A requirement with no distribution for this platform is dropped, exactly like an unresolvable pin:
+		// django 3.2's flattened list asks for `bcrypt`, which publishes no cp36 wheel, and `pip install -r` fails
+		// the WHOLE file over it. The drop is recorded in the cache and named on the verdict, never silent.
+		const dropped = new Set(unresolved);
+		await writeFile(join(treeDir, name), `${lines.filter((line) => !dropped.has(line)).join("\n")}\n`);
 		return name;
 	}
 	return null;
@@ -844,8 +883,8 @@ export async function gradeSwebenchWorkspace(
 		...input.entry,
 		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
 	} as SwebenchGraderEntry;
-	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir);
 	const unresolvedPins = readUnresolvedPins(input.cacheRoot, input.entry);
+	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir, unresolvedPins);
 	const sealed = planSealedGrade(gradeEntry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
