@@ -754,10 +754,41 @@ export function parsePep518BuildRequires(pyprojectToml: string): string[] {
 	if (!section?.[1]) {
 		return [];
 	}
-	const requires = /requires\s*=\s*\[([\s\S]*?)\]/u.exec(section[1]);
-	if (!requires?.[1]) {
+	// The array has to be scanned with bracket DEPTH, not matched lazily to the first `]`: a requirement may
+	// carry an extras marker, and `"setuptools_scm[toml]>=3.4"` closes the naive match in the middle of the list.
+	// xarray 2022.06's build requirements were truncated to the two entries before it, so setuptools_scm never
+	// entered the closure, the editable build fell back to setup.cfg's `version = 0.0.0`, and pandas refused the
+	// package with `Pandas requires version '0.19.0' or newer of 'xarray'` — 105 pass-to-pass tests in a pristine
+	// tree. Quoted text is skipped, because a bracket inside a string is not structure.
+	const start = /requires\s*=\s*\[/u.exec(section[1]);
+	if (!start) {
 		return [];
 	}
+	const body = section[1].slice(start.index + start[0].length);
+	let depth = 1;
+	let quote: string | null = null;
+	let end = body.length;
+	for (let index = 0; index < body.length; index += 1) {
+		const character = body[index];
+		if (quote) {
+			if (character === quote) {
+				quote = null;
+			}
+			continue;
+		}
+		if (character === '"' || character === "'") {
+			quote = character;
+		} else if (character === "[") {
+			depth += 1;
+		} else if (character === "]") {
+			depth -= 1;
+			if (depth === 0) {
+				end = index;
+				break;
+			}
+		}
+	}
+	const requires = [null, body.slice(0, end)] as const;
 	// Match TOML strings by their OWN quote type: a double-quoted requirement legitimately contains single quotes
 	// (scikit-learn: `"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'"`). A naive
 	// character class split that marker into fragments and pip died with `InvalidMarker: 'python_version!='`.

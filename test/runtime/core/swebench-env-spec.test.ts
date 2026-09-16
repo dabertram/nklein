@@ -480,3 +480,24 @@ describe("django selections", () => {
 		]);
 	});
 });
+
+describe("PEP 518 build requires with an extras marker", () => {
+	it("scans the array by bracket depth, so `pkg[extra]` does not truncate the list", () => {
+		const pyproject = [
+			"[build-system]",
+			"requires = [",
+			'    "setuptools>=42",',
+			'    "wheel",',
+			'    "setuptools_scm[toml]>=3.4",',
+			'    "setuptools_scm_git_archive",',
+			"]",
+			'build-backend = "setuptools.build_meta"',
+		].join("\n");
+		expect(parsePep518BuildRequires(pyproject)).toEqual([
+			"setuptools>=42",
+			"wheel",
+			"setuptools_scm[toml]>=3.4",
+			"setuptools_scm_git_archive",
+		]);
+	});
+});
