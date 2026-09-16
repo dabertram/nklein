@@ -241,6 +241,10 @@ export function buildSwebenchPrepareScript(
 			const download = (what: string) =>
 				`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
 					needsHostBuildEnv && label === "repo" ? "--no-build-isolation " : ""
+				}${
+					// The spec's pins constrain the PACKAGE stages of the download exactly as they do the install, so
+					// an unversioned conda entry resolves to a release that fits them rather than to today's.
+					label === "packages" || label === "requirements" ? prepareSpecPinArg : ""
 				}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${what}`.replace(/\s+/g, " ");
 			if (fatal) {
 				return download(args);
