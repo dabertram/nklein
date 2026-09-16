@@ -2864,8 +2864,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   pre-install via `build-env`, the spec's package list/install command, wheel cache per instance); the runner takes
   `--instances dataset:verified|lite|full|file:<list>|cached`, `--parallel N`, and stamps `env` (resolvedFrom, specKey,
   python, grader image, parser) + spec provenance on every receipt. Runbook: `docs/dev/swebench-full-suite.md`.
-  **REMAINING (needs David's go for the egress steps):** run steps 1–7 of the runbook (specs package, index, twelve
-  mirrors ≈ 2–3 GB, env images, wheel caches) and prove each repo family with a negative control before any arm runs;
+  **BRING-UP 2026-09-16:** steps 1–7 of the runbook are DONE (specs table, 707 indexed, 12 mirrors, 500 instances
+  materialized, 7 base + 9 env images, wheel caches for 86 specs). The negative-control gate is now per SPEC, not per
+  repo family: 81 distinct `(repo, version)` environments cover all 502 cached instances, and each is graded with the
+  test patch applied and NO fix, where every pass-to-pass test must pass by construction. The first sweep was 35 clean
+  / 46 dirty and every dirty one was OURS — nine more defects found and fixed (findings 12–20 in
+  `docs/dev/swebench-full-suite.md`): GCC 14's promoted C diagnostics, the grade path never installing the checkout's
+  PEP 518 build requires, build requirements clobbering the spec's runtime pins, ANSI colour defeating the `^PASSED`
+  parser (green read as red — the worst kind), a prepare marker written over an incomplete closure, the install
+  command's extras missing from the closure, `tox --current-env` being inert on tox 4.16, setuptools 82 removing
+  `pkg_resources`, and a repo's own nested `pip` carrying none of our offline flags.
+  **REMAINING:** finish the per-spec control gate (re-sweep after each fix until every spec is clean or has a recorded
+  gap), then run the arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
