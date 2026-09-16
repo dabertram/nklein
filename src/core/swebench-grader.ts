@@ -552,7 +552,10 @@ export function buildSwebenchInstallLines(input: {
 					(() => {
 						const file = `${root}/${repoRequirementsFile ?? packages.requirementsFile}`;
 						return [
-							`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}-r '${file}' 2>&1; then`,
+							// The JOINT attempt's output is diagnostic, not a verdict: when it fails, the per-line
+							// fallback below decides what actually could not be installed. Leaving pip's errors in the
+							// transcript made the closure probe read an expected retry as a failure.
+							`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}-r '${file}' >> /tmp/swebench-skipped.log 2>&1; then`,
 							`  while read -r line; do`,
 							// pip strips a requirements file's inline comments; it does NOT strip them from an
 							// ARGUMENT. Passing `astroid==3.0.0a8  # Pinned for tests` verbatim made pip fail on a
@@ -560,7 +563,11 @@ export function buildSwebenchInstallLines(input: {
 							// — pylint 3.0 fell back to the spec's older astroid and lost 17 pass-to-pass tests.
 							`    req=$(printf '%s' "$line" | sed -E 's/[[:space:]]*#.*$//; s/^[[:space:]]+//; s/[[:space:]]+$//')`,
 							'    case "$req" in "") continue;; esac',
-							`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$req" 2>&1 || echo "SWEBENCH_PIN_SKIPPED $req"`,
+							// The attempt's own output goes to a file, not the transcript: a pin the fallback SKIPS is an
+							// expected, recorded outcome, and leaving pip's "No matching distribution" in the transcript
+							// made the closure probe read its own fallback as a failure. matplotlib 3.4 installed
+							// perfectly and was reported unproved for exactly that.
+							`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$req" >> /tmp/swebench-skipped.log 2>&1 || echo "SWEBENCH_PIN_SKIPPED $req"`,
 							`  done < '${file}'`,
 							"fi",
 						].join("\n");
@@ -576,9 +583,10 @@ export function buildSwebenchInstallLines(input: {
 		...(packagePins.length > 0
 			? [
 					[
-						`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}${quote(packagePins)} 2>&1; then`,
+						// As above: the joint attempt is a try, and the per-pin fallback is the verdict.
+						`if ! python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}${quote(packagePins)} >> /tmp/swebench-skipped.log 2>&1; then`,
 						`  for pin in ${quote(packagePins)}; do`,
-						`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$pin" 2>&1 || echo "SWEBENCH_PIN_SKIPPED $pin"`,
+						`    python -m pip install --disable-pip-version-check -q ${wheels} ${specPinArg}"$pin" >> /tmp/swebench-skipped.log 2>&1 || echo "SWEBENCH_PIN_SKIPPED $pin"`,
 						"  done",
 						"fi",
 					].join("\n"),

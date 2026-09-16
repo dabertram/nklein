@@ -544,13 +544,17 @@ export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): strin
  * cannot then resolve around.
  *
  * Each entry names the evidence:
+ * - `setuptools_scm<10`: setuptools_scm 10 depends on `vcs-versioning`, whose sdist declares
+ *   `Cython>=3.2.9` — a version Cython has never published for python 3.8 or earlier. matplotlib 3.4's closure
+ *   could not be proved at all because its build pulled setuptools_scm 10.2.3 on a python 3.8 interpreter.
+ *   9.2.2 installs there as a pure wheel.
  * - `setuptools<82`: setuptools 82 removed `pkg_resources`. sphinx 4.1's `sphinx/registry.py` imports
  *   `iter_entry_points` from it, so every sealed sphinx grade aborted at collection with
  *   `No module named 'pkg_resources'`. Capping at 80.10.2 (verified to still ship it) fixes fifteen specs.
  *   The upgrade did not come from our own install line — tox's `usedevelop = True` runs its OWN `pip install -e .`
  *   inside the graded environment, which is exactly why this has to be a constraint and not a pin.
  */
-export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82"];
+export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82", "setuptools_scm<10"];
 
 /** The shell lines that materialize the era constraints and point every pip invocation at them. */
 export function swebenchEraConstraintLines(specPins: readonly string[] = []): string[] {
