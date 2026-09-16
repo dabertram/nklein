@@ -13,6 +13,7 @@ import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
+	buildSwebenchProbeScript,
 	planSealedGrade,
 	specExactPins,
 	splitSwebenchGradeOutput,
@@ -324,7 +325,41 @@ describe("prepare completion marker", () => {
 		const script = buildSwebenchPrepareScript(entry);
 		expect(script).toContain('incomplete=""');
 		expect(script).toContain('if [ -n "$incomplete" ]; then echo "SWEBENCH_PREPARE_INCOMPLETE');
-		// The marker touch must sit on the ELSE branch, never unconditionally.
-		expect(script).not.toMatch(/\n[^|]*touch \/cache\/wheels\/[^\n]*SWEBENCH_PREPARE_OK\n/u);
+		// The container never writes the marker: the driver does, host-side, once the sealed install has proved
+		// the closure as well. A script that could touch it would mark a cache the probe has not yet seen.
+		expect(script).not.toContain("SWEBENCH_PREPARE_OK");
+	});
+});
+
+describe("closure probe", () => {
+	const entry = {
+		instanceId: "x__y-1",
+		repo: "x/y",
+		python: "3.9",
+		pythonVersion: "3.9",
+		preInstallRequirements: [],
+		installEnv: {},
+		installArgs: [],
+		buildRequirements: [],
+		extraRequirements: [],
+		specKey: "x__y__1.0",
+		preInstallShell: [],
+		packages: null,
+		installCommand: "python -m pip install -e .",
+		testCmd: "pytest -rA",
+		evalCommands: [],
+		logParser: "pytest",
+		resolvedFrom: "spec",
+	} as never;
+
+	it("installs the checkout at /src and keeps pip offline, so a gap cannot be papered over", () => {
+		const script = buildSwebenchProbeScript({ entry });
+		expect(script).toContain("export PIP_NO_INDEX=1");
+		expect(script).toContain("-e /src");
+		expect(script).not.toContain("-e /work");
+	});
+
+	it("keeps whatever the repo's own pre_install fetched into build/", () => {
+		expect(buildSwebenchProbeScript({ entry })).toContain("/cache/build/");
 	});
 });

@@ -488,9 +488,9 @@ export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): strin
 export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82"];
 
 /** The shell lines that materialize the era constraints and point every pip invocation at them. */
-export function swebenchEraConstraintLines(): string[] {
+export function swebenchEraConstraintLines(extra: readonly string[] = []): string[] {
 	return [
-		`printf '%s\\n' ${SWEBENCH_ERA_CONSTRAINTS.map((line) => `'${line}'`).join(" ")} > /tmp/swebench-era-constraints.txt`,
+		`printf '%s\\n' ${[...SWEBENCH_ERA_CONSTRAINTS, ...extra].map((line) => `'${line}'`).join(" ")} > /tmp/swebench-era-constraints.txt`,
 		"export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt",
 	];
 }
@@ -524,19 +524,19 @@ export function swebenchInstallExtras(installCommand: string): string {
 	return /(?:^|\s)(?:-e\s+)?\.(\[[^\]]*\])/u.exec(installCommand)?.[1] ?? "";
 }
 
-export function sealedInstallCommand(installCommand: string, wheelsArgs: string): string {
+export function sealedInstallCommand(installCommand: string, wheelsArgs: string, root = "/work"): string {
 	const pip = /(?:python(?:3)?\s+-m\s+)?pip\s+install\s+(.*)$/.exec(installCommand.trim());
 	if (!pip) {
-		return `cd /work && ${installCommand}`;
+		return `cd ${root} && ${installCommand}`;
 	}
 	const rest = (pip[1] ?? "")
 		.replace(
 			/(^|\s)-e\s+\.(\[[^\]]*\])?/,
-			(_m, lead: string, extras: string | undefined) => `${lead}-e /work${extras ?? ""}`,
+			(_m, lead: string, extras: string | undefined) => `${lead}-e ${root}${extras ?? ""}`,
 		)
 		.replace(
 			/(^|\s)\.(\[[^\]]*\])?(?=\s|$)/,
-			(_m, lead: string, extras: string | undefined) => `${lead}/work${extras ?? ""}`,
+			(_m, lead: string, extras: string | undefined) => `${lead}${root}${extras ?? ""}`,
 		)
 		.replace(/--no-build-isolation/g, "")
 		.trim();

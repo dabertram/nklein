@@ -63,6 +63,14 @@ function shellQuote(value: string): string {
 
 export const SWEBENCH_PREPARE_MARKER = "SWEBENCH_PREPARE_OK";
 
+/**
+ * Pins the prepare could not resolve on THIS platform, one per line beside the wheels. Upstream's package lists
+ * are conda environments and some entries (GUI toolkits, or a version with no aarch64 wheel) have no pip
+ * distribution we can build. Recording them keeps the rest of the closure usable and keeps the substitution
+ * visible: the sealed grade drops exactly these pins from its install, and the verdict names them.
+ */
+export const SWEBENCH_UNRESOLVED_PINS = "SWEBENCH_UNRESOLVED.txt";
+
 export function swebenchWheelCacheKey(entry: SwebenchGraderEntry): string {
 	return "resolvedFrom" in entry && entry.resolvedFrom === "spec" ? entry.specKey : entry.instanceId;
 }
@@ -132,13 +140,17 @@ export function buildSwebenchPrepareScript(
 		repoPreInstallLines.length > 0
 			? [`( cd /src\n${repoPreInstallLines.map((line) => rewriteSwebenchRepoLine(line, "/src")).join("\n")}\n)`]
 			: [];
-	const stages: { label: string; args: string; fatal: boolean }[] = [
-		...(requirementsFile ? [{ label: "requirements", args: `-r '/src/${requirementsFile}'`, fatal: false }] : []),
+	const unresolvedPath = `/cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_UNRESOLVED_PINS}`;
+	const stages: { label: string; args: string; pins: readonly string[]; fatal: boolean }[] = [
+		...(requirementsFile
+			? [{ label: "requirements", args: `-r '/src/${requirementsFile}'`, pins: [], fatal: false }]
+			: []),
 		...(packages.pins.length > 0 || extraPins.length > 0
 			? [
 					{
 						label: "packages",
 						args: [...new Set([...packages.pins, ...extraPins])].map((pin) => shellQuote(pin)).join(" "),
+						pins: [...new Set([...packages.pins, ...extraPins])],
 						fatal: false,
 					},
 				]
@@ -148,27 +160,49 @@ export function buildSwebenchPrepareScript(
 			args: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])]
 				.map((pin) => shellQuote(pin))
 				.join(" "),
+			pins: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])],
 			fatal: false,
 		},
 		{
 			// The extras the install command names ride along: they are part of the environment being cached.
 			label: "repo",
 			args: shellQuote(`/src${swebenchInstallExtras(graderEntryFacts(entry).installCommand)}`),
+			pins: [],
 			fatal: true,
 		},
 		...(entry.extraRequirements.length > 0
-			? [{ label: "extras", args: entry.extraRequirements.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
+			? [
+					{
+						label: "extras",
+						args: entry.extraRequirements.map((pin) => shellQuote(pin)).join(" "),
+						pins: [...entry.extraRequirements],
+						fatal: false,
+					},
+				]
 			: []),
 		...(setupRequires.length > 0
-			? [{ label: "setup-requires", args: setupRequires.map((pin) => shellQuote(pin)).join(" "), fatal: false }]
+			? [
+					{
+						label: "setup-requires",
+						args: setupRequires.map((pin) => shellQuote(pin)).join(" "),
+						pins: [...setupRequires],
+						fatal: false,
+					},
+				]
 			: []),
 	];
 	return [
 		"set -eu",
 		// Accumulates the labels of non-fatal stages that failed; the completion marker is gated on it being empty.
 		'incomplete=""',
-		// The same era constraints the grade uses, so a release the grade must not resolve never enters the cache.
-		...swebenchEraConstraintLines(),
+		`rm -f ${unresolvedPath}`,
+		// The same constraints the grade uses — era caps AND the spec's own exact pins — so the download resolves
+		// the environment the grade will install, not a newer one it cannot. `wheel` unconstrained came back as
+		// 0.48.0, which requires packaging>=24.0 and therefore cannot coexist with matplotlib 3.7's pinned
+		// packaging==23.1; constrained, pip simply picks the last `wheel` that fits.
+		...swebenchEraConstraintLines(
+			specExactPins("resolvedFrom" in entry && entry.resolvedFrom === "spec" ? [...entry.extraRequirements] : []),
+		),
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
@@ -184,21 +218,86 @@ export function buildSwebenchPrepareScript(
 		// legitimately conflict — ten sphinx specs died with ResolutionImpossible on the 2026-09-15 Verified sweep.
 		// So: one call per stage into the same wheel dir, with the SHARED pip HTTP cache (the operator's uplink is a
 		// phone hotspot). Only the repo stage is fatal; the others print a named marker.
-		...stages.map(({ label, args, fatal }) =>
-			`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
-				needsHostBuildEnv ? "--no-build-isolation " : ""
-			}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${args}${
-				fatal ? "" : ` || { echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"; incomplete="$incomplete ${label}"; }`
-			}`.replace(/\s+/g, " "),
-		),
+		//
+		// --no-build-isolation is for the REPO stage alone. The era pins it protects only matter for the checkout's
+		// own build; forcing it on the other stages means any sdist they touch must find its PEP 517 backend
+		// already installed. matplotlib 3.7's package list pulls an sdist built with meson-python, and the download
+		// died with `ModuleNotFoundError: No module named 'mesonpy'` — six specs. The prepare has network, so those
+		// stages can simply let pip fetch the backend into its own isolated env, as pip does by default.
+		...stages.map(({ label, args, pins, fatal }) => {
+			const download = (what: string) =>
+				`${installEnv ? `env ${installEnv} ` : ""}python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache ${
+					needsHostBuildEnv && label === "repo" ? "--no-build-isolation " : ""
+				}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${what}`.replace(/\s+/g, " ");
+			if (fatal) {
+				return download(args);
+			}
+			// A stage of independent pins retries PIN BY PIN when the joint resolution fails, and records the ones
+			// that cannot resolve on this platform instead of losing the whole stage. Upstream's package lists are
+			// conda environments: matplotlib's names `pyqt`, `wxpython`, `pygobject` and `cairocffi`, which conda
+			// ships as binaries and pip can only build from source against system dev libraries we do not have.
+			// Before this, ONE such entry took every other pin of the stage down with it — numpy included.
+			if (pins.length === 0) {
+				return `${download(args)} || { echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"; incomplete="$incomplete ${label}"; }`;
+			}
+			return [
+				`if ! ${download(args)}; then`,
+				`  for pin in ${pins.map((pin) => shellQuote(pin)).join(" ")}; do`,
+				`    ${download('"$pin"')} || { echo "SWEBENCH_UNRESOLVED_PIN $pin"; echo "$pin" >> ${unresolvedPath}; }`,
+				"  done",
+				"fi",
+			].join("\n");
+		}),
 		// The completion marker: written ONLY when EVERY stage closed. The fatal repo stage aborts the script on
 		// its own; a non-fatal stage that failed sets `incomplete`, and a cache missing that stage's wheels is not
 		// a cache hit. Live 2026-09-15: four failed specs left partial wheel dirs. Live 2026-09-16: scikit-learn
 		// 0.22's `pip_packages` stage could not resolve `numpy==1.19.2` for cp36/aarch64, the marker was written
 		// anyway, and every sealed grade for the spec then died with "No matching distribution found for numpy" —
 		// with the prepare still cheerfully reporting "already cached".
-		`if [ -n "$incomplete" ]; then echo "SWEBENCH_PREPARE_INCOMPLETE$incomplete"; else mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)} && touch /cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_PREPARE_MARKER}; fi`,
+		`if [ -n "$incomplete" ]; then echo "SWEBENCH_PREPARE_INCOMPLETE$incomplete"; fi`,
 		`ls /cache/wheels/${swebenchWheelCacheKey(entry)} | wc -l`,
+	].join("\n");
+}
+
+/**
+ * The closure PROBE: the sealed grade's own install, offline against the cache the download filled, in a
+ * throwaway venv and a separate container run.
+ *
+ * Two things come out of it. A closure gap surfaces HERE — once, at prepare — instead of at every grade of the
+ * spec: matplotlib 3.7's editable install wanted `cython>=3.0.10`, which nothing had downloaded, and only the
+ * grade ever said so. And the build's OWN network fetches are warmed: matplotlib downloads a pinned freetype
+ * tarball during `build_ext` and reads it back from the XDG cache, which a `--network none` grade cannot do.
+ *
+ * `PIP_NO_INDEX` (set by the shared install lines) keeps pip offline so the probe cannot paper over a gap with a
+ * live download, while the container's network stays available for exactly those non-pip fetches.
+ */
+export function buildSwebenchProbeScript(input: {
+	readonly entry: SwebenchGraderEntry;
+	readonly extraPins?: readonly string[];
+	readonly repoRequirementsFile?: string | null;
+	readonly pep518BuildRequires?: readonly string[];
+	readonly unresolvedPins?: readonly string[];
+}): string {
+	const key = swebenchWheelCacheKey(input.entry);
+	return [
+		"set -u",
+		`mkdir -p /cache/xdg/${key}`,
+		"python -m venv /tmp/probe",
+		"(",
+		"export PATH=/tmp/probe/bin:$PATH",
+		...buildSwebenchInstallLines({ ...input, root: "/src", xdgHome: `/cache/xdg/${key}` }),
+		") > /tmp/probe.log 2>&1 || true",
+		// Keep whatever the repo's own pre_install fetched into `build/` — the grade has no network to fetch it.
+		`if [ -d /src/build ]; then mkdir -p /cache/build/${key} && cp -a /src/build/. /cache/build/${key}/ 2>/dev/null || true; fi`,
+		// A pipeline's `while read` runs in a SUBSHELL, so the verdict is read back from the file, not a variable.
+		'if grep -qE "SWEBENCH_PIP_FAILED|No matching distribution|Could not find a version" /tmp/probe.log; then',
+		'  echo "SWEBENCH_PROBE_FAILED"',
+		'  grep -hE "SWEBENCH_PIP_FAILED|No matching distribution|Could not find a version" /tmp/probe.log | sort -u | head -6',
+		// When the reason is not a missing distribution, the summary lines say nothing useful — so the tail of the
+		// transcript comes with it. A probe that fails without saying why costs a whole hand re-run to find out.
+		'  echo "SWEBENCH_PROBE_TAIL"',
+		"  tail -40 /tmp/probe.log",
+		"fi",
 	].join("\n");
 }
 
@@ -220,21 +319,36 @@ export function swebenchToolchainRequirements(entry: SwebenchGraderEntry): strin
  * failures print a named marker line, and pytest's stderr merges into the parsed stream (`^PASSED` summary
  * lines cannot collide with diagnostics).
  */
-export function buildSwebenchGradeScript(
-	entry: SwebenchGraderEntry,
-	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
-	extraPins: readonly string[] = [],
-	repoRequirementsFile: string | null = null,
-	pep518BuildRequires: readonly string[] = [],
-): string {
+/**
+ * The install sequence shared by the sealed GRADE and the prepare's closure probe: the same toolchain, the same
+ * repo-level pre_install, the same package stages, the same editable install, the same pin re-assertion. One
+ * definition, because a probe that installs differently from the grade proves nothing about the grade.
+ *
+ * `root` is the checkout (`/work` when grading, `/src` when probing). `xdgHome` is where a build's OWN downloads
+ * are cached — matplotlib fetches a pinned freetype tarball during `build_ext` and reads it back from the XDG
+ * cache, so the probe (which has network) warms it and the grade (which has none) replays it.
+ */
+export function buildSwebenchInstallLines(input: {
+	readonly entry: SwebenchGraderEntry;
+	readonly root: string;
+	readonly xdgHome: string;
+	readonly extraPins?: readonly string[];
+	readonly repoRequirementsFile?: string | null;
+	readonly pep518BuildRequires?: readonly string[];
+	readonly unresolvedPins?: readonly string[];
+}): string[] {
+	const { entry, root, xdgHome } = input;
+	const extraPins = input.extraPins ?? [];
+	const repoRequirementsFile = input.repoRequirementsFile ?? null;
+	const pep518BuildRequires = input.pep518BuildRequires ?? [];
+	const unresolvedPins = input.unresolvedPins ?? [];
 	const wheels = `--no-index --find-links /cache/wheels/${swebenchWheelCacheKey(entry)}`;
 	const facts = graderEntryFacts(entry);
 	const packages = classifySwebenchPackages(facts.packages);
-	// Upstream order for a spec: pre_install → packages → pip_packages → install (the repo). A tranche entry keeps
-	// its probe-proven order (extras AFTER the editable install: a pytest-repo's editable install IS the pytest).
-	const packagePins = facts.fromSpec
-		? [...packages.pins, ...extraPins, ...entry.extraRequirements]
-		: [...packages.pins, ...extraPins];
+	const unresolved = new Set(unresolvedPins);
+	const packagePins = (
+		facts.fromSpec ? [...packages.pins, ...extraPins, ...entry.extraRequirements] : [...packages.pins, ...extraPins]
+	).filter((pin) => !unresolved.has(pin));
 	const installEnv = Object.entries(entry.installEnv)
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
@@ -242,9 +356,7 @@ export function buildSwebenchGradeScript(
 	const pipInstall = (what: string, stage: string) =>
 		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
 	return [
-		"set -u",
-		"python -m venv /tmp/venv",
-		"export PATH=/tmp/venv/bin:$PATH",
+		`export XDG_CACHE_HOME=${xdgHome}`,
 		// Our own pip calls carry --no-index --find-links, but a repo's build can spawn pip ITSELF and that child
 		// carries neither. matplotlib's setup.py resolves `setup_requires` by running
 		// `pip wheel --no-deps -w <tmp> 'numpy>=1.19'`, which reaches for PyPI, and under `--network none` the
@@ -253,7 +365,13 @@ export function buildSwebenchGradeScript(
 		"export PIP_NO_INDEX=1",
 		`export PIP_FIND_LINKS=/cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		"export PIP_DISABLE_PIP_VERSION_CHECK=1",
-		...swebenchEraConstraintLines(),
+		// The spec's own exact pins are constraints for EVERY resolution in the environment, not just the stage that
+		// names them. Upstream's package lists are conda environments whose entries mostly carry no version, and
+		// pip resolves those to today's releases: matplotlib 3.7's unversioned `pandas` came back as 3.0.5, which
+		// cannot coexist with the spec's `numpy==1.25.2`, and the whole packages stage died with
+		// ResolutionImpossible. Constrained, pip picks the pandas that fits the pinned numpy — which is what conda
+		// did for upstream.
+		...swebenchEraConstraintLines(specExactPins(facts.fromSpec ? [...entry.extraRequirements] : [])),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -261,15 +379,21 @@ export function buildSwebenchGradeScript(
 			const lines = "preInstallShell" in entry ? splitSwebenchPreInstall(entry.preInstallShell).repo : [];
 			return lines.length > 0
 				? [
-						`( cd /work\n${lines
-							.map((line) => rewriteSwebenchRepoLine(line, "/work"))
+						`( cd ${root}\n${lines
+							.map((line) => rewriteSwebenchRepoLine(line, root))
 							.join("\n")}\n) 2>&1 || echo "SWEBENCH_PREINSTALL_FAILED"`,
 					]
 				: [];
 		})(),
+		// A repo-level pre_install may DOWNLOAD build assets into `build/` at the top of the checkout: matplotlib's
+		// spec wgets and untars qhull there. That works while preparing, where the network is on, and cannot work
+		// in a `--network none` grade — the editable install died on `Failed to download qhull-2020-src-8.0.2.tgz`.
+		// So the probe saves the tree it produced and every later grade restores it, AFTER the pre_install so a
+		// failed fetch cannot clobber what the cache already holds.
+		`if [ -d /cache/build/${swebenchWheelCacheKey(entry)} ]; then mkdir -p ${root}/build && cp -a /cache/build/${swebenchWheelCacheKey(entry)}/. ${root}/build/ 2>/dev/null || true; fi`,
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
-			? [pipInstall(`-r '/work/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
+			? [pipInstall(`-r '${root}/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
 			: []),
 		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
@@ -281,9 +405,9 @@ export function buildSwebenchGradeScript(
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root)} 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
-					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e /work`
+					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
 						.trim(),
 					"editable",
@@ -303,6 +427,35 @@ export function buildSwebenchGradeScript(
 			const exact = specExactPins(packagePins);
 			return facts.fromSpec && exact.length > 0 ? [pipInstall(`--no-deps ${quote(exact)}`, "pins-reassert")] : [];
 		})(),
+	];
+}
+
+export function buildSwebenchGradeScript(
+	entry: SwebenchGraderEntry,
+	plan: Pick<ReturnType<typeof buildSwebenchGradePlan>, "failToPassCommand" | "passToPassCommand">,
+	extraPins: readonly string[] = [],
+	repoRequirementsFile: string | null = null,
+	pep518BuildRequires: readonly string[] = [],
+	unresolvedPins: readonly string[] = [],
+): string {
+	const facts = graderEntryFacts(entry);
+	const quote = (parts: readonly string[]) => parts.map((part) => shellQuote(part)).join(" ");
+	return [
+		"set -u",
+		"python -m venv /tmp/venv",
+		"export PATH=/tmp/venv/bin:$PATH",
+		// The probe warmed a build's own downloads into the cache; the cache is read-only here, and a build that
+		// wants to WRITE its cache must not fail on that, so it is copied into a writable temp dir first.
+		`mkdir -p /tmp/xdg && cp -a /cache/xdg/${swebenchWheelCacheKey(entry)}/. /tmp/xdg/ 2>/dev/null || true`,
+		...buildSwebenchInstallLines({
+			entry,
+			root: "/work",
+			xdgHome: "/tmp/xdg",
+			extraPins,
+			repoRequirementsFile,
+			pep518BuildRequires,
+			unresolvedPins,
+		}),
 		...(entry.httpbinService
 			? [
 					// Loopback httpbin INSIDE the none-network namespace: the era suite builds URLs from HTTPBIN_URL.
@@ -329,6 +482,22 @@ export function buildSwebenchGradeScript(
  */
 export function specExactPins(pins: readonly string[]): string[] {
 	return pins.filter((pin) => /^[A-Za-z0-9][A-Za-z0-9._-]*==[^\s;]+$/u.test(pin.trim())).map((pin) => pin.trim());
+}
+
+/** The pins the prepare recorded as unresolvable on this platform for this spec's wheel cache. */
+export function readUnresolvedPins(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
+	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_UNRESOLVED_PINS);
+	if (!existsSync(path)) {
+		return [];
+	}
+	return [
+		...new Set(
+			readFileSync(path, "utf8")
+				.split("\n")
+				.map((line) => line.trim())
+				.filter(Boolean),
+		),
+	];
 }
 
 /** Split a grade run's combined stdout into the two pytest outputs. */
@@ -465,11 +634,92 @@ export async function prepareSwebenchWheels(
 	// partial cache is the worst possible outcome: the prepare reports "already cached" forever and every grade
 	// for the spec fails on a missing distribution. Refuse the closure instead, naming the stages.
 	const incomplete = /SWEBENCH_PREPARE_INCOMPLETE(.*)/u.exec(prepared.stdout)?.[1]?.trim();
+	const resolverSays = (transcript: string): string =>
+		transcript
+			.split("\n")
+			.filter((line) =>
+				/^(ERROR|WARNING: Discarding)|No matching distribution|Could not find a version|SWEBENCH_PIP_FAILED/u.test(
+					line.trim(),
+				),
+			)
+			.slice(-4)
+			.map((line) => line.trim().slice(0, 300))
+			.join(" | ");
 	if (incomplete) {
+		// Carry the resolver's own words: "stage X failed" without them sends the reader back to re-run by hand.
+		const why = resolverSays(`${prepared.stdout}\n${prepared.stderr}`);
 		throw new Error(
-			`wheel closure incomplete for ${swebenchWheelCacheKey(input.entry)} — stage(s) ${incomplete} could not resolve; the cache was NOT marked complete`,
+			`wheel closure incomplete for ${swebenchWheelCacheKey(input.entry)} — stage(s) ${incomplete} could not resolve; the cache was NOT marked complete${why ? `\n  ${why}` : ""}`,
 		);
 	}
+	// A SECOND container run, because the probe must skip exactly the pins the download just recorded as
+	// unresolvable — and those are only known once the download has finished.
+	//
+	// The probe does not merely report: it DRIVES the closure to completion. `pip download` builds an sdist's
+	// metadata in an isolated env, so that sdist's own PEP 518 build requirements are fetched there and never
+	// land in our cache — matplotlib 3.7's closure was missing `cython>=3.0.10` for exactly that reason, and only
+	// a grade ever said so. Each round downloads precisely the requirements the sealed install named as missing
+	// and probes again. Three rounds, because a closure that still has not converged is a finding, not a retry.
+	const key = swebenchWheelCacheKey(input.entry);
+	let probed = { stdout: "", stderr: "" };
+	for (let round = 1; round <= 3; round += 1) {
+		probed = await deps.exec("docker", [
+			"run",
+			"--rm",
+			"-v",
+			`${input.sourceDir}:/src`,
+			"-v",
+			`${input.cacheRoot}:/cache`,
+			swebenchGraderImageFor(input.entry),
+			"bash",
+			"-lc",
+			buildSwebenchProbeScript({
+				entry: input.entry,
+				extraPins,
+				repoRequirementsFile: repoRequirements,
+				pep518BuildRequires: buildRequires,
+				unresolvedPins: readUnresolvedPins(input.cacheRoot, input.entry),
+			}),
+		]);
+		if (!probed.stdout.includes("SWEBENCH_PROBE_FAILED")) {
+			break;
+		}
+		const missing = [
+			...new Set(
+				[...probed.stdout.matchAll(/Could not find a version that satisfies the requirement (\S+)/gu)].map(
+					(match) => match[1] ?? "",
+				),
+			),
+		].filter((requirement) => requirement && !readUnresolvedPins(input.cacheRoot, input.entry).includes(requirement));
+		if (missing.length === 0 || round === 3) {
+			throw new Error(
+				`wheel closure incomplete for ${key} — the sealed install does not succeed against it; the cache was NOT marked complete\n  ${resolverSays(probed.stdout)}`,
+			);
+		}
+		await deps.exec("docker", [
+			"run",
+			"--rm",
+			"-v",
+			`${input.cacheRoot}:/cache`,
+			swebenchGraderImageFor(input.entry),
+			"bash",
+			"-lc",
+			[
+				"set -u",
+				...swebenchEraConstraintLines(),
+				`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} ${missing
+					.map((requirement) => shellQuote(requirement))
+					.join(" ")} || { echo "SWEBENCH_UNRESOLVED_PIN"; ${missing
+					.map(
+						(requirement) =>
+							`echo ${shellQuote(requirement)} >> /cache/wheels/${key}/${SWEBENCH_UNRESOLVED_PINS}`,
+					)
+					.join("; ")}; }`,
+			].join("\n"),
+		]);
+	}
+	// The marker is written HOST-side, after the download closed AND the sealed install proved it.
+	await writeFile(join(input.cacheRoot, "wheels", key, SWEBENCH_PREPARE_MARKER), "");
 }
 
 /**
@@ -595,6 +845,7 @@ export async function gradeSwebenchWorkspace(
 		installEnv: withSwebenchLegacyCBuildEnv({ ...input.entry.installEnv, ...scmEnv }),
 	} as SwebenchGraderEntry;
 	const repoRequirementsFile = await materializeRepoRequirements(gradeEntry, input.workspaceCopyDir);
+	const unresolvedPins = readUnresolvedPins(input.cacheRoot, input.entry);
 	const sealed = planSealedGrade(gradeEntry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
@@ -621,6 +872,7 @@ export async function gradeSwebenchWorkspace(
 				// a missing source and thirteen pass-to-pass tests read as "regressed" in a pristine control.
 				repoRequirementsFile,
 				readPep518BuildRequires(input.workspaceCopyDir),
+				unresolvedPins,
 			),
 		]);
 		stdout = result.stdout;
@@ -645,9 +897,13 @@ export async function gradeSwebenchWorkspace(
 					.map((exclusion) => `${exclusion.id.split("::").pop()} (${exclusion.cause})`)
 					.join(", ")}`
 			: "";
+	const unresolvedNote =
+		unresolvedPins.length > 0
+			? `; environment substitution: ${unresolvedPins.join(", ")} unavailable on this platform`
+			: "";
 	const reason = `${
 		resolvable ? verdict.reason : `not resolvable: no gradable fail-to-pass id survived the dataset`
-	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}${sealedNote}`;
+	}${excludedCount > 0 ? ` (${excludedCount} ungradable dataset id(s) excluded)` : ""}${sealedNote}${unresolvedNote}`;
 	// The receipt keeps a 2 kB tail, which is the right size for a verdict and the wrong size for a diagnosis:
 	// an environment defect lives in the INSTALL stages, thousands of lines above the tail. Naming a directory
 	// here writes the whole grader transcript there, one file per instance. Opt-in, because a full Verified run
