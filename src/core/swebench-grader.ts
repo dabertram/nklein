@@ -72,6 +72,30 @@ export const SWEBENCH_PREPARE_MARKER = "SWEBENCH_PREPARE_OK";
  */
 export const SWEBENCH_UNRESOLVED_PINS = "SWEBENCH_UNRESOLVED.txt";
 
+/**
+ * Build requirements the checkout never declared, discovered by the closure probe and recorded beside the
+ * wheels so the GRADE installs them too. astropy 3.1 predates pyproject.toml: nothing declares that
+ * `astropy_helpers` imports jinja2 during the build, and downloading jinja2 is not enough — it has to be
+ * installed, in both the probe and the grade, or the editable build dies the same way every time.
+ */
+export const SWEBENCH_EXTRA_BUILD_REQUIREMENTS = "SWEBENCH_BUILD_REQS.txt";
+
+/** The build requirements the probe discovered for this spec's wheel cache. */
+export function readExtraBuildRequirements(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
+	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_EXTRA_BUILD_REQUIREMENTS);
+	if (!existsSync(path)) {
+		return [];
+	}
+	return [
+		...new Set(
+			readFileSync(path, "utf8")
+				.split("\n")
+				.map((line) => line.trim())
+				.filter(Boolean),
+		),
+	];
+}
+
 export function swebenchWheelCacheKey(entry: SwebenchGraderEntry): string {
 	return "resolvedFrom" in entry && entry.resolvedFrom === "spec" ? entry.specKey : entry.instanceId;
 }
@@ -295,6 +319,7 @@ export function buildSwebenchProbeScript(input: {
 	readonly repoRequirementsFile?: string | null;
 	readonly pep518BuildRequires?: readonly string[];
 	readonly unresolvedPins?: readonly string[];
+	readonly extraBuildRequirements?: readonly string[];
 }): string {
 	const key = swebenchWheelCacheKey(input.entry);
 	return [
@@ -365,6 +390,8 @@ export function buildSwebenchInstallLines(input: {
 	 * `sphinxcontrib-applehelp<=1.0.7<=1.0.7`, and setuptools rejects the whole `install_requires`.
 	 */
 	readonly runRepoPreInstall?: boolean;
+	/** Build requirements the probe DISCOVERED, recorded beside the wheels; see SWEBENCH_EXTRA_BUILD_REQUIREMENTS. */
+	readonly extraBuildRequirements?: readonly string[];
 }): string[] {
 	const { entry, root, xdgHome } = input;
 	const runRepoPreInstall = input.runRepoPreInstall ?? true;
@@ -440,7 +467,13 @@ export function buildSwebenchInstallLines(input: {
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [
 					pipInstall(
-						quote([...new Set([...swebenchSpecBuildRequirements(entry), ...pep518BuildRequires])]),
+						quote([
+							...new Set([
+								...swebenchSpecBuildRequirements(entry),
+								...pep518BuildRequires,
+								...(input.extraBuildRequirements ?? []),
+							]),
+						]),
 						"build-requirements",
 					),
 				]
@@ -478,6 +511,7 @@ export function buildSwebenchGradeScript(
 	repoRequirementsFile: string | null = null,
 	pep518BuildRequires: readonly string[] = [],
 	unresolvedPins: readonly string[] = [],
+	extraBuildRequirements: readonly string[] = [],
 ): string {
 	const facts = graderEntryFacts(entry);
 	const quote = (parts: readonly string[]) => parts.map((part) => shellQuote(part)).join(" ");
@@ -496,6 +530,7 @@ export function buildSwebenchGradeScript(
 			repoRequirementsFile,
 			pep518BuildRequires,
 			unresolvedPins,
+			extraBuildRequirements,
 		}),
 		...(entry.httpbinService
 			? [
@@ -725,6 +760,7 @@ export async function prepareSwebenchWheels(
 		readUnresolvedPins(input.cacheRoot, input.entry),
 	);
 	let probed = { stdout: "", stderr: "" };
+	const guessed = new Set<string>();
 	for (let round = 1; round <= 6; round += 1) {
 		probed = await deps.exec("docker", [
 			"run",
@@ -742,6 +778,7 @@ export async function prepareSwebenchWheels(
 				repoRequirementsFile: probeRequirements,
 				pep518BuildRequires: buildRequires,
 				unresolvedPins: readUnresolvedPins(input.cacheRoot, input.entry),
+				extraBuildRequirements: readExtraBuildRequirements(input.cacheRoot, input.entry),
 			}),
 		]);
 		if (!probed.stdout.includes("SWEBENCH_PROBE_FAILED")) {
@@ -782,6 +819,12 @@ export async function prepareSwebenchWheels(
 			await writeFile(path, `${merged.join("\n")}\n`);
 			continue;
 		}
+		// A build that imports a module it does not have names it exactly, and that name is very often the
+		// distribution name too: astropy 3.1 predates pyproject.toml, so nothing declared its build requirements
+		// and `astropy_helpers` died on `No module named 'jinja2'` with the editable install saying only "Failed
+		// building editable for astropy". Worth one attempt — a name that is not a distribution simply gets
+		// recorded as unresolvable and never tried again.
+		const alreadyUnresolvable = readUnresolvedPins(input.cacheRoot, input.entry);
 		const missing = [
 			...new Set(
 				[
@@ -790,11 +833,64 @@ export async function prepareSwebenchWheels(
 					),
 				].map((match) => match[1] ?? ""),
 			),
-		].filter((requirement) => requirement && !readUnresolvedPins(input.cacheRoot, input.entry).includes(requirement));
-		if (missing.length === 0 || round === 6) {
+		].filter((requirement) => requirement && !alreadyUnresolvable.includes(requirement));
+		// A module name is a GUESS at a distribution name, and its failure is deliberately NOT recorded: recording
+		// it would mark a package the environment genuinely needs as unavailable, which is what happened to django
+		// 1.11's `numpy`. Each guess is tried once per prepare and then left alone.
+		const guesses = [
+			...new Set([
+				...[...probed.stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map(
+					(match) => match[1] ?? "",
+				),
+				// Some builds say it in prose instead of raising: astropy 3.1's setup emits "Cython must be
+				// installed to build from a git checkout".
+				...[...probed.stdout.matchAll(/\b([A-Za-z][\w-]*) must be installed\b/gu)].map((match) => match[1] ?? ""),
+			]),
+		].filter((name) => name && !guessed.has(name) && !missing.includes(name));
+		for (const guess of guesses) {
+			guessed.add(guess);
+		}
+		if ((missing.length === 0 && guesses.length === 0) || round === 6) {
 			throw new Error(
 				`wheel closure incomplete for ${key} — the sealed install does not succeed against it; the cache was NOT marked complete\n  ${resolverSays(probed.stdout)}`,
 			);
+		}
+		if (guesses.length > 0) {
+			await deps
+				.exec("docker", [
+					"run",
+					"--rm",
+					"-v",
+					`${input.cacheRoot}:/cache`,
+					swebenchGraderImageFor(input.entry),
+					"bash",
+					"-lc",
+					[
+						"set -u",
+						...swebenchEraConstraintLines(),
+						`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} ${guesses
+							.map((guess) => shellQuote(guess))
+							.join(" ")} && echo "SWEBENCH_GUESS_OK ${guesses.join(" ")}"`,
+					].join("\n"),
+				])
+				.then(
+					async (result) => {
+						// Downloading is not enough: a build requirement has to be INSTALLED, in the probe and later in
+						// the grade, so a guess that resolves is recorded as a build requirement of this spec.
+						if (result.stdout.includes("SWEBENCH_GUESS_OK")) {
+							const path = join(input.cacheRoot, "wheels", key, SWEBENCH_EXTRA_BUILD_REQUIREMENTS);
+							const merged = [
+								...new Set([...readExtraBuildRequirements(input.cacheRoot, input.entry), ...guesses]),
+							];
+							await writeFile(path, `${merged.join("\n")}\n`);
+						}
+						return result;
+					},
+					() => ({ stdout: "", stderr: "" }),
+				);
+		}
+		if (missing.length === 0) {
+			continue;
 		}
 		await deps.exec("docker", [
 			"run",
@@ -988,6 +1084,7 @@ export async function gradeSwebenchWorkspace(
 				repoRequirementsFile,
 				readPep518BuildRequires(input.workspaceCopyDir),
 				unresolvedPins,
+				readExtraBuildRequirements(input.cacheRoot, input.entry),
 			),
 		]);
 		stdout = result.stdout;
