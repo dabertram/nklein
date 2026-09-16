@@ -611,7 +611,17 @@ export function parseSetupRequires(setupPy: string): string[] {
 }
 
 export function swebenchTestCommand(testCmd: string): string {
-	return testCmd.replace(/(^|\s)--current-env(\s|$)/u, "$1--runner current-env$2");
+	// tox is a LAUNCHER, and the environment it launches into is not the one under test. Even with
+	// `--runner current-env` it prepends `.tox/<env>/bin` to PATH, so `commands[0]> pytest` resolves pytest and
+	// every import from `.tox/py39` — a virtualenv our sealed install never touched. Proven in the container on
+	// 2026-09-16: sphinx 3.2's five pass-to-pass tests fail under tox with `No module named 'roman'` while
+	// `roman` sits installed in `/tmp/venv`, and the same five pass when pytest is invoked directly. The sphinx
+	// specs that DID pass under tox passed by luck, because `.tox/py39` happened to hold what they needed.
+	//
+	// The substitution is faithful to what tox would have run: these tox environments' `commands` are
+	// `pytest -rA --durations 25 {posargs}`, and the selections are the posargs. A grade that runs somewhere
+	// other than the environment it built is not measuring that environment.
+	return /^\s*tox\b/u.test(testCmd) ? "python -m pytest -rA" : testCmd;
 }
 
 export function swebenchInstallExtras(installCommand: string): string {

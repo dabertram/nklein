@@ -413,9 +413,9 @@ describe("install extras", () => {
 	});
 });
 
-describe("tox current-env", () => {
-	it("rewrites the inert --current-env flag to the runner form", () => {
-		expect(swebenchTestCommand("tox --current-env -epy39 -v --")).toBe("tox --runner current-env -epy39 -v --");
+describe("tox as a launcher", () => {
+	it("runs pytest directly instead of launching tox into an environment we never built", () => {
+		expect(swebenchTestCommand("tox --current-env -epy39 -v --")).toBe("python -m pytest -rA");
 	});
 
 	it("leaves a plain pytest command alone", () => {
