@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced thirty-six defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced forty-three defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -87,6 +87,13 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 34 | django 1.11: `fatal error: ffi.h`; django 2.2: `libmemcached/memcached.h` | more system libraries conda gave upstream | libffi, libssl, libxml2, libxslt, libjpeg and libmemcached join the base image; the requirements FILE install also falls back line by line (`e3b14cbc8`, `ee6ff5307`) |
 | 35 | scikit-learn 0.20: the build stopped at `[ 1/39] Cythonizing …` with no message | Cython 3.0 rejects language constructs 2018-era `.pyx` files use, and the spec pins `cython` with no version | "died while Cythonizing" is treated as the evidence: fetch `Cython<3`, record it as a build requirement, retry once (`a99a32ad8`) |
 | 36 | scikit-learn 1.3: `no such option: --no-use-pep517`, then `missing the 'build_editable' hook` | the flag was removed in pip 23.1 and is load-bearing — the spec's `setuptools<60.0` backend predates PEP 660 | the flag's presence selects the pip era: `pip<23.1` for those specs, newest for everything else (`ee6ff5307`) |
+| 37 | django: `unittest.loader._FailedTest` for half the selections | unittest prints a test's DOCSTRING instead of its id when it has one, and the dataset records whichever was printed — so half of django's ids are English sentences | run the test MODULES the patch touches, as upstream does, and credit every id form a passing line could be (`34deffbdc`) |
+| 38 | sphinx 3.2: tox aborted with exit 128 before any test | its tox.ini lists a `git+https://…` dependency and a sealed grade cannot clone | the URL is rewritten to the project name so pip resolves it from the cache (`8debd8844`) |
+| 39 | five sphinx specs: `No module named 'roman'` at collection | a RUNTIME import nothing declares — the closure probe proves an install, and this only appears when tests are collected | the control records it beside the wheels and clears the marker; the next prepare pulls it in and the grade installs it (`8debd8844`) |
+| 40 | pylint 3.0: `module 'astroid.nodes' has no attribute 'Try'` | the pin re-assertion restored the spec's older astroid over the newer one the REPO's own install had chosen | who moved the pin decides: our build-requirements stage → restore; the repo's editable install → leave it (`5c7705324`) |
+| 41 | pylint 3.0: a perfectly good pin recorded as unavailable | pip strips a requirements file's inline comments and does NOT strip them from an argument, and the per-line fallback passes arguments | comments are stripped where the file is flattened and again in the fallback (`5c7705324`) |
+| 42 | requests 2.0: 35 of 79 pass-to-pass tests lost to `requests.exceptions` | the era suites read `HTTPBIN_URL` and fall back to the real httpbin.org, which a sealed grade cannot reach | detect that variable, put `httpbin` in the closure, serve it on loopback inside the sealed namespace (`39e0ff997`) |
+| 43 | xarray 2022.06: `Pandas requires version '0.19.0' or newer of 'xarray' (version '0.0.0' …)` | `requires = [...]` was matched lazily to the FIRST `]`, and `"setuptools_scm[toml]>=3.4"` closes it mid-string — so setuptools_scm never entered the closure and the build had no version source | scan the array by bracket DEPTH, skipping quoted text (`cf5962d66`) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and EVERY "pass-to-pass
 regression" in a pristine tree so far was our harness diverging from upstream, not a broken repo.
@@ -102,6 +109,10 @@ transcripts; the receipt's 2 kB tail cannot diagnose an install.
 - ~~**Submodule-era astropy (`astropy/astropy` 1.3 and 3.1 — 6 Verified instances).**~~ CLOSED 2026-09-16
   (`8b914eb28`): `materialize` reads the gitlinks out of the parent tree, pairs each with the URL `.gitmodules`
   records, mirrors that repository once, archives it at the commit the parent pins, and re-tars the whole tree.
+- **Network-bound graded tests are excluded, not failed.** Some pass-to-pass tests reach the internet by design
+  (matplotlib's `test_https_imread_smoketest`, requests' timeout tests). Upstream grades online and they pass; a
+  sealed grade cannot run them. A control records each one with the exception that proved it, the grade excludes it
+  through the same seal the hand-proven tranche entries use, and the verdict NAMES every exclusion.
 - **Platform substitutions are recorded, not silent.** Some pins have no distribution that works on aarch64 or on an
   era interpreter — conda-only GUI toolkits (`pyqt`, `pygobject`, `wxpython`, `gtk3`/`gtk4`), `scipy==1.5.2` with no
   cp36 wheel, `bcrypt` on cp36. The prepare records them in `SWEBENCH_UNRESOLVED.txt` beside the wheels, the grade
