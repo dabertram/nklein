@@ -488,11 +488,26 @@ export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): strin
 export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82"];
 
 /** The shell lines that materialize the era constraints and point every pip invocation at them. */
-export function swebenchEraConstraintLines(extra: readonly string[] = []): string[] {
+export function swebenchEraConstraintLines(specPins: readonly string[] = []): string[] {
 	return [
-		`printf '%s\\n' ${[...SWEBENCH_ERA_CONSTRAINTS, ...extra].map((line) => `'${line}'`).join(" ")} > /tmp/swebench-era-constraints.txt`,
-		"export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt",
+		`printf '%s\\n' ${SWEBENCH_ERA_CONSTRAINTS.map((line) => `'${line}'`).join(" ")} > ${SWEBENCH_ERA_CONSTRAINT_FILE}`,
+		`export PIP_CONSTRAINT=${SWEBENCH_ERA_CONSTRAINT_FILE}`,
+		// The spec's own pins constrain the PACKAGE stages only, never the editable install. Globally they are too
+		// strong and contradict the spec itself: sphinx 4.1 pins `Jinja2==3.0.3` in `pip_packages` while its own
+		// pre_install rewrites setup.py to require `Jinja2<3.0`, which upstream satisfies by installing in
+		// sequence — as a constraint it is ResolutionImpossible. Written here, applied with `-c` where needed.
+		...(specPins.length > 0
+			? [`printf '%s\\n' ${specPins.map((pin) => `'${pin}'`).join(" ")} > ${SWEBENCH_SPEC_PIN_FILE}`]
+			: [`rm -f ${SWEBENCH_SPEC_PIN_FILE}`]),
 	];
+}
+
+export const SWEBENCH_ERA_CONSTRAINT_FILE = "/tmp/swebench-era-constraints.txt";
+export const SWEBENCH_SPEC_PIN_FILE = "/tmp/swebench-spec-pins.txt";
+
+/** `-c <spec pins>` when the spec has exact pins, otherwise nothing. */
+export function swebenchSpecPinConstraintArg(specPins: readonly string[]): string {
+	return specPins.length > 0 ? `-c ${SWEBENCH_SPEC_PIN_FILE} ` : "";
 }
 
 /**

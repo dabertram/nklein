@@ -71,12 +71,14 @@ describe("buildSwebenchGradeScript", () => {
 	it("cache-only installs, toolchain first, --no-build-isolation ALWAYS, pretend version on the editable install", () => {
 		const script = buildSwebenchGradeScript(entry, buildSwebenchGradePlan(instance));
 		const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
-		expect(pipLines.length).toBe(3);
+		// pip-upgrade, toolchain, packages, editable — the venv's bundled pip is too old to read modern wheel tags.
+		expect(pipLines.length).toBe(4);
 		for (const line of pipLines) {
 			expect(line, `not cache-only: ${line}`).toContain("--no-index --find-links /cache/wheels/");
 			expect(line, `not diagnosable: ${line}`).toContain("SWEBENCH_PIP_FAILED");
 		}
-		const [toolchain, editable, extras] = pipLines;
+		const [pipUpgrade, toolchain, editable, extras] = pipLines;
+		expect(pipUpgrade).toContain("--upgrade pip");
 		expect(toolchain).toContain("'wheel'");
 		expect(toolchain).toContain("'setuptools<81'");
 		expect(toolchain).toContain("'setuptools-scm'");
@@ -239,11 +241,12 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			// passed in (here: the flattened file the grader writes beside the tree).
 			const script = buildSwebenchGradeScript(env, sealed.plan, [], ".nklein-swebench-requirements.txt");
 			const pipLines = script.split("\n").filter((line) => line.includes("pip install"));
-			expect(pipLines[1]).toContain("-r '/work/.nklein-swebench-requirements.txt'");
-			expect(pipLines[2]).toContain("'pytz'");
+			expect(pipLines[0]).toContain("--upgrade pip");
+			expect(pipLines[2]).toContain("-r '/work/.nklein-swebench-requirements.txt'");
+			expect(pipLines[3]).toContain("'pytz'");
 			// The spec's BUILD prerequisites (wheel + any setuptools/cython pin) land before the editable install.
-			expect(pipLines[3]).toContain("'wheel'");
-			expect(pipLines[4]).toContain("--no-build-isolation -e /work");
+			expect(pipLines[4]).toContain("'wheel'");
+			expect(pipLines[5]).toContain("--no-build-isolation -e /work");
 			// Without a resolved file the sentinel must NOT become a literal `-r requirements.txt`.
 			expect(buildSwebenchGradeScript(env, sealed.plan)).not.toContain("-r '/work/requirements.txt'");
 			expect(script).toContain(

@@ -40,6 +40,7 @@ import {
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
 	swebenchSpecBuildRequirements,
+	swebenchSpecPinConstraintArg,
 	swebenchTestCommand,
 	withSwebenchLegacyCBuildEnv,
 } from "./swebench-env-spec";
@@ -142,6 +143,10 @@ export function buildSwebenchPrepareScript(
 			? [`( cd /src\n${repoPreInstallLines.map((line) => rewriteSwebenchRepoLine(line, "/src")).join("\n")}\n)`]
 			: [];
 	const unresolvedPath = `/cache/wheels/${swebenchWheelCacheKey(entry)}/${SWEBENCH_UNRESOLVED_PINS}`;
+	const prepareSpecPins = specExactPins(
+		"resolvedFrom" in entry && entry.resolvedFrom === "spec" ? [...entry.extraRequirements] : [],
+	);
+	const prepareSpecPinArg = swebenchSpecPinConstraintArg(prepareSpecPins);
 	const stages: { label: string; args: string; pins: readonly string[]; fatal: boolean }[] = [
 		...(requirementsFile
 			? [
@@ -210,9 +215,7 @@ export function buildSwebenchPrepareScript(
 		// the environment the grade will install, not a newer one it cannot. `wheel` unconstrained came back as
 		// 0.48.0, which requires packaging>=24.0 and therefore cannot coexist with matplotlib 3.7's pinned
 		// packaging==23.1; constrained, pip simply picks the last `wheel` that fits.
-		...swebenchEraConstraintLines(
-			specExactPins("resolvedFrom" in entry && entry.resolvedFrom === "spec" ? [...entry.extraRequirements] : []),
-		),
+		...swebenchEraConstraintLines(prepareSpecPins),
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
 		...(needsHostBuildEnv
@@ -315,6 +318,8 @@ export function buildSwebenchProbeScript(input: {
 export function swebenchToolchainRequirements(entry: SwebenchGraderEntry): string[] {
 	const pinnedSetuptools = entry.preInstallRequirements.find((requirement) => requirement.startsWith("setuptools"));
 	return [
+		// The venv's bundled pip is far too old to read modern wheel tags; it is upgraded first, from here.
+		"pip",
 		"wheel",
 		pinnedSetuptools ?? "setuptools",
 		...entry.buildRequirements,
@@ -363,6 +368,8 @@ export function buildSwebenchInstallLines(input: {
 		.map(([key, value]) => `${key}='${value}'`)
 		.join(" ");
 	const quote = (parts: readonly string[]) => parts.map((part) => shellQuote(part)).join(" ");
+	const specPins = specExactPins(facts.fromSpec ? [...entry.extraRequirements] : []);
+	const specPinArg = swebenchSpecPinConstraintArg(specPins);
 	const pipInstall = (what: string, stage: string) =>
 		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
 	return [
@@ -381,7 +388,14 @@ export function buildSwebenchInstallLines(input: {
 		// cannot coexist with the spec's `numpy==1.25.2`, and the whole packages stage died with
 		// ResolutionImpossible. Constrained, pip picks the pandas that fits the pinned numpy — which is what conda
 		// did for upstream.
-		...swebenchEraConstraintLines(specExactPins(facts.fromSpec ? [...entry.extraRequirements] : [])),
+		...swebenchEraConstraintLines(specPins),
+		// FIRST, before anything else is resolved: `python -m venv` seeds the interpreter's OWN bundled pip, and on
+		// the python 3.6 image that is pip 18.1 — which predates PEP 600 and cannot read a `manylinux_2_28` or
+		// abi3 wheel at all. The download runs under the image's newer system pip and fetched
+		// `bcrypt-4.0.1-cp36-abi3-manylinux_2_28_aarch64.whl`; the venv's pip then reported "from versions: )" for
+		// a file sitting in front of it, and django 3.0/3.2's whole requirements install failed over it. `pip`
+		// alone is a no-op to a pip that considers itself satisfied, hence --upgrade.
+		pipInstall("--upgrade pip", "pip-upgrade"),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -403,9 +417,9 @@ export function buildSwebenchInstallLines(input: {
 		`if [ -d /cache/build/${swebenchWheelCacheKey(entry)} ]; then mkdir -p ${root}/build && cp -a /cache/build/${swebenchWheelCacheKey(entry)}/. ${root}/build/ 2>/dev/null || true; fi`,
 		// P1.SWEBENCHFULL: the spec's package list (requirements file / conda deps / pins) lands before the repo.
 		...(repoRequirementsFile || (!isSwebenchRequirementsSentinel(facts.packages) && packages.requirementsFile)
-			? [pipInstall(`-r '${root}/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
+			? [pipInstall(`${specPinArg}-r '${root}/${repoRequirementsFile ?? packages.requirementsFile}'`, "packages")]
 			: []),
-		...(packagePins.length > 0 ? [pipInstall(quote(packagePins), "packages")] : []),
+		...(packagePins.length > 0 ? [pipInstall(`${specPinArg}${quote(packagePins)}`, "packages")] : []),
 		...(facts.fromSpec && "resolvedFrom" in entry && entry.resolvedFrom === "spec"
 			? [
 					pipInstall(
