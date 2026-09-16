@@ -302,7 +302,7 @@ export function buildSwebenchProbeScript(input: {
 		"python -m venv /tmp/probe",
 		"(",
 		"export PATH=/tmp/probe/bin:$PATH",
-		...buildSwebenchInstallLines({ ...input, root: "/src", xdgHome: `/cache/xdg/${key}` }),
+		...buildSwebenchInstallLines({ ...input, root: "/src", xdgHome: `/cache/xdg/${key}`, runRepoPreInstall: false }),
 		") > /tmp/probe.log 2>&1 || true",
 		// Keep whatever the repo's own pre_install fetched into `build/` — the grade has no network to fetch it.
 		`if [ -d /src/build ]; then mkdir -p /cache/build/${key} && cp -a /src/build/. /cache/build/${key}/ 2>/dev/null || true; fi`,
@@ -355,8 +355,16 @@ export function buildSwebenchInstallLines(input: {
 	readonly repoRequirementsFile?: string | null;
 	readonly pep518BuildRequires?: readonly string[];
 	readonly unresolvedPins?: readonly string[];
+	/**
+	 * Whether to run the repo-level pre_install. The GRADE must (its workspace is a fresh copy); the PROBE must
+	 * NOT, because the download script already applied it to the same `/src` tree and these lines are not
+	 * idempotent — sphinx's `sed 's/sphinxcontrib-applehelp/sphinxcontrib-applehelp<=1.0.7/'` applied twice yields
+	 * `sphinxcontrib-applehelp<=1.0.7<=1.0.7`, and setuptools rejects the whole `install_requires`.
+	 */
+	readonly runRepoPreInstall?: boolean;
 }): string[] {
 	const { entry, root, xdgHome } = input;
+	const runRepoPreInstall = input.runRepoPreInstall ?? true;
 	const extraPins = input.extraPins ?? [];
 	const repoRequirementsFile = input.repoRequirementsFile ?? null;
 	const pep518BuildRequires = input.pep518BuildRequires ?? [];
@@ -404,7 +412,8 @@ export function buildSwebenchInstallLines(input: {
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
 		...(() => {
-			const lines = "preInstallShell" in entry ? splitSwebenchPreInstall(entry.preInstallShell).repo : [];
+			const lines =
+				runRepoPreInstall && "preInstallShell" in entry ? splitSwebenchPreInstall(entry.preInstallShell).repo : [];
 			return lines.length > 0
 				? [
 						`( cd ${root}\n${lines
