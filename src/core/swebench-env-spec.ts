@@ -220,20 +220,47 @@ export function djangoTestLabel(testId: string): string {
  * pass-to-pass tests. Upstream never passes ids either: it runs the patched modules and matches the ids against
  * the OUTPUT, which is what {@link passedIdsFromDjangoOutput} does.
  */
-export function djangoTestModules(testPatch: string): string[] {
+export function djangoTestModules(testPatch: string, selections: readonly string[] = []): string[] {
 	const modules = new Set<string>();
 	for (const match of testPatch.matchAll(/^diff --git a\/(\S+) b\//gmu)) {
 		const path = match[1] ?? "";
-		const relative = /^tests\/(.+)\.py$/u.exec(path)?.[1];
-		if (relative) {
-			// `tests/migrations/test_autodetector.py` → `migrations.test_autodetector`; a package's `tests/__init__.py`
-			// → the package itself.
-			modules.add(
-				relative
-					.replace(/\/__init__$/u, "")
-					.split("/")
-					.join("."),
-			);
+		const inTests = /^tests\/(.+)$/u.exec(path)?.[1];
+		if (!inTests) {
+			continue;
+		}
+		// `tests/migrations/test_autodetector.py` → `migrations.test_autodetector`; a package's `tests/__init__.py`
+		// → the package itself. A test patch may touch NO python file at all — django 2.2's instance edits only
+		// `tests/validators/invalid_urls.txt` — and then the label is the package that owns the data file, which
+		// is what `runtests.py` accepts. Without this the selection fell back to the dataset's ids, half of which
+		// are docstrings, and all 1432 pass-to-pass tests were reported as regressions.
+		const asModule = inTests.endsWith(".py")
+			? inTests.slice(0, -3).replace(/\/__init__$/u, "")
+			: inTests.split("/").slice(0, -1).join("/");
+		if (asModule) {
+			modules.add(asModule.split("/").join("."));
+		}
+	}
+	// The patch is not the whole story: django 2.2's instance edits only `tests/validators/*.txt`, while its
+	// pass-to-pass set names 1432 tests across `str.tests`, `model_fields`, `model_formsets` and more. Running
+	// the patched package alone leaves every one of those unrun, which the grader can only read as a regression.
+	// A parenthesised id carries its own module — `test_defaults (str.tests.SimpleTests)` → `str.tests` — so the
+	// selection is the union. Docstring ids carry none, and ride along on a sibling from the same module.
+	for (const selection of selections) {
+		const qualified = /\(([^)]+)\)/u.exec(selection)?.[1];
+		if (!qualified) {
+			continue;
+		}
+		const parts = qualified.split(".");
+		// Drop the trailing class (and a trailing test name on a subtest id) to leave the module path.
+		while (parts.length > 1 && /^[A-Z_]/u.test(parts[parts.length - 1] ?? "")) {
+			parts.pop();
+		}
+		const last = parts[parts.length - 1] ?? "";
+		if (parts.length > 1 && last.startsWith("test_")) {
+			parts.pop();
+		}
+		if (parts.length > 0) {
+			modules.add(parts.join("."));
 		}
 	}
 	return [...modules];
@@ -259,11 +286,27 @@ export function buildSwebenchSelectionArguments(input: {
 	readonly logParser: SwebenchLogParser;
 	readonly selections: readonly string[];
 	readonly testPatch: string;
+	/** django only: resolve a docstring id to the dotted module of the test file that contains it. */
+	readonly findModuleForDocstring?: (docstring: string) => string | null;
 }): readonly string[] {
 	if (input.logParser === "django") {
-		// Prefer the patched MODULES; fall back to labels only when the patch names no test file at all.
-		const modules = djangoTestModules(input.testPatch);
-		return modules.length > 0 ? modules : [...new Set(input.selections.map(djangoTestLabel))];
+		// Prefer MODULES; fall back to labels only when nothing at all could be derived.
+		const modules = new Set(djangoTestModules(input.testPatch, input.selections));
+		// A docstring id carries no module of its own. The workspace does: the docstring is the first line of
+		// some test method, so the file that contains it names the module. Two of django 2.2's 1432 ids are only
+		// findable this way, and a test we cannot select is a test the grader can only score as failed.
+		if (input.findModuleForDocstring) {
+			for (const selection of input.selections) {
+				if (/\([^)]+\)/u.test(selection)) {
+					continue;
+				}
+				const found = input.findModuleForDocstring(selection);
+				if (found) {
+					modules.add(found);
+				}
+			}
+		}
+		return modules.size > 0 ? [...modules] : [...new Set(input.selections.map(djangoTestLabel))];
 	}
 	if (input.logParser === "sympy") {
 		return sympyTestFiles(input.testPatch);

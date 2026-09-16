@@ -238,7 +238,9 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			const env = resolveSwebenchEnv({ instance: djangoInstance, table, overrides: [] });
 			const sealed = planSealedGrade(env, djangoInstance, dir);
 			// The plan carries only the SELECTION ARGUMENTS; the spec's test_cmd is prefixed as a shell string.
-			expect(sealed.plan.failToPassCommand).toEqual(["auth_tests.test_views.LoginTest.test_a"]);
+			// For django those arguments are MODULES — `runtests.py` cannot load the docstring ids the dataset
+			// records, so the ids are matched against the output instead.
+			expect(sealed.plan.failToPassCommand).toEqual(["auth_tests"]);
 			// `packages: "requirements.txt"` is upstream's SENTINEL: the real file is resolved from the checkout and
 			// passed in (here: the flattened file the grader writes beside the tree).
 			const script = buildSwebenchGradeScript(env, sealed.plan, [], ".nklein-swebench-requirements.txt");
@@ -254,9 +256,7 @@ describe("planSealedGrade + grade script for a spec-resolved entry (P1.SWEBENCHF
 			expect(at("--no-build-isolation -e /work")).toBeGreaterThan(at("SWEBENCH_PIP_FAILED build-requirements"));
 			// Without a resolved file the sentinel must NOT become a literal `-r requirements.txt`.
 			expect(buildSwebenchGradeScript(env, sealed.plan)).not.toContain("-r '/work/requirements.txt'");
-			expect(script).toContain(
-				"./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 'auth_tests.test_views.LoginTest.test_a'",
-			);
+			expect(script).toContain("./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 'auth_tests'");
 		} finally {
 			await rm(dir, { recursive: true, force: true });
 		}

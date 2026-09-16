@@ -773,6 +773,44 @@ export function detectsHttpbinUrl(treeDir: string): boolean {
 	);
 }
 
+/**
+ * The dotted django test module whose file contains this docstring, or null.
+ *
+ * unittest prints a test's docstring instead of its id, and the dataset records what was printed — so some
+ * pass-to-pass ids are sentences with no module in them. The workspace has the answer: the docstring is the
+ * first line of some test method, so the file holding it names the module. Two of django 2.2's 1432 ids are
+ * findable only this way, and a test that cannot be selected is one the grader can only score as failed.
+ */
+function findDjangoModuleForDocstring(workspaceDir: string, docstring: string): string | null {
+	const tests = join(workspaceDir, "tests");
+	if (!existsSync(tests) || docstring.length < 12) {
+		return null;
+	}
+	const stack = [tests];
+	while (stack.length > 0) {
+		const directory = stack.pop();
+		if (directory === undefined) {
+			break;
+		}
+		for (const item of readdirSync(directory, { withFileTypes: true })) {
+			const full = join(directory, item.name);
+			if (item.isDirectory()) {
+				stack.push(full);
+			} else if (item.isFile() && item.name.endsWith(".py")) {
+				if (readFileSync(full, "utf8").includes(docstring)) {
+					return full
+						.slice(tests.length + 1)
+						.replace(/\.py$/u, "")
+						.replace(/\/__init__$/u, "")
+						.split("/")
+						.join(".");
+				}
+			}
+		}
+	}
+	return null;
+}
+
 /** The pins the prepare recorded as unresolvable on this platform for this spec's wheel cache. */
 export function readUnresolvedPins(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
 	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_UNRESOLVED_PINS);
@@ -862,11 +900,13 @@ export function planSealedGrade(
 			logParser: facts.logParser,
 			selections: sanitized.failToPass,
 			testPatch: instance.testPatch,
+			findModuleForDocstring: (docstring) => findDjangoModuleForDocstring(workspaceDir, docstring),
 		}),
 		passToPassCommand: buildSwebenchSelectionArguments({
 			logParser: facts.logParser,
 			selections: sanitized.passToPass,
 			testPatch: instance.testPatch,
+			findModuleForDocstring: (docstring) => findDjangoModuleForDocstring(workspaceDir, docstring),
 		}),
 	};
 	const excludedCount =

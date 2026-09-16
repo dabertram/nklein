@@ -153,7 +153,9 @@ describe("django runner", () => {
 				selections: ["test_a (m.C)", "test_b (m.C)", "test_a (m.C)"],
 				testPatch: "",
 			}),
-		).toEqual(["m.C.test_a", "m.C.test_b"]);
+			// The selection is the MODULE the ids name, never the ids: `runtests.py` cannot load a docstring id,
+			// and half of django's dataset ids are docstrings.
+		).toEqual(["m"]);
 	});
 
 	it("reads only `... ok` lines as passes, crediting every id form the line could be", () => {
@@ -513,5 +515,15 @@ describe("pytest verbose order", () => {
 			"astropy/utils/tests/test_misc.py::test_isiterable",
 			"astropy/utils/tests/test_misc.py::test_skip_hidden",
 		]);
+	});
+});
+
+describe("django modules from a data-only test patch", () => {
+	it("falls back to the package that owns a non-python test file", () => {
+		const patch = [
+			"diff --git a/tests/validators/invalid_urls.txt b/tests/validators/invalid_urls.txt",
+			"diff --git a/tests/validators/valid_urls.txt b/tests/validators/valid_urls.txt",
+		].join("\n");
+		expect(djangoTestModules(patch)).toEqual(["validators"]);
 	});
 });
