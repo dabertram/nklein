@@ -1381,11 +1381,20 @@ export async function gradeSwebenchWorkspace(
 	// only appear when tests are collected. Recording is gated on an env var the control sweep sets and a scored
 	// run never does: a graded arm must not quietly repair its own environment mid-benchmark.
 	if (process.env.NKLEIN_SWEBENCH_RECORD_RUNTIME_REQS) {
+		// Two signatures, both naming the package exactly. An ImportError is the obvious one. The quieter one is a
+		// pytest SKIP: `SKIPPED [1] xarray/tests/test_variable.py:1616: requires bottleneck`. Upstream's conda
+		// environments HAVE those optional packages, so the dataset lists such tests as pass-to-pass — and a skip
+		// is not a pass, so xarray 0.12 reported 3 of 364 as regressions for want of `bottleneck` and `sparse`.
+		// Installing them recovers real graded tests, which is better than excluding them.
+		const notPackages = new Set(["python", "internet", "network", "windows", "linux", "macos", "unix"]);
 		const discovered = [
-			...new Set(
-				[...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? ""),
-			),
-		].filter(Boolean);
+			...new Set([
+				...[...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? ""),
+				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: requires ([A-Za-z][\w.-]*)\s*$/gmu)].map(
+					(m) => m[1] ?? "",
+				),
+			]),
+		].filter((name) => name && !notPackages.has(name.toLowerCase()));
 		const networkBound = networkBoundFailures(passToPassOutput);
 		if (networkBound.length > 0) {
 			try {
