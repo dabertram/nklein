@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced thirty-one defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced thirty-six defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -82,6 +82,11 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 29 | matplotlib 3.5/3.6: packages stage lost numpy | `wxpython` downloads as an sdist and then compiles wxWidgets, needing GTK development libraries — a pin can download and still fail to build | the probe reads `Failed building wheel for X` and records it; pip's own "(from versions: none)" vs a non-empty list separates absent from unusable (`3163aa397`, `c1df40b2b`) |
 | 30 | matplotlib 3.0: `cc1: error: '-Wno-error=return-mismatch': no option '-Wreturn-mismatch'` | an OLD gcc treats an unknown `-Wno-error=` as a hard ERROR, and the images span GCC 8 to GCC 14.2 | each flag is probed against the image's own compiler; only supported ones are exported (`fba9abf25`) |
 | 31 | scikit-learn 0.20–1.3: `NotFoundError: No lapack/blas resources found` | upstream's environments are conda, which ships BLAS/LAPACK as packages; a `python:X-slim` image ships none | the base layer installs gfortran, OpenBLAS, LAPACK, freetype, png and zlib, best-effort per package on archived suites (`c1df40b2b`) |
+| 32 | scipy 1.5.2's build env: `numpy==1.14.5` reported missing while numpy 1.19.x sat in the cache | the probe read any non-empty candidate list as "present but unusable", so it never fetched the pinned version | an exact `==` pin whose version is absent from the candidates counts as MISSING; only a discarded-candidates failure counts as unusable (`e3b14cbc8`) |
+| 33 | matplotlib 3.5: the packages stage lost numpy to a documentation-extras conflict | upstream's conda lists carry doc extras (`numpydoc`, `sphinx`, `sphinx-panels`) that cannot coexist under pip, and the stage resolved as a unit | install as a unit, then pin by pin; a pin that fails alone is named, recorded, and dropped by the grade (`e3b14cbc8`) |
+| 34 | django 1.11: `fatal error: ffi.h`; django 2.2: `libmemcached/memcached.h` | more system libraries conda gave upstream | libffi, libssl, libxml2, libxslt, libjpeg and libmemcached join the base image; the requirements FILE install also falls back line by line (`e3b14cbc8`, `ee6ff5307`) |
+| 35 | scikit-learn 0.20: the build stopped at `[ 1/39] Cythonizing …` with no message | Cython 3.0 rejects language constructs 2018-era `.pyx` files use, and the spec pins `cython` with no version | "died while Cythonizing" is treated as the evidence: fetch `Cython<3`, record it as a build requirement, retry once (`a99a32ad8`) |
+| 36 | scikit-learn 1.3: `no such option: --no-use-pep517`, then `missing the 'build_editable' hook` | the flag was removed in pip 23.1 and is load-bearing — the spec's `setuptools<60.0` backend predates PEP 660 | the flag's presence selects the pip era: `pip<23.1` for those specs, newest for everything else (`ee6ff5307`) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and EVERY "pass-to-pass
 regression" in a pristine tree so far was our harness diverging from upstream, not a broken repo.
