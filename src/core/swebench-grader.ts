@@ -1496,7 +1496,19 @@ export async function gradeSwebenchWorkspace(
 		]
 			.filter(Boolean)
 			.map((id) => ({ id, cause: "not collectable in this checkout" }));
-		const networkBound = [...networkBoundFailures(passToPassOutput), ...uncollectable];
+		// A pass-to-pass test that fails in a PRISTINE tree cannot be the model's fault — there is no fix in the
+		// tree to have broken it. Where the environment cause could not be removed, the honest answer is to seal
+		// those ids with that reason and NAME them on every receipt, rather than let each instance of the spec
+		// report them as regressions.
+		//
+		// Only a MINORITY qualifies. Past a quarter of the set it is not a handful of quirky tests, it is a broken
+		// environment, and sealing it would hide exactly what the control exists to find — so it stays dirty.
+		const pristineShare = plan.passToPass.length > 0 ? verdict.passToPassFailed.length / plan.passToPass.length : 1;
+		const pristineFailures =
+			pristineShare > 0 && pristineShare <= 0.25
+				? verdict.passToPassFailed.map((id) => ({ id, cause: "fails in the pristine control" }))
+				: [];
+		const networkBound = [...networkBoundFailures(passToPassOutput), ...uncollectable, ...pristineFailures];
 		if (networkBound.length > 0) {
 			try {
 				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));
