@@ -210,6 +210,35 @@ export function djangoTestLabel(testId: string): string {
 }
 
 /** Sympy's `bin/test` takes test FILE paths; a dataset id is the bare function name, so the file comes from the test patch. */
+/**
+ * The django test LABELS to run: the dotted module paths of the test files the instance's test patch touches.
+ *
+ * The dataset's django ids cannot be used as selections. unittest prints a test's DOCSTRING instead of its id
+ * when it has one, and the dataset records exactly what was printed — so half the ids are English sentences
+ * ("Test change detection of new constraints"). Passing those to `runtests.py` gets
+ * `unittest.loader._FailedTest` for each, which is how django 3.2's pristine control lost 37 of 112
+ * pass-to-pass tests. Upstream never passes ids either: it runs the patched modules and matches the ids against
+ * the OUTPUT, which is what {@link passedIdsFromDjangoOutput} does.
+ */
+export function djangoTestModules(testPatch: string): string[] {
+	const modules = new Set<string>();
+	for (const match of testPatch.matchAll(/^diff --git a\/(\S+) b\//gmu)) {
+		const path = match[1] ?? "";
+		const relative = /^tests\/(.+)\.py$/u.exec(path)?.[1];
+		if (relative) {
+			// `tests/migrations/test_autodetector.py` → `migrations.test_autodetector`; a package's `tests/__init__.py`
+			// → the package itself.
+			modules.add(
+				relative
+					.replace(/\/__init__$/u, "")
+					.split("/")
+					.join("."),
+			);
+		}
+	}
+	return [...modules];
+}
+
 export function sympyTestFiles(testPatch: string): string[] {
 	const files = new Set<string>();
 	for (const match of testPatch.matchAll(/^diff --git a\/(\S+) b\//gm)) {
@@ -232,7 +261,9 @@ export function buildSwebenchSelectionArguments(input: {
 	readonly testPatch: string;
 }): readonly string[] {
 	if (input.logParser === "django") {
-		return [...new Set(input.selections.map(djangoTestLabel))];
+		// Prefer the patched MODULES; fall back to labels only when the patch names no test file at all.
+		const modules = djangoTestModules(input.testPatch);
+		return modules.length > 0 ? modules : [...new Set(input.selections.map(djangoTestLabel))];
 	}
 	if (input.logParser === "sympy") {
 		return sympyTestFiles(input.testPatch);
@@ -258,11 +289,29 @@ export function passedIdsFromPytestOutput(output: string): Set<string> {
  */
 export function passedIdsFromDjangoOutput(output: string): Set<string> {
 	const passed = new Set<string>();
-	for (const line of output.split("\n")) {
-		const match = /^(\S+ \([^)]+\))(?: .*)? \.\.\. ok$/.exec(line.trim());
-		if (match?.[1]) {
-			passed.add(match[1]);
+	// unittest prints a test's DOCSTRING instead of its `name (module.Class)` when it has one, sometimes on the
+	// line before, and the dataset records whichever was printed. Matching only the parenthesised form silently
+	// lost every documented test — django 3.2's pristine control reported 37 of 112 as regressions. So each
+	// passing line contributes EVERY id it could plausibly be: the text before " ... ok", its parenthesised
+	// prefix, and a bare `name (module.Class)` line immediately above. Over-matching is safe because these ids
+	// are looked up in the dataset's own list; one that names nothing is simply never asked about.
+	let pendingId: string | null = null;
+	for (const raw of output.split("\n")) {
+		const line = raw.trim();
+		const match = /^(.*\S)\s+\.\.\.\s+ok$/u.exec(line);
+		if (!match?.[1]) {
+			pendingId = /^\S+ \([^)]+\)$/u.test(line) ? line : null;
+			continue;
 		}
+		const id = match[1];
+		passed.add(id);
+		const parenthesised = /^(\S+ \([^)]+\))/u.exec(id)?.[1];
+		if (parenthesised) {
+			passed.add(parenthesised);
+		} else if (pendingId) {
+			passed.add(pendingId);
+		}
+		pendingId = null;
 	}
 	return passed;
 }

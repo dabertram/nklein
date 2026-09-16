@@ -4,6 +4,7 @@ import {
 	buildSwebenchSelectionArguments,
 	classifySwebenchPackages,
 	djangoTestLabel,
+	djangoTestModules,
 	flattenSwebenchRequirements,
 	isSwebenchRequirementsSentinel,
 	normalizeSwebenchSpecRow,
@@ -155,7 +156,7 @@ describe("django runner", () => {
 		).toEqual(["m.C.test_a", "m.C.test_b"]);
 	});
 
-	it("reads only `... ok` lines as passes", () => {
+	it("reads only `... ok` lines as passes, crediting every id form the line could be", () => {
 		const passed = passedIdsFromDjangoOutput(
 			[
 				"test_a (m.C) ... ok",
@@ -167,7 +168,13 @@ describe("django runner", () => {
 				"test_f (m.C) ... skipped 'no'",
 			].join("\n"),
 		);
-		expect([...passed]).toEqual(["test_a (m.C)", "test_c (m.C)"]);
+		expect([...passed]).toEqual([
+			"test_a (m.C)",
+			"A docstring on the next line",
+			"test_b (m.C)",
+			"test_c (m.C) With a docstring",
+			"test_c (m.C)",
+		]);
 	});
 });
 
@@ -441,5 +448,35 @@ describe("setup_requires", () => {
 
 	it("reads nothing when there is no setup_requires", () => {
 		expect(parseSetupRequires('setup(name="x", install_requires=["a"])')).toEqual([]);
+	});
+});
+
+describe("django selections", () => {
+	const patch = [
+		"diff --git a/tests/migrations/test_autodetector.py b/tests/migrations/test_autodetector.py",
+		"--- a/tests/migrations/test_autodetector.py",
+		"+++ b/tests/migrations/test_autodetector.py",
+		"diff --git a/tests/admin_views/__init__.py b/tests/admin_views/__init__.py",
+	].join("\n");
+
+	it("runs the patched MODULES, because half the dataset ids are docstrings", () => {
+		expect(djangoTestModules(patch)).toEqual(["migrations.test_autodetector", "admin_views"]);
+	});
+
+	it("matches an id printed as a docstring, not just the parenthesised form", () => {
+		const output = [
+			"test_add_field (migrations.test_autodetector.AutodetectorTests) ... ok",
+			"Test change detection of new constraints ... ok",
+			"Tests autodetection of new fields ... FAIL",
+		].join("\n");
+		expect([...passedIdsFromDjangoOutput(output)]).toEqual([
+			"test_add_field (migrations.test_autodetector.AutodetectorTests)",
+			"Test change detection of new constraints",
+		]);
+		// A docstring printed on the line AFTER the id credits the id too.
+		expect([...passedIdsFromDjangoOutput("test_b (m.C)\nA docstring ... ok")]).toEqual([
+			"A docstring",
+			"test_b (m.C)",
+		]);
 	});
 });
