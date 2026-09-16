@@ -46,7 +46,7 @@ ok`); a test missing from the output is a failure, never a pass.
 
 ## What the bring-up found (2026-09-15/16)
 
-Standing up the 500-instance Verified run surfaced thirteen defects — every one caught by RUNNING the pipeline, none by
+Standing up the 500-instance Verified run surfaced twenty defects — every one caught by RUNNING the pipeline, none by
 reading it. Listed in the order they bit, with the commit that closed each:
 
 | # | symptom | root cause | fix |
@@ -64,6 +64,13 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 11 | every matplotlib env image: `mkdir -p ""` | the pre_install split stranded a shell assignment from its use | the split keeps the block contiguous; bases carry wget/curl (`ffa47793c`) |
 | 12 | astropy 4.3: `initialization of 'PyCelprm *' from incompatible pointer type` | our bases are Debian 13 / GCC 14.2; upstream's are Ubuntu 22.04 / GCC 11, and GCC 14 promoted six legacy C diagnostics to hard errors | append `-Wno-error=` for each to `CFLAGS` (`d2a52c672`) |
 | 13 | astropy 4.3: `cc1: fatal error: astropy/table/_np_utils.c: No such file` | the sealed GRADE never installed the checkout's PEP 518 requires — only the prepare download did — so `cython==0.29.22` was absent and the generated C source was never written | the grade path reads the same requires from the workspace and installs them (`d2a52c672`) |
+| 14 | astropy 5.1: every one of 322 pass-to-pass tests failed with `numpy.core.multiarray failed to import` | we build with --no-build-isolation, so `build-system.requires` installs into the RUNTIME venv: `oldest-supported-numpy` pulled numpy down to 1.19.3, the editable install then jumped to 2.0.2, and pyerfa is compiled for the numpy 1.x ABI | re-assert the spec's exact pins with --no-deps after the editable install (`b03e150ea`) |
+| 15 | the same suite then printed `322 passed` and still scored 0 | pytest colourises when a plugin forces it, and `\x1b[32mPASSED\x1b[0m` never matches `^PASSED` | every parser strips ANSI escapes first (`b03e150ea`) |
+| 16 | three scikit-learn specs: "No matching distribution found for numpy", while `prepare` said "already cached" | the completion marker was written whenever the fatal repo stage passed, so a non-fatal stage that could not resolve (`scipy==1.5.2` has no aarch64/cp36 wheel) left a permanently short cache | the marker is gated on every stage closing; the driver throws and names the stages (`4604f8a75`) |
+| 17 | fifteen sphinx specs: editable install died on "No matching distribution found for pytest" | the spec installs `-e .[test]` and the prepare downloaded a bare `/src`, so the extra's requirements never entered the closure | the repo download targets what the install command names (`ad7e889fd`) |
+| 18 | sphinx: tox ran `.tox/py39`'s empty interpreter | `tox --current-env` is INERT on tox 4.16 — tox-current-env 0.0.11 still registers the flag but tox builds the venv anyway | rewrite that one flag to `--runner current-env` (`ad7e889fd`) |
+| 19 | sphinx: collection aborted with `No module named 'pkg_resources'` | setuptools 82 removed it, and tox's `usedevelop = True` runs its OWN `pip install -e .` inside the graded env, so a pin could not hold | an era constraints file exported as PIP_CONSTRAINT, honoured by nested pip and applied to the download too (`ad7e889fd`) |
+| 20 | six matplotlib specs: `metadata-generation-failed` | matplotlib's setup.py resolves `setup_requires` by spawning `pip wheel`, which carried none of our offline flags and reached for PyPI under `--network none` | export PIP_NO_INDEX and PIP_FIND_LINKS so nested pip reads the same cache (`ad7e889fd`) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and most "pass-to-pass regressions"
 in a pristine tree were OUR harness diverging from upstream, not a broken repo.
