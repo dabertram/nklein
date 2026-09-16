@@ -893,6 +893,37 @@ export async function prepareSwebenchWheels(
 		for (const guess of guesses) {
 			guessed.add(guess);
 		}
+		// An editable build that dies WHILE CYTHONIZING is the era gap in its most specific form: Cython 3.0 (2023)
+		// rejects language constructs that 2018-era `.pyx` files use, and it fails without a message the transcript
+		// can quote. Proven side by side on scikit-learn 0.20: Cython 3.0.12 fails at
+		// `[ 1/39] Cythonizing sklearn/ensemble/_gradient_boosting.pyx`, Cython 0.29.37 builds it. The spec pins
+		// `cython` with no version, so nothing but the failure itself says which era is meant. Tried once, and only
+		// after a failure — a repo that genuinely needs Cython 3 never reaches here.
+		const needsEraCython =
+			!guessed.has("Cython<3") &&
+			probed.stdout.includes("Cythonizing") &&
+			probed.stdout.includes("SWEBENCH_PIP_FAILED editable");
+		if (needsEraCython) {
+			guessed.add("Cython<3");
+			await deps.exec("docker", [
+				"run",
+				"--rm",
+				"-v",
+				`${input.cacheRoot}:/cache`,
+				swebenchGraderImageFor(input.entry),
+				"bash",
+				"-lc",
+				[
+					"set -u",
+					...swebenchEraConstraintLines(),
+					`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} 'Cython<3' || true`,
+				].join("\n"),
+			]);
+			const path = join(input.cacheRoot, "wheels", key, SWEBENCH_EXTRA_BUILD_REQUIREMENTS);
+			const merged = [...new Set([...readExtraBuildRequirements(input.cacheRoot, input.entry), "Cython<3"])];
+			await writeFile(path, `${merged.join("\n")}\n`);
+			continue;
+		}
 		if ((missing.length === 0 && guesses.length === 0) || round === 6) {
 			throw new Error(
 				`wheel closure incomplete for ${key} — the sealed install does not succeed against it; the cache was NOT marked complete\n  ${resolverSays(probed.stdout)}`,
