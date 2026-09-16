@@ -653,9 +653,12 @@ export function buildSwebenchInstallLines(input: {
 		})(),
 		// Last, so nothing can clobber them: the runtime imports a control found missing. Installed with --no-deps
 		// because the environment is otherwise already the spec's, and a dependency cascade here would undo it.
-		...((input.runtimeRequirements ?? []).length > 0
-			? [pipInstall(`--no-deps ${quote(input.runtimeRequirements ?? [])}`, "runtime-requirements")]
-			: []),
+		// A recorded name the cache could not fetch is dropped, exactly like an unresolvable pin. A control reads
+		// these out of test output, and test output can name a module that is not a distribution at all.
+		...(() => {
+			const wanted = (input.runtimeRequirements ?? []).filter((name) => !unresolved.has(name));
+			return wanted.length > 0 ? [pipInstall(`--no-deps ${quote(wanted)}`, "runtime-requirements")] : [];
+		})(),
 	];
 }
 
@@ -1392,9 +1395,17 @@ export async function gradeSwebenchWorkspace(
 		// is not a pass, so xarray 0.12 reported 3 of 364 as regressions for want of `bottleneck` and `sparse`.
 		// Installing them recovers real graded tests, which is better than excluding them.
 		const notPackages = new Set(["python", "internet", "network", "windows", "linux", "macos", "unix"]);
+		// An ImportError is only evidence of a MISSING ENVIRONMENT when it stopped the run. pytest's own suite
+		// imports `xyz42123`, `not_exists`, `asdfasdfasdf` and `foo` ON PURPOSE to exercise import-error handling,
+		// and recording those turned four previously-clean pytest closures into failures. A collection failure
+		// takes the whole selection down, so requiring zero passes separates "the environment is missing
+		// something" from "a test asserted that a module is missing".
+		const collectionFailed = plan.passToPass.length > 0 && verdict.passToPassFailed.length === plan.passToPass.length;
 		const discovered = [
 			...new Set([
-				...[...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? ""),
+				...(collectionFailed
+					? [...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? "")
+					: []),
 				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: requires ([A-Za-z][\w.-]*)\s*$/gmu)].map(
 					(m) => m[1] ?? "",
 				),
