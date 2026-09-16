@@ -313,7 +313,9 @@ export function buildSwebenchProbeScript(input: {
 		// When the reason is not a missing distribution, the summary lines say nothing useful — so the tail of the
 		// transcript comes with it. A probe that fails without saying why costs a whole hand re-run to find out.
 		'  echo "SWEBENCH_PROBE_TAIL"',
-		"  tail -40 /tmp/probe.log",
+		// Context around the FIRST failure, not the tail: a later stage's collapse (`No module named numpy`) is a
+		// consequence, and the tail only ever shows the consequence.
+		'  grep -n -B 30 -m1 "SWEBENCH_PIP_FAILED" /tmp/probe.log || tail -40 /tmp/probe.log',
 		"fi",
 	].join("\n");
 }
@@ -742,6 +744,32 @@ export async function prepareSwebenchWheels(
 		if (!probed.stdout.includes("SWEBENCH_PROBE_FAILED")) {
 			break;
 		}
+		// A pin can DOWNLOAD as an sdist and still fail to build: matplotlib's conda list names `wxpython`, whose
+		// sdist compiles wxWidgets and needs GTK development libraries the image does not carry. The download had
+		// no way to know, so the probe records it — by the pin string the install actually uses — and retries.
+		// The repo under test is never recorded this way: its build failing IS the closure failing.
+		const candidatePins = [
+			...classifySwebenchPackages(graderEntryFacts(input.entry).packages).pins,
+			...extraPins,
+			...input.entry.extraRequirements,
+		];
+		const repoName = input.entry.repo.split("/").pop()?.toLowerCase() ?? "";
+		const normalize = (pin: string) => (pin.split(/[<>=!~;[\s]/u)[0] ?? "").trim().toLowerCase().replace(/_/gu, "-");
+		const unbuildable = [
+			...new Set(
+				[...probed.stdout.matchAll(/Failed building wheel for (\S+)/gu)].map((match) =>
+					(match[1] ?? "").toLowerCase().replace(/_/gu, "-"),
+				),
+			),
+		].filter((name) => name && name !== repoName);
+		const newlyUnresolvable = candidatePins.filter((pin) => unbuildable.includes(normalize(pin)));
+		if (newlyUnresolvable.length > 0) {
+			const path = join(input.cacheRoot, "wheels", key, SWEBENCH_UNRESOLVED_PINS);
+			const already = readUnresolvedPins(input.cacheRoot, input.entry);
+			const merged = [...new Set([...already, ...newlyUnresolvable])];
+			await writeFile(path, `${merged.join("\n")}\n`);
+			continue;
+		}
 		const missing = [
 			...new Set(
 				[...probed.stdout.matchAll(/Could not find a version that satisfies the requirement (\S+)/gu)].map(
@@ -775,6 +803,13 @@ export async function prepareSwebenchWheels(
 					.join("; ")}; }`,
 			].join("\n"),
 		]);
+	}
+	// A remediation on the LAST round leaves the loop without a fresh probe, so the final state is checked here:
+	// the marker must never be written over a probe that failed.
+	if (probed.stdout.includes("SWEBENCH_PROBE_FAILED")) {
+		throw new Error(
+			`wheel closure incomplete for ${key} — the sealed install does not succeed against it; the cache was NOT marked complete\n  ${resolverSays(probed.stdout)}`,
+		);
 	}
 	// The marker is written HOST-side, after the download closed AND the sealed install proved it.
 	await writeFile(join(input.cacheRoot, "wheels", key, SWEBENCH_PREPARE_MARKER), "");
