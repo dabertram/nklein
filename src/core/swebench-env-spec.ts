@@ -508,7 +508,45 @@ export function classifySwebenchPackages(packages: string | null): {
 	if (/\.ya?ml$/.test(value)) {
 		return { environmentYml: value, pins: [] };
 	}
-	return { pins: value.split(/\s+/).filter(Boolean) };
+	return { pins: splitSpecPackageList(value) };
+}
+
+/**
+ * Split a spec's package list into pins, respecting the quotes upstream writes around version specifiers.
+ *
+ * Splitting on whitespace alone kept them: pip was handed a literal `'numpy==1.19.2'`, quotes and all, which is
+ * not a valid requirement — so scikit-learn's four specs had every VERSIONED pin silently dropped and recorded
+ * as "unresolved on this platform", while the bare names beside them (`pytest`, `joblib`, `threadpoolctl`)
+ * installed fine. The graded environment was quietly not the spec's, and the knock-on was worse than the drop:
+ * `pandas<2.0.0` is perfectly obtainable here (1.5.3, cp39 aarch64), and four sklearn tests were skipping for
+ * want of a pandas the spec had asked for all along.
+ */
+export function splitSpecPackageList(value: string): string[] {
+	const pins: string[] = [];
+	let current = "";
+	let quote: '"' | "'" | null = null;
+	for (const character of value) {
+		if (quote) {
+			if (character === quote) {
+				quote = null;
+			} else {
+				current += character;
+			}
+		} else if (character === '"' || character === "'") {
+			quote = character;
+		} else if (/\s/u.test(character)) {
+			if (current) {
+				pins.push(current);
+				current = "";
+			}
+		} else {
+			current += character;
+		}
+	}
+	if (current) {
+		pins.push(current);
+	}
+	return pins;
 }
 
 /**

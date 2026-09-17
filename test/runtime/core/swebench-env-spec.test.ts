@@ -20,6 +20,7 @@ import {
 	SWEBENCH_LEGACY_C_DIAGNOSTICS,
 	SWEBENCH_REPO_REQUIREMENTS_PATHS,
 	sealedInstallCommand,
+	splitSpecPackageList,
 	splitSwebenchPreInstall,
 	stripAnsiEscapes,
 	swebenchEraConstraintLines,
@@ -543,5 +544,29 @@ describe("swebenchSetuptoolsLacksPep660 — the build backend is declared by the
 		expect(swebenchSetuptoolsLacksPep660(["setuptools"])).toBe(false);
 		expect(swebenchSetuptoolsLacksPep660(["setuptools<=64"])).toBe(false);
 		expect(swebenchSetuptoolsLacksPep660(["setuptools_scm<10", "cython==0.29.30"])).toBe(false);
+	});
+});
+
+describe("splitSpecPackageList — upstream quotes its version specifiers", () => {
+	// scikit-learn's four specs. Splitting on whitespace alone handed pip a literal `'numpy==1.19.2'`, which is
+	// not a valid requirement, so every VERSIONED pin was dropped and recorded "unresolved on this platform"
+	// while the bare names beside them installed fine.
+	it("strips the quotes instead of handing them to pip", () => {
+		expect(splitSpecPackageList("'numpy==1.19.2' 'scipy==1.5.2' pytest 'pandas<2.0.0' setuptools joblib")).toEqual([
+			"numpy==1.19.2",
+			"scipy==1.5.2",
+			"pytest",
+			"pandas<2.0.0",
+			"setuptools",
+			"joblib",
+		]);
+	});
+
+	it("keeps a quoted specifier that contains spaces as ONE pin", () => {
+		expect(splitSpecPackageList("'pandas >= 1.0, < 2.0' pytest")).toEqual(["pandas >= 1.0, < 2.0", "pytest"]);
+	});
+
+	it("leaves an unquoted list exactly as it was", () => {
+		expect(splitSpecPackageList("pytest joblib threadpoolctl")).toEqual(["pytest", "joblib", "threadpoolctl"]);
 	});
 });
