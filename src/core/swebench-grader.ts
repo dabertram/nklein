@@ -42,6 +42,7 @@ import {
 	swebenchInstallExtras,
 	swebenchLegacyCBuildEnvLines,
 	swebenchPipRequirement,
+	swebenchSetuptoolsLacksPep660,
 	swebenchSpecBuildRequirements,
 	swebenchSpecPinConstraintArg,
 	swebenchTestCommand,
@@ -531,6 +532,20 @@ export function buildSwebenchInstallLines(input: {
 	const specPinArg = swebenchSpecPinConstraintArg(specPins);
 	const pipInstall = (what: string, stage: string) =>
 		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
+	// The build backend is declared by the CHECKOUT, and the spec's install command cannot know which commit it
+	// is grading. `pylint-dev__pylint-7277` pins `setuptools~=62.6`, which predates PEP 660, so the sealed
+	// editable install was refused outright — `uses a build backend that is missing the 'build_editable' hook` —
+	// while its spec sibling, which declares no build requirements at all, installed fine. Adding the flag here
+	// fixes BOTH consumers at once: `swebenchPipRequirement` then asks for the pip that still accepts it, and
+	// `sealedInstallCommand` passes it to the install.
+	const installCommand =
+		swebenchSetuptoolsLacksPep660([
+			...(facts.fromSpec ? swebenchSpecBuildRequirements(entry as SwebenchResolvedEnv) : entry.buildRequirements),
+			...pep518BuildRequires,
+			...(input.extraBuildRequirements ?? []),
+		]) && !/--no-use-pep517/u.test(facts.installCommand)
+			? `${facts.installCommand} --no-use-pep517`
+			: facts.installCommand;
 	return [
 		`export XDG_CACHE_HOME=${xdgHome}`,
 		// Our own pip calls carry --no-index --find-links, but a repo's build can spawn pip ITSELF and that child
@@ -559,7 +574,7 @@ export function buildSwebenchInstallLines(input: {
 		// `bcrypt-4.0.1-cp36-abi3-manylinux_2_28_aarch64.whl`; the venv's pip then reported "from versions: )" for
 		// a file sitting in front of it, and django 3.0/3.2's whole requirements install failed over it. `pip`
 		// alone is a no-op to a pip that considers itself satisfied, hence --upgrade.
-		pipInstall(`--upgrade ${shellQuote(swebenchPipRequirement(facts.installCommand))}`, "pip-upgrade"),
+		pipInstall(`--upgrade ${shellQuote(swebenchPipRequirement(installCommand))}`, "pip-upgrade"),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -652,7 +667,7 @@ export function buildSwebenchInstallLines(input: {
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")

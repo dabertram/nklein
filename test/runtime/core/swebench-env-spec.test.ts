@@ -26,6 +26,7 @@ import {
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
 	swebenchLegacyCBuildEnvLines,
+	swebenchSetuptoolsLacksPep660,
 	swebenchSpecKey,
 	swebenchTestCommand,
 	sympyTestFiles,
@@ -525,5 +526,22 @@ describe("django modules from a data-only test patch", () => {
 			"diff --git a/tests/validators/valid_urls.txt b/tests/validators/valid_urls.txt",
 		].join("\n");
 		expect(djangoTestModules(patch)).toEqual(["validators"]);
+	});
+});
+
+describe("swebenchSetuptoolsLacksPep660 — the build backend is declared by the CHECKOUT", () => {
+	// pylint 2.15 spans both: one instance declares no build requirements and installs fine, while
+	// pylint-dev__pylint-7277 pins setuptools~=62.6 and pip refuses the editable install outright.
+	it("answers true for a constraint that provably caps setuptools below 64", () => {
+		expect(swebenchSetuptoolsLacksPep660(["setuptools~=62.6", "wheel~=0.37.1"])).toBe(true);
+		expect(swebenchSetuptoolsLacksPep660(["setuptools<60.0"])).toBe(true);
+		expect(swebenchSetuptoolsLacksPep660(["setuptools==62.6"])).toBe(true);
+	});
+
+	it("answers false for anything that still admits a setuptools with the hook", () => {
+		expect(swebenchSetuptoolsLacksPep660(["setuptools>=40.8.0", "wheel"])).toBe(false);
+		expect(swebenchSetuptoolsLacksPep660(["setuptools"])).toBe(false);
+		expect(swebenchSetuptoolsLacksPep660(["setuptools<=64"])).toBe(false);
+		expect(swebenchSetuptoolsLacksPep660(["setuptools_scm<10", "cython==0.29.30"])).toBe(false);
 	});
 });

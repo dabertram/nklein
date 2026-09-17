@@ -684,6 +684,37 @@ export function swebenchInstallExtras(installCommand: string): string {
  * so that is the pip we install. Everything else gets the newest, because the interpreter's bundled pip is
  * routinely too old to read modern wheel tags at all.
  */
+/**
+ * Does the checkout's DECLARED build backend predate PEP 660?
+ *
+ * setuptools gained `build_editable` in 64, so a checkout that caps it below that cannot be installed with
+ * `pip install -e .` on a modern pip: `Project file:///work uses a build backend that is missing the
+ * 'build_editable' hook`. The spec's install command carries `--no-use-pep517` when UPSTREAM's chosen instance
+ * declared such a cap — but the cap lives in the checkout, not the spec, and moves between base commits.
+ * pylint 2.15 is the proof: one instance declares no build requirements at all and installs fine, while
+ * `pylint-dev__pylint-7277` pins `setuptools~=62.6` and could not install at all under the same spec.
+ *
+ * Conservative on purpose — it answers true only for a constraint that provably caps setuptools below 64, never
+ * for an open-ended `setuptools>=40.8.0` or a bare `setuptools`.
+ */
+export function swebenchSetuptoolsLacksPep660(requirements: readonly string[]): boolean {
+	const PEP660 = 64;
+	return requirements.some((requirement) => {
+		const match = /^\s*setuptools\s*(~=|<=|<|==)\s*(\d+)(?:\.(\d+))?/iu.exec(requirement.trim());
+		if (!match) {
+			return false;
+		}
+		const [, operator, major] = match;
+		const version = Number(major);
+		if (!Number.isFinite(version)) {
+			return false;
+		}
+		// `~=62.6` and `==62.6` fix the major; `<64` and `<=63` cap it. `<=64` still admits 64 itself, which has
+		// the hook, so only a strictly lower ceiling counts there.
+		return operator === "<=" ? version < PEP660 : version < PEP660 || (operator === "<" && version <= PEP660);
+	});
+}
+
 export function swebenchPipRequirement(installCommand: string): string {
 	return /--no-use-pep517/u.test(installCommand) ? "pip<23.1" : "pip";
 }
