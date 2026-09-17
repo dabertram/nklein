@@ -975,8 +975,41 @@ const defaultDeps: SwebenchGraderDeps = {
 };
 
 /**
- * The PEP 518 build requirements and `setup_requires` of EVERY cached instance that shares this entry's wheel
- * cache key, unioned.
+ * Every `name==version` a declaration file names, minus the environment-marker comparisons that share the
+ * syntax (`python_version=='3.10'`, `platform_system=='Windows'`). A cache can substitute for a range; it can
+ * never substitute for an exact pin, so these are the ones that have to be downloaded whoever declared them.
+ */
+export function exactRequirementPins(text: string): string[] {
+	const markers = new Set([
+		"python_version",
+		"python_full_version",
+		"os_name",
+		"sys_platform",
+		"platform_release",
+		"platform_system",
+		"platform_version",
+		"platform_machine",
+		"platform_python_implementation",
+		"implementation_name",
+		"implementation_version",
+		"extra",
+	]);
+	return [
+		...new Set(
+			// `*` belongs in the version class: `numpy==1.21.*` is a legal pin, and stopping the match before it
+			// produced `numpy==1.21.` — a requirement pip cannot parse at all.
+			[...text.matchAll(/(?:^|[\s"'[(,])([A-Za-z][A-Za-z0-9._-]*)==([0-9][A-Za-z0-9._+!*-]*)/gu)]
+				.filter((match) => !markers.has((match[1] ?? "").toLowerCase()))
+				.filter((match) => !(match[2] ?? "").endsWith("."))
+				.map((match) => `${match[1]}==${match[2]}`),
+		),
+	].sort();
+}
+
+/**
+ * Everything EVERY cached instance sharing this entry's wheel cache key can ask its sealed install for: their
+ * PEP 518 build requirements, their `setup_requires`, and every EXACT pin (`name==version`) declared anywhere in
+ * their `pyproject.toml`, `setup.cfg` or `setup.py`.
  *
  * The closure is keyed per `(repo, version)` spec, but a spec spans many base commits and a checkout's declared
  * build requirements move between them. The per-spec control gate proved ONE instance per spec, so this was
@@ -984,23 +1017,30 @@ const defaultDeps: SwebenchGraderDeps = {
  * (`cython==0.29.22`) while instance 13398 pins `cython==0.29.30`, the sealed install could not resolve it,
  * `extension_helpers` never installed, and a PRISTINE tree scored 0 of 68 pass-to-pass tests.
  *
- * Reading each sibling's `pyproject.toml`/`setup.py` straight out of its cached tarball costs one `tar` per
- * sibling and removes the whole class: whichever instance the prepare happens to materialize, the closure holds
- * what all of them ask for. A hand-proven tranche entry keys on its own instance id, has no siblings, and is
- * therefore untouched — pass-1 numbers stay comparable.
+ * The exact pins matter as much as the build requirements, and for the same reason one layer up: with cython
+ * fixed, the same instance's editable install then died on `hypothesis==6.46.7; extra == "test"` because the
+ * cache held 6.82.6 — the `[test]` extra its SIBLING's `setup.cfg` pins. Rather than learn every file format's
+ * notion of an extra, take the one shape a cache cannot substitute for: an exact pin. A range is nearly always
+ * satisfiable by whatever the probe already resolved; `name==version` never is.
+ *
+ * Reading each sibling's declarations straight out of its cached tarball costs three `tar` reads per sibling and
+ * removes the whole class: whichever instance the prepare happens to materialize, the closure holds what all of
+ * them ask for. A hand-proven tranche entry keys on its own instance id, has no siblings, and is therefore
+ * untouched — pass-1 numbers stay comparable.
  */
 export async function specSiblingBuildRequirements(
 	entry: SwebenchGraderEntry,
 	cacheRoot: string,
 	deps: SwebenchGraderDeps = defaultDeps,
-): Promise<{ buildRequires: string[]; setupRequires: string[] }> {
+): Promise<{ buildRequires: string[]; setupRequires: string[]; exactPins: string[] }> {
 	const key = swebenchWheelCacheKey(entry);
 	const instancesDir = join(cacheRoot, "instances");
 	if (!("resolvedFrom" in entry) || entry.resolvedFrom !== "spec" || !existsSync(instancesDir)) {
-		return { buildRequires: [], setupRequires: [] };
+		return { buildRequires: [], setupRequires: [], exactPins: [] };
 	}
 	const buildRequires = new Set<string>();
 	const setupRequires = new Set<string>();
+	const exactPins = new Set<string>();
 	for (const file of readdirSync(instancesDir)) {
 		if (!file.endsWith(".json")) {
 			continue;
@@ -1029,6 +1069,7 @@ export async function specSiblingBuildRequirements(
 		for (const [name, parse, sink] of [
 			["pyproject.toml", parsePep518BuildRequires, buildRequires],
 			["setup.py", parseSetupRequires, setupRequires],
+			["setup.cfg", () => [], setupRequires],
 		] as const) {
 			const read = await deps
 				.exec("bash", [
@@ -1036,12 +1077,22 @@ export async function specSiblingBuildRequirements(
 					`tar -xzOf ${shellQuote(tarball)} ${shellQuote(`${top}/${name}`)} 2>/dev/null || true`,
 				])
 				.catch(() => null);
-			for (const requirement of read?.stdout ? parse(read.stdout) : []) {
+			if (!read?.stdout) {
+				continue;
+			}
+			for (const requirement of parse(read.stdout)) {
 				sink.add(requirement);
+			}
+			for (const pin of exactRequirementPins(read.stdout)) {
+				exactPins.add(pin);
 			}
 		}
 	}
-	return { buildRequires: [...buildRequires].sort(), setupRequires: [...setupRequires].sort() };
+	return {
+		buildRequires: [...buildRequires].sort(),
+		setupRequires: [...setupRequires].sort(),
+		exactPins: [...exactPins].sort(),
+	};
 }
 
 /** One-time per instance, network ON — the wheel-cache egress step. `sourceDir` is a PRISTINE materialization. */
@@ -1062,7 +1113,7 @@ export async function prepareSwebenchWheels(
 	const setupRequires = readSetupRequires(input.sourceDir);
 	// What the OTHER instances of this spec declare. Cached, never installed here — see the parameter's note.
 	const siblings = await specSiblingBuildRequirements(input.entry, input.cacheRoot, deps);
-	const siblingOnly = [...siblings.buildRequires, ...siblings.setupRequires].filter(
+	const siblingOnly = [...siblings.buildRequires, ...siblings.setupRequires, ...siblings.exactPins].filter(
 		(requirement) => !buildRequires.includes(requirement) && !setupRequires.includes(requirement),
 	);
 	// The loopback httpbin the grade will serve has to be IN the closure, or the sealed install cannot start it.
@@ -1497,7 +1548,12 @@ export function swebenchEnvironmentRefusal(stdout: string): {
 	readonly installFailures: readonly string[];
 	readonly refusal: string | null;
 } {
-	const installFailures = [...new Set([...stdout.matchAll(/SWEBENCH_PIP_FAILED (\S+)/gu)].map((m) => m[1] ?? ""))]
+	// Anchored to a WHOLE LINE on purpose. When docker itself exits nonzero the caller puts the error message —
+	// which quotes the entire grade script — in place of container output, and every `|| echo "SWEBENCH_PIP_FAILED
+	// <stage>"` in that source then reads as a failure that happened. xarray 0.12 was refused with the stage list
+	// `build-requirements",editable",pins-reassert";,…`, which is script text, not a result. The real marker is
+	// echoed as its own line and nothing else is on it.
+	const installFailures = [...new Set([...stdout.matchAll(/^SWEBENCH_PIP_FAILED (\S+)$/gmu)].map((m) => m[1] ?? ""))]
 		.filter(Boolean)
 		.sort();
 	// The repo under test failing to install voids the grade outright. A build-requirements failure alone only
@@ -1551,18 +1607,14 @@ export async function gradeSwebenchWorkspace(
 	const sealed = planSealedGrade(gradeEntry, input.instance, input.workspaceCopyDir);
 	let stdout = "";
 	try {
-		const result = await deps.exec("docker", [
-			"run",
-			"--rm",
-			"--network",
-			"none",
-			"-v",
-			`${input.workspaceCopyDir}:/work`,
-			"-v",
-			`${input.cacheRoot}:/cache:ro`,
-			swebenchGraderImageFor(input.entry),
-			"bash",
-			"-lc",
+		// The script goes in a FILE, never in an argv. Linux caps a SINGLE argument at 128 kB
+		// (`MAX_ARG_STRLEN`), and the script embeds the selection: xarray 0.12's 1717 pass-to-pass ids make it
+		// ~153 kB, so the container died with `exec /usr/bin/bash: argument list too long` before running a line.
+		// The grade then reported 24 of 1717 — a docker failure wearing a score's clothes. Instance-specific, so
+		// a gate that proves one instance per spec cannot see it.
+		const scriptPath = join(input.workspaceCopyDir, ".swebench-grade.sh");
+		await writeFile(
+			scriptPath,
 			buildSwebenchGradeScript(
 				gradeEntry,
 				sealed.plan,
@@ -1578,6 +1630,20 @@ export async function gradeSwebenchWorkspace(
 				readExtraBuildRequirements(input.cacheRoot, input.entry),
 				readRuntimeRequirements(input.cacheRoot, input.entry),
 			),
+		);
+		const result = await deps.exec("docker", [
+			"run",
+			"--rm",
+			"--network",
+			"none",
+			"-v",
+			`${input.workspaceCopyDir}:/work`,
+			"-v",
+			`${input.cacheRoot}:/cache:ro`,
+			swebenchGraderImageFor(input.entry),
+			"bash",
+			"-l",
+			"/work/.swebench-grade.sh",
 		]);
 		stdout = result.stdout;
 	} catch (error) {
@@ -1640,6 +1706,13 @@ export async function gradeSwebenchWorkspace(
 				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: requires ([A-Za-z][\w.-]*)\s*$/gmu)].map(
 					(m) => m[1] ?? "",
 				),
+				// The OTHER skip phrasing, and the one that cost the most: `SKIPPED [1] …:16: could not import
+				// 'pandas': No module named 'pandas'`. sklearn 1.3's four `test__wrap_in_pandas_container_*` tests
+				// skipped for want of pandas and were then SEALED as "fails in the pristine control" — a fixable
+				// closure gap filed away as an unexplainable one.
+				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: could not import '([A-Za-z][\w.-]*)'/gmu)].map(
+					(m) => m[1] ?? "",
+				),
 			]),
 		].filter((name) => name && !notPackages.has(name.toLowerCase()));
 		// An id pytest cannot COLLECT does not exist in this checkout — requests 2.27's ids embed a runtime path
@@ -1658,8 +1731,16 @@ export async function gradeSwebenchWorkspace(
 		// Only a MINORITY qualifies. Past a quarter of the set it is not a handful of quirky tests, it is a broken
 		// environment, and sealing it would hide exactly what the control exists to find — so it stays dirty.
 		const pristineShare = plan.passToPass.length > 0 ? verdict.passToPassFailed.length / plan.passToPass.length : 1;
+		// …and only from a run that learned nothing new. Sealing and recording fired in the SAME pass, so a test
+		// that failed FOR WANT of a package we were in the act of discovering got filed as unexplainable in the
+		// same breath — the seal then outlived the fix and kept excluding a test the next closure would have
+		// passed. When this run added a requirement the environment is known-incomplete; the next control, run
+		// against the completed closure, is the one entitled to seal anything.
+		const learnedSomething = discovered.some(
+			(name) => !readRuntimeRequirements(input.cacheRoot, input.entry).includes(name),
+		);
 		const pristineFailures =
-			pristineShare > 0 && pristineShare <= 0.25
+			pristineShare > 0 && pristineShare <= 0.25 && !learnedSomething
 				? verdict.passToPassFailed.map((id) => ({ id, cause: "fails in the pristine control" }))
 				: [];
 		const networkBound = [...networkBoundFailures(passToPassOutput), ...uncollectable, ...pristineFailures];

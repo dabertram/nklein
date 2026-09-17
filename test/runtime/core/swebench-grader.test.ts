@@ -14,6 +14,7 @@ import {
 	buildSwebenchGradeScript,
 	buildSwebenchPrepareScript,
 	buildSwebenchProbeScript,
+	exactRequirementPins,
 	networkBoundFailures,
 	planSealedGrade,
 	resolutionFailures,
@@ -464,6 +465,16 @@ describe("an install that failed is a REFUSAL, not a score (live 2026-09-17: ast
 		).toContain("a module was missing at test time");
 	});
 
+	it("does not read the grade SCRIPT's own echo lines as failures that happened", () => {
+		// When docker exits nonzero the caller substitutes the error message, which quotes the whole script. Every
+		// `|| echo "SWEBENCH_PIP_FAILED editable"` in that source must stay inert — xarray 0.12 was refused with a
+		// stage list of `build-requirements",editable",pins-reassert";,…`, which is script text, not a result.
+		const scriptEchoedBack =
+			'Command failed: docker run … bash -lc \'pip install -e /work || echo "SWEBENCH_PIP_FAILED editable"\n' +
+			'pip install -r r.txt || echo "SWEBENCH_PIP_FAILED pins-reassert";\'';
+		expect(swebenchEnvironmentRefusal(scriptEchoedBack)).toEqual({ installFailures: [], refusal: null });
+	});
+
 	it("says nothing about a grade that installed cleanly, however many tests failed", () => {
 		const honestRed = "===SWEBENCH_F2P===\nFAILED testing/test_x.py::test_new\n===SWEBENCH_END===";
 		expect(swebenchEnvironmentRefusal(honestRed)).toEqual({ installFailures: [], refusal: null });
@@ -483,5 +494,23 @@ describe("a spec's closure covers its SIBLING instances' build requirements (liv
 		for (const line of install) {
 			expect(line, `a sibling pin reached an install: ${line}`).not.toContain("cython==0.29.22");
 		}
+	});
+});
+
+describe("exactRequirementPins", () => {
+	it("takes every name==version a declaration file names", () => {
+		expect(exactRequirementPins('requires = ["cython==0.29.30", "extension-helpers"]\nhypothesis==6.46.7')).toEqual([
+			"cython==0.29.30",
+			"hypothesis==6.46.7",
+		]);
+	});
+
+	it("keeps a wildcard pin whole — `numpy==1.21.` is a requirement pip cannot parse", () => {
+		expect(exactRequirementPins("numpy==1.21.*")).toEqual(["numpy==1.21.*"]);
+	});
+
+	it("ignores environment-marker comparisons, which share the syntax", () => {
+		const marker = "numpy==1.22.3; python_version=='3.10' and platform_system=='Windows'; extra == \"test\"";
+		expect(exactRequirementPins(marker)).toEqual(["numpy==1.22.3"]);
 	});
 });
