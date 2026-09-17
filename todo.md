@@ -2903,7 +2903,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   SEALED them as "fails in the pristine control", so a fixable closure gap was filed as unexplainable. Sealing is
   now barred in any run that discovered a missing requirement, and **47 premature seals across six specs were
   cleared for re-proof** (pylint 2.14's seven stay: documented cause, not a gap).
-  **REMAINING:** close the variant gate (96 closures, converge loop running); run the arms;
+  **Findings 49–55 (2026-09-17, all recoveries):** (49) a recorded runtime requirement installed HALF a package —
+  `--no-deps` left out `pytz`/`dateutil`, resolving freely moved numpy and killed sklearn's compiled extension,
+  and filling in only what `pip check` named missing got a pandas that imports as `C extension: None not built`;
+  the constraint is now the ENVIRONMENT ITSELF, `pip freeze`'d a line earlier, so pip must fit what is installed
+  and can move none of it. (50) **PEP 660 hid the checkout from `sys.path`** — setuptools registers a
+  MetaPathFinder instead, pylint resolves its own checker files back THROUGH sys.path, seven checkers never
+  registered and 105 tests died of `UnknownMessageError: 'c-extension-no-member'`; `editable_mode=compat`
+  restores the legacy `.pth` layout. **13/122 → 122/122, and pylint 2.14's seven "root cause unexplained" seals
+  RETIRED at 7/7.** (51) a checkout's `setuptools~=62.6` predates PEP 660 and, under `--no-build-isolation`,
+  downgrades the backend out from under its own editable install; the cap is dropped where nothing else can save
+  it. (52) the recorder installed PyPI's placeholder `iris` (xarray means SciTools Iris) and took 945 tests to 18
+  — a collapsed control now CONVICTS the recorded name in the wreckage and learns nothing else from that run.
+  **18/945 → 945/945.** (53) astropy's leap-second check warns once per process and astropy's own
+  `filterwarnings = error` kills whichever test touches time first — an id that MOVES between runs and therefore
+  cannot be sealed, only removed. **0/68 → 68/68.** (54) a seal now names the DATASET's own doing when the test
+  patch rewrote a pass-to-pass test onto the unfixed feature. (55) **upstream quotes its version specifiers and
+  we handed the quotes to pip** — scikit-learn's four specs had every VERSIONED pin dropped as "unresolved on
+  this platform" while the bare names installed, so the graded environment was quietly not the spec's; that is
+  also why four tests skipped for a `pandas` the spec had asked for all along.
+  **REMAINING:** close the 96-closure gate (the grade path itself changed, so all 96 re-prove, not 15); run the
+  arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
