@@ -357,10 +357,20 @@ export function buildSwebenchPrepareScript(
 		...repoPreInstall,
 		...(needsHostBuildEnv
 			? [
-					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel ${hostBuildPins
+					// Per pin, and TOLERANT, exactly like the download stages below. A build pin the platform has no
+					// distribution for used to kill the whole prepare: scikit-learn's spec asks for `numpy==1.19.2`,
+					// which published no aarch64 cp39 wheel and whose sdist will not build here, and the prepare died
+					// on it with `Preparing metadata (pyproject.toml) did not run successfully` before reaching a
+					// single download. (It was invisible until the quotes came off the spec's package list — pip had
+					// been receiving a literal `'numpy==1.19.2'` and failing differently.) An unavailable pin is
+					// NAMED and recorded, which is what the unresolved list has always been for.
+					`python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache wheel || true`,
+					`for pin in ${hostBuildPins
 						.filter((requirement) => requirement !== "wheel")
 						.map((requirement) => shellQuote(requirement))
-						.join(" ")}`.trimEnd(),
+						.join(" ")}; do`,
+					`  python -m pip install --disable-pip-version-check -q --cache-dir /cache/pip-cache "$pin" || { echo "SWEBENCH_UNRESOLVED_PIN $pin"; echo "$pin" >> ${unresolvedPath}; }`,
+					"done",
 				]
 			: []),
 		// Upstream INSTALLS in stages (requirements file → era pins → the repo → pip_packages) and never resolves
