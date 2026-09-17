@@ -791,8 +791,24 @@ export function buildSwebenchInstallLines(input: {
 						// the recorded package that fits the environment it is joining, and cannot move a single
 						// thing that is already there. If the closure holds no such version the stage fails loudly,
 						// which is the honest outcome — far better than a package that imports as None.
-						"python -m pip freeze --all 2>/dev/null | grep -E '^[A-Za-z0-9._-]+==[^ ]+$' > /tmp/swebench-frozen.txt || true",
-						pipInstall(`-c /tmp/swebench-frozen.txt ${quote(wanted)}`, "runtime-requirements"),
+						// A recorded requirement is a FLOOR — "this must be present" — not an order to reinstall. Once
+						// the quotes came off the spec's package list, scikit-learn 1.3 installed the `pandas<2.0.0`
+						// its spec had asked for all along, and the recorded bare `pandas` then tried to install over
+						// it and failed: `Cannot install pandas==1.5.3 because these package versions have conflicting
+						// dependencies` (pandas 1.5.3 wants numpy>=1.20.3; the spec's numpy is frozen at 1.19.3). All
+						// 59, 214 and 72 tests passed and the grade was refused anyway. A bare name already satisfied
+						// is skipped; a name carrying a version specifier is still installed, because only the
+						// specifier knows whether what is present is the right one.
+						`SWEBENCH_WANT=""`,
+						`for req in ${quote(wanted)}; do`,
+						`  name=$(printf '%s' "$req" | sed 's/[<>=!~;[].*//')`,
+						`  if [ "$name" = "$req" ] && python -m pip show "$name" >/dev/null 2>&1; then continue; fi`,
+						`  SWEBENCH_WANT="$SWEBENCH_WANT $req"`,
+						"done",
+						'if [ -n "$SWEBENCH_WANT" ]; then',
+						"  python -m pip freeze --all 2>/dev/null | grep -E '^[A-Za-z0-9._-]+==[^ ]+$' > /tmp/swebench-frozen.txt || true",
+						`  python -m pip install --disable-pip-version-check -q ${wheels} -c /tmp/swebench-frozen.txt $SWEBENCH_WANT 2>&1 || echo "SWEBENCH_PIP_FAILED runtime-requirements"`,
+						"fi",
 					]
 				: [];
 		})(),
