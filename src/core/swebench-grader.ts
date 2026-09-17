@@ -748,12 +748,19 @@ export function buildSwebenchInstallLines(input: {
 			const wanted = (input.runtimeRequirements ?? []).filter((name) => !unresolved.has(name));
 			return wanted.length > 0
 				? [
-						pipInstall(`--no-deps ${quote(wanted)}`, "runtime-requirements"),
-						"for round in 1 2 3; do",
-						"  SWEBENCH_MISSING=$(python -m pip check 2>/dev/null | sed -n 's/.* requires \\([A-Za-z0-9._-]*\\), which is not installed.*/\\1/p' | sort -u | tr '\\n' ' ')",
-						'  [ -z "$SWEBENCH_MISSING" ] && break',
-						`  python -m pip install --disable-pip-version-check -q ${wheels} --no-deps $SWEBENCH_MISSING 2>&1 || echo "SWEBENCH_PIP_FAILED runtime-dependencies"`,
-						"done",
+						// The constraint is the ENVIRONMENT ITSELF, frozen a line earlier. Three attempts taught this:
+						// resolving freely moved numpy and sklearn's compiled extension died with
+						// `numpy.core.multiarray failed to import`; `--no-deps` installed HALF a package (`pandas`
+						// without `pytz`/`dateutil`); filling in only what `pip check` reported missing got both, and
+						// then pandas 2.3.3 — the newest the cache held — failed with `C extension: None not built`
+						// because it was compiled against a newer numpy than the spec's 1.19.3.
+						//
+						// Freezing what is installed pins every one of those exactly, so pip MUST pick a version of
+						// the recorded package that fits the environment it is joining, and cannot move a single
+						// thing that is already there. If the closure holds no such version the stage fails loudly,
+						// which is the honest outcome — far better than a package that imports as None.
+						"python -m pip freeze --all 2>/dev/null | grep -E '^[A-Za-z0-9._-]+==[^ ]+$' > /tmp/swebench-frozen.txt || true",
+						pipInstall(`-c /tmp/swebench-frozen.txt ${quote(wanted)}`, "runtime-requirements"),
 					]
 				: [];
 		})(),
@@ -813,7 +820,29 @@ export function buildSwebenchGradeScript(
 					// and XDG in ways that vary by image. A pytest plugin does not depend on any of that: pytest
 					// imports PYTEST_PLUGINS before collection, and the setting is a plain attribute assignment.
 					"mkdir -p /tmp/swebench-plugins",
-					`printf '%s\\n' 'from astropy.utils import iers' 'iers.conf.auto_download = False' 'try: iers.conf.iers_degraded_accuracy = "ignore"' 'except Exception: pass' > /tmp/swebench-plugins/swebench_astropy_offline.py`,
+					// `Time` runs its leap-second check ONCE per process and warns when the update fails; astropy's own
+					// setup.cfg turns warnings into errors, so whichever test touches time first dies — and which one
+					// that is moves between runs, which is why this could never be sealed. Consuming the check here,
+					// quietly, before collection, removes OUR artefact (a 2026 clock with no network) from the
+					// measurement without changing what any test does.
+					[
+						"cat > /tmp/swebench-plugins/swebench_astropy_offline.py <<'SWEBENCH_PLUGIN_EOF'",
+						"import warnings",
+						"try:",
+						"    from astropy.utils import iers",
+						"    iers.conf.auto_download = False",
+						"    try:",
+						'        iers.conf.iers_degraded_accuracy = "ignore"',
+						"    except Exception:",
+						"        pass",
+						"    with warnings.catch_warnings():",
+						'        warnings.simplefilter("ignore")',
+						"        from astropy.time import Time",
+						'        Time("J2000").utc',
+						"except Exception:",
+						"    pass",
+						"SWEBENCH_PLUGIN_EOF",
+					].join("\n"),
 					"export PYTHONPATH=/tmp/swebench-plugins:${PYTHONPATH:-}",
 					"export PYTEST_PLUGINS=swebench_astropy_offline",
 				]
