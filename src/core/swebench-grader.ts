@@ -1217,15 +1217,41 @@ export async function specSiblingBuildRequirements(
 	entry: SwebenchGraderEntry,
 	cacheRoot: string,
 	deps: SwebenchGraderDeps = defaultDeps,
-): Promise<{ buildRequires: string[]; setupRequires: string[]; exactPins: string[] }> {
+): Promise<SwebenchBuildDeclarations> {
 	const key = swebenchWheelCacheKey(entry);
-	const instancesDir = join(cacheRoot, "instances");
-	if (!("resolvedFrom" in entry) || entry.resolvedFrom !== "spec" || !existsSync(instancesDir)) {
+	if (!("resolvedFrom" in entry) || entry.resolvedFrom !== "spec") {
 		return { buildRequires: [], setupRequires: [], exactPins: [] };
 	}
 	const buildRequires = new Set<string>();
 	const setupRequires = new Set<string>();
 	const exactPins = new Set<string>();
+	for (const instanceId of cachedInstancesOfSpec(cacheRoot, key)) {
+		const declared = await instanceBuildDeclarations(cacheRoot, instanceId, deps);
+		for (const requirement of declared.buildRequires) buildRequires.add(requirement);
+		for (const requirement of declared.setupRequires) setupRequires.add(requirement);
+		for (const pin of declared.exactPins) exactPins.add(pin);
+	}
+	return {
+		buildRequires: [...buildRequires].sort(),
+		setupRequires: [...setupRequires].sort(),
+		exactPins: [...exactPins].sort(),
+	};
+}
+
+/** What one checkout declares for its own build: PEP 518 requires, `setup_requires`, and every exact pin. */
+export interface SwebenchBuildDeclarations {
+	readonly buildRequires: readonly string[];
+	readonly setupRequires: readonly string[];
+	readonly exactPins: readonly string[];
+}
+
+/** The cached instance ids whose `(repo, version)` spec is `specKey`, sorted. */
+export function cachedInstancesOfSpec(cacheRoot: string, specKey: string): string[] {
+	const instancesDir = join(cacheRoot, "instances");
+	if (!existsSync(instancesDir)) {
+		return [];
+	}
+	const ids: string[] = [];
 	for (const file of readdirSync(instancesDir)) {
 		if (!file.endsWith(".json")) {
 			continue;
@@ -1236,41 +1262,54 @@ export async function specSiblingBuildRequirements(
 		} catch {
 			continue;
 		}
-		if (!meta.repo || !meta.version || `${meta.repo.replace(/\//gu, "__")}__${meta.version}` !== key) {
-			continue;
+		if (meta.repo && meta.version && `${meta.repo.replace(/\//gu, "__")}__${meta.version}` === specKey) {
+			ids.push(file.slice(0, -".json".length));
 		}
-		const tarball = join(cacheRoot, "repos", `${file.slice(0, -".json".length)}.tar.gz`);
-		if (!existsSync(tarball)) {
-			continue;
-		}
-		// The archive's top-level directory is `<name>-<baseCommit>`; read it rather than reconstruct it.
-		const listed = await deps
-			.exec("bash", ["-lc", `tar -tzf ${shellQuote(tarball)} 2>/dev/null | head -1`])
+	}
+	return ids.sort();
+}
+
+/**
+ * One cached instance's own build declarations, read straight out of its tarball. This is the unit the closure
+ * gate groups by: two instances of one spec share a closure exactly when they declare the same things here.
+ */
+export async function instanceBuildDeclarations(
+	cacheRoot: string,
+	instanceId: string,
+	deps: SwebenchGraderDeps = defaultDeps,
+): Promise<SwebenchBuildDeclarations> {
+	const empty = { buildRequires: [], setupRequires: [], exactPins: [] };
+	const tarball = join(cacheRoot, "repos", `${instanceId}.tar.gz`);
+	if (!existsSync(tarball)) {
+		return empty;
+	}
+	// The archive's top-level directory is `<name>-<baseCommit>`; read it rather than reconstruct it.
+	const listed = await deps
+		.exec("bash", ["-lc", `tar -tzf ${shellQuote(tarball)} 2>/dev/null | head -1`])
+		.catch(() => null);
+	const top = (listed?.stdout ?? "").trim().replace(/\/$/u, "");
+	if (!top) {
+		return empty;
+	}
+	const buildRequires = new Set<string>();
+	const setupRequires = new Set<string>();
+	const exactPins = new Set<string>();
+	for (const [name, parse, sink] of [
+		["pyproject.toml", parsePep518BuildRequires, buildRequires],
+		["setup.py", parseSetupRequires, setupRequires],
+		["setup.cfg", () => [], setupRequires],
+	] as const) {
+		const read = await deps
+			.exec("bash", ["-lc", `tar -xzOf ${shellQuote(tarball)} ${shellQuote(`${top}/${name}`)} 2>/dev/null || true`])
 			.catch(() => null);
-		const top = (listed?.stdout ?? "").trim().replace(/\/$/u, "");
-		if (!top) {
+		if (!read?.stdout) {
 			continue;
 		}
-		for (const [name, parse, sink] of [
-			["pyproject.toml", parsePep518BuildRequires, buildRequires],
-			["setup.py", parseSetupRequires, setupRequires],
-			["setup.cfg", () => [], setupRequires],
-		] as const) {
-			const read = await deps
-				.exec("bash", [
-					"-lc",
-					`tar -xzOf ${shellQuote(tarball)} ${shellQuote(`${top}/${name}`)} 2>/dev/null || true`,
-				])
-				.catch(() => null);
-			if (!read?.stdout) {
-				continue;
-			}
-			for (const requirement of parse(read.stdout)) {
-				sink.add(requirement);
-			}
-			for (const pin of exactRequirementPins(read.stdout)) {
-				exactPins.add(pin);
-			}
+		for (const requirement of parse(read.stdout)) {
+			sink.add(requirement);
+		}
+		for (const pin of exactRequirementPins(read.stdout)) {
+			exactPins.add(pin);
 		}
 	}
 	return {
