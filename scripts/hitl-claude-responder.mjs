@@ -49,6 +49,22 @@ const ANSWER_MODE = process.env.CLAUDE_ANSWER_MODE === "text" ? "text" : "schema
 // incrementally out of the JSON the model is typing) are appended to answers/<seq>.stream.jsonl, which the HITL
 // server forwards to the client as SSE deltas while the turn is still running.
 const STREAM = process.env.CLAUDE_STREAM === "1";
+// BUDGET AND QUOTA GUARD. A long arm must not run the subscription into overage, and it must not record a
+// quota refusal AS THE MODEL'S ANSWER — that would silently corrupt a benchmark with turns the model never took.
+// `CLAUDE_MAX_COST_USD` is a hard stop on the cost the CLI itself reports; reaching it stops answering, and the
+// run stalls visibly instead of spending. A usage-limit error PAUSES and retries rather than answering, because
+// "we are out of quota" is not a turn.
+const MAX_COST_USD = Number(process.env.CLAUDE_MAX_COST_USD ?? 0) || 0;
+const QUOTA_PAUSE_MS = Number(process.env.CLAUDE_QUOTA_PAUSE_MS ?? 10 * 60_000);
+const QUOTA_SIGNS =
+	/usage limit|rate.?limit|quota|too many requests|429|insufficient credit|billing|upgrade your plan|overloaded/iu;
+let spentUsd = 0;
+let budgetStopped = false;
+
+/** Whether an error is the subscription saying no, rather than the model failing a turn. */
+function isQuotaRefusal(error) {
+	return QUOTA_SIGNS.test(error instanceof Error ? error.message : String(error));
+}
 
 /** The CLI seat for a request: its `model` through CLAUDE_MODEL_MAP, else the configured default. */
 function seatFor(request) {
@@ -308,6 +324,12 @@ async function answerOne(seq) {
 	const pendingPath = join(ROOT, "pending", `${seq}.json`);
 	const answerPath = join(ROOT, "answers", `${seq}.json`);
 	if (existsSync(answerPath)) return;
+	if (budgetStopped) return;
+	if (MAX_COST_USD > 0 && spentUsd >= MAX_COST_USD) {
+		budgetStopped = true;
+		log(`BUDGET REACHED: $${spentUsd.toFixed(2)} of $${MAX_COST_USD.toFixed(2)} — answering nothing further. Raise CLAUDE_MAX_COST_USD and restart the responder to continue.`);
+		return;
+	}
 	const { request } = JSON.parse(await readFile(pendingPath, "utf8"));
 	const prompt = buildPrompt(request);
 	const model = seatFor(request);
@@ -328,18 +350,32 @@ async function answerOne(seq) {
 			}),
 		);
 	} catch (error) {
+		if (isQuotaRefusal(error)) {
+			// NOT an answer. Leave the request pending so the loop retries it after the pause; the arm stalls where
+			// anyone can see it rather than banking a refusal as the model's turn.
+			log(`request ${seq}: QUOTA/RATE LIMIT (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — pausing ${Math.round(QUOTA_PAUSE_MS / 1000)} s and retrying, NOT answering`);
+			await new Promise((resolve) => setTimeout(resolve, QUOTA_PAUSE_MS));
+			return;
+		}
 		log(`request ${seq}: FAILED (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — answering with an error message so the agent can recover`);
 		answer = { content: `The model seat failed to answer this turn: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`, tool_calls: [], finish_reason: "stop" };
 	}
 	const tmp = `${answerPath}.tmp`;
 	await writeFile(tmp, JSON.stringify({ content: answer.content, tool_calls: answer.tool_calls, finish_reason: answer.finish_reason }));
 	await rename(tmp, answerPath);
+	if (typeof answer.costUsd === "number") {
+		spentUsd += answer.costUsd;
+		if (MAX_COST_USD > 0 && spentUsd >= MAX_COST_USD) {
+			budgetStopped = true;
+			log(`BUDGET REACHED: $${spentUsd.toFixed(2)} of $${MAX_COST_USD.toFixed(2)} — this was the last answer.`);
+		}
+	}
 	await writeFile(
 		join(ROOT, "responder.jsonl"),
 		`${JSON.stringify({ seq, model, effort, requestedModel: request.model ?? null, durationMs: Date.now() - startedAt, toolCalls: answer.tool_calls.map((call) => call.name), contentChars: answer.content.length, usage: answer.usage, costUsd: answer.costUsd })}\n`,
 		{ flag: "a" },
 	);
-	log(`request ${seq}: answered in ${Math.round((Date.now() - startedAt) / 1000)} s — ${answer.tool_calls.map((call) => call.name).join(",") || "text"}`);
+	log(`request ${seq}: answered in ${Math.round((Date.now() - startedAt) / 1000)} s — ${answer.tool_calls.map((call) => call.name).join(",") || "text"}${MAX_COST_USD > 0 ? ` | spent $${spentUsd.toFixed(2)} of $${MAX_COST_USD.toFixed(2)}` : ""}`);
 }
 
 async function main() {
