@@ -36,6 +36,7 @@ import {
 	type SwebenchResolvedEnv,
 	sealedInstallCommand,
 	splitSwebenchPreInstall,
+	stripAnsiEscapes,
 	swebenchEraConstraintLines,
 	swebenchGraderImageFor,
 	swebenchInstallExtras,
@@ -1534,6 +1535,29 @@ export async function buildSwebenchEnvImage(
 }
 
 /**
+ * The packages a pytest run SKIPPED tests for want of. Upstream's conda environments have them, so the dataset
+ * lists those tests as pass-to-pass — and a skip is not a pass.
+ *
+ * Two phrasings, and the second one cost the most: xarray writes `SKIPPED [1] …:1616: requires bottleneck`,
+ * while sklearn writes `SKIPPED [1] …:16: could not import 'pandas': No module named 'pandas'`. Only the first
+ * was recognised, so sklearn 1.3's four `test__wrap_in_pandas_container_*` tests went unrecorded and were then
+ * SEALED as "fails in the pristine control" — a fixable closure gap filed away as an unexplainable one.
+ *
+ * Pass output with the colour already stripped: pytest writes the marker as `\x1b[33mSKIPPED\x1b[0m [1] …`, so
+ * a pattern anchored at `SKIPPED [` matches nothing at all on a coloured run.
+ */
+export function swebenchSkippedForMissingPackage(plainOutput: string): string[] {
+	return [
+		...new Set(
+			[
+				...[...plainOutput.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: requires ([A-Za-z][\w.-]*)\s*$/gmu)],
+				...[...plainOutput.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: could not import '([A-Za-z][\w.-]*)'/gmu)],
+			].map((match) => match[1] ?? ""),
+		),
+	].filter(Boolean);
+}
+
+/**
  * Did this grade MEASURE anything? An install that failed is not a measurement.
  *
  * The grade script runs under `set -u`, not `set -e`, so before this check a failed editable install went on to
@@ -1698,21 +1722,19 @@ export async function gradeSwebenchWorkspace(
 		// takes the whole selection down, so requiring zero passes separates "the environment is missing
 		// something" from "a test asserted that a module is missing".
 		const collectionFailed = plan.passToPass.length > 0 && verdict.passToPassFailed.length === plan.passToPass.length;
+		// Colour again. pytest writes `\x1b[33mSKIPPED\x1b[0m [1] …`, so every pattern below that starts at
+		// `SKIPPED [` matched nothing at all on a coloured run — sklearn 1.3's `could not import 'pandas'` skips
+		// went unrecorded for exactly this reason, on a suite that DOES colour, while xarray's uncoloured output
+		// recorded fine. This is the third time colour has silently changed a result; strip it before parsing.
+		const plainStdout = stripAnsiEscapes(stdout);
 		const discovered = [
 			...new Set([
 				...(collectionFailed
-					? [...stdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map((m) => m[1] ?? "")
+					? [...plainStdout.matchAll(/ModuleNotFoundError: No module named '([A-Za-z][\w]*)'/gu)].map(
+							(m) => m[1] ?? "",
+						)
 					: []),
-				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: requires ([A-Za-z][\w.-]*)\s*$/gmu)].map(
-					(m) => m[1] ?? "",
-				),
-				// The OTHER skip phrasing, and the one that cost the most: `SKIPPED [1] …:16: could not import
-				// 'pandas': No module named 'pandas'`. sklearn 1.3's four `test__wrap_in_pandas_container_*` tests
-				// skipped for want of pandas and were then SEALED as "fails in the pristine control" — a fixable
-				// closure gap filed away as an unexplainable one.
-				...[...stdout.matchAll(/SKIPPED \[\d+\][^\n:]*:\d+: could not import '([A-Za-z][\w.-]*)'/gmu)].map(
-					(m) => m[1] ?? "",
-				),
+				...swebenchSkippedForMissingPackage(plainStdout),
 			]),
 		].filter((name) => name && !notPackages.has(name.toLowerCase()));
 		// An id pytest cannot COLLECT does not exist in this checkout — requests 2.27's ids embed a runtime path

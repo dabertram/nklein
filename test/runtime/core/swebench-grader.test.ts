@@ -8,7 +8,12 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
-import { parseSwebenchSpecDump, resolveSwebenchEnv, swebenchPipRequirement } from "../../../src/core/swebench-env-spec";
+import {
+	parseSwebenchSpecDump,
+	resolveSwebenchEnv,
+	stripAnsiEscapes,
+	swebenchPipRequirement,
+} from "../../../src/core/swebench-env-spec";
 import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
@@ -21,6 +26,7 @@ import {
 	specExactPins,
 	splitSwebenchGradeOutput,
 	swebenchEnvironmentRefusal,
+	swebenchSkippedForMissingPackage,
 	swebenchWheelCacheKey,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
@@ -512,5 +518,21 @@ describe("exactRequirementPins", () => {
 	it("ignores environment-marker comparisons, which share the syntax", () => {
 		const marker = "numpy==1.22.3; python_version=='3.10' and platform_system=='Windows'; extra == \"test\"";
 		expect(exactRequirementPins(marker)).toEqual(["numpy==1.22.3"]);
+	});
+});
+
+describe("swebenchSkippedForMissingPackage — a skip is not a pass", () => {
+	it("reads both phrasings", () => {
+		const output = [
+			"SKIPPED [1] xarray/tests/test_variable.py:1616: requires bottleneck",
+			"SKIPPED [1] sklearn/utils/tests/test_set_output.py:16: could not import 'pandas': No module named 'pandas'",
+		].join("\n");
+		expect(swebenchSkippedForMissingPackage(output)).toEqual(["bottleneck", "pandas"]);
+	});
+
+	it("finds nothing in COLOURED output — which is why the caller strips it first", () => {
+		const coloured = "\u001b[33mSKIPPED\u001b[0m [1] t.py:16: could not import 'pandas': No module named 'pandas'";
+		expect(swebenchSkippedForMissingPackage(coloured)).toEqual([]);
+		expect(swebenchSkippedForMissingPackage(stripAnsiEscapes(coloured))).toEqual(["pandas"]);
 	});
 });
