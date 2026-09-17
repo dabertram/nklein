@@ -718,15 +718,28 @@ export function buildSwebenchInstallLines(input: {
 		// Last, so nothing can clobber them: the runtime imports a control found missing. A recorded name the cache
 		// could not fetch is dropped, exactly like an unresolvable pin.
 		//
-		// These used to go in with `--no-deps`, to stop a dependency cascade undoing the spec's environment. That
-		// was the blunt version of the right idea and it installed HALF a package: sklearn 1.3 got `pandas` and
-		// then skipped the same four tests with `Unable to import required dependencies: pytz … dateutil`. The
-		// spec's own exact pins are already a constraint file, and a constraint is the precise instrument — it
-		// pins exactly what must not move while letting a package's unpinned dependencies resolve. A dependency
-		// that genuinely conflicts with a pin now fails the stage LOUDLY instead of arriving half-built.
+		// `--no-deps` stays, and it is not squeamishness: letting pip resolve pandas' dependencies moved numpy and
+		// sklearn's compiled extension died with `numpy.core.multiarray failed to import` — 14 tests to 0, worse
+		// than the 4 it set out to fix. Constraining the spec's pins was not enough, because the pin that mattered
+		// was not one of them.
+		//
+		// But `--no-deps` alone installs HALF a package: sklearn got pandas and still skipped those four tests
+		// with `Unable to import required dependencies: pytz … dateutil`, both sitting in the wheel cache. So the
+		// MISSING dependencies are filled in afterwards, and only those — `pip check` names exactly what is absent
+		// (`pandas 2.3.3 requires pytz, which is not installed`), and each round installs those with --no-deps
+		// too. Nothing already installed can move, which is the whole point, and a package arrives whole.
 		...(() => {
 			const wanted = (input.runtimeRequirements ?? []).filter((name) => !unresolved.has(name));
-			return wanted.length > 0 ? [pipInstall(`${specPinArg}${quote(wanted)}`, "runtime-requirements")] : [];
+			return wanted.length > 0
+				? [
+						pipInstall(`--no-deps ${quote(wanted)}`, "runtime-requirements"),
+						"for round in 1 2 3; do",
+						"  SWEBENCH_MISSING=$(python -m pip check 2>/dev/null | sed -n 's/.* requires \\([A-Za-z0-9._-]*\\), which is not installed.*/\\1/p' | sort -u | tr '\\n' ' ')",
+						'  [ -z "$SWEBENCH_MISSING" ] && break',
+						`  python -m pip install --disable-pip-version-check -q ${wheels} --no-deps $SWEBENCH_MISSING 2>&1 || echo "SWEBENCH_PIP_FAILED runtime-dependencies"`,
+						"done",
+					]
+				: [];
 		})(),
 	];
 }
@@ -780,8 +793,13 @@ export function buildSwebenchGradeScript(
 		// no warning, and J2000/J2005 sit well inside its range.
 		...(entry.repo === "astropy/astropy"
 			? [
-					'mkdir -p "$HOME/.astropy/config"',
-					"printf '[utils.iers.iers]\\nauto_download = False\\n' > \"$HOME/.astropy/config/astropy.cfg\"",
+					// Writing astropy.cfg was the obvious way and it did nothing — config discovery depends on HOME
+					// and XDG in ways that vary by image. A pytest plugin does not depend on any of that: pytest
+					// imports PYTEST_PLUGINS before collection, and the setting is a plain attribute assignment.
+					"mkdir -p /tmp/swebench-plugins",
+					`printf '%s\\n' 'from astropy.utils import iers' 'iers.conf.auto_download = False' 'try: iers.conf.iers_degraded_accuracy = "ignore"' 'except Exception: pass' > /tmp/swebench-plugins/swebench_astropy_offline.py`,
+					"export PYTHONPATH=/tmp/swebench-plugins:${PYTHONPATH:-}",
+					"export PYTEST_PLUGINS=swebench_astropy_offline",
 				]
 			: []),
 		// Upstream `eval_commands` (locale-gen, LANG/LC_ALL exports — django) run in THIS shell so their exports
@@ -1608,6 +1626,34 @@ export async function buildSwebenchEnvImage(
 }
 
 /**
+ * Which of these ids did the instance's OWN test patch rewrite?
+ *
+ * A negative control rests on "every pass-to-pass test passes without the fix" — and the instance's test patch
+ * can break that premise by rewriting a pass-to-pass test to exercise the very feature the fix adds.
+ * `astropy__astropy-13398` is the case in point: its patch rewrites the ITRS tests to pass `location=`, so a
+ * pristine tree answers `TypeError: Coordinate frame ITRS got unexpected keywords: ['location']`. That is not
+ * an environment defect and it is not the model's doing; it is the dataset, and the receipt should say so
+ * rather than filing it under "cause unknown".
+ *
+ * Matched on ADDED lines only, and by the test's own name, so a test that merely lives in a patched file is
+ * never blamed — most pass-to-pass tests share a file with the fail-to-pass ones and pass perfectly well.
+ */
+export function swebenchTestsRewrittenByPatch(testPatch: string, ids: readonly string[]): Set<string> {
+	const added = testPatch
+		.split("\n")
+		.filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+		.join("\n");
+	const rewritten = new Set<string>();
+	for (const id of ids) {
+		const name = (id.split("::").pop() ?? "").replace(/\[.*\]$/u, "");
+		if (name && new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\b`, "u").test(added)) {
+			rewritten.add(id);
+		}
+	}
+	return rewritten;
+}
+
+/**
  * Which recorded runtime requirements does this collapsed run convict?
  *
  * A control whose ENTIRE selection failed has nothing to say about individual tests, but it says a great deal
@@ -1864,9 +1910,15 @@ export async function gradeSwebenchWorkspace(
 			...readRejectedRuntimeRequirements(input.cacheRoot, input.entry).map((row) => row.name),
 		]);
 		const learnedSomething = discovered.some((name) => !alreadyKnown.has(name));
+		const rewritten = swebenchTestsRewrittenByPatch(input.instance.testPatch, verdict.passToPassFailed);
 		const pristineFailures =
 			pristineShare > 0 && pristineShare <= 0.25 && !learnedSomething
-				? verdict.passToPassFailed.map((id) => ({ id, cause: "fails in the pristine control" }))
+				? verdict.passToPassFailed.map((id) => ({
+						id,
+						cause: rewritten.has(id)
+							? "rewritten by the instance's own test patch to exercise the unfixed feature"
+							: "fails in the pristine control",
+					}))
 				: [];
 		const networkBound = [...networkBoundFailures(passToPassOutput), ...uncollectable, ...pristineFailures];
 		if (networkBound.length > 0) {

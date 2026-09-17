@@ -28,6 +28,7 @@ import {
 	swebenchConvictedRuntimeRequirements,
 	swebenchEnvironmentRefusal,
 	swebenchSkippedForMissingPackage,
+	swebenchTestsRewrittenByPatch,
 	swebenchWheelCacheKey,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
@@ -559,5 +560,33 @@ describe("swebenchConvictedRuntimeRequirements — the recorder retracts what it
 	it("does not convict on a mere mention outside an import or collection error", () => {
 		const passing = "PASSED xarray/tests/test_iris.py::test_iris_roundtrip";
 		expect(swebenchConvictedRuntimeRequirements(passing, ["iris"])).toEqual([]);
+	});
+});
+
+describe("swebenchTestsRewrittenByPatch — the dataset's doing, not the environment's", () => {
+	// astropy 13398's test patch rewrites the ITRS tests to pass `location=`, so a PRISTINE tree answers
+	// `TypeError: Coordinate frame ITRS got unexpected keywords: ['location']`. Not an environment defect and
+	// not the model's doing — the receipt should say which.
+	const patch = [
+		"--- a/astropy/coordinates/tests/test_intermediate_transformations.py",
+		"+++ b/astropy/coordinates/tests/test_intermediate_transformations.py",
+		"+def test_gcrs_itrs():",
+		"+    itrs = ITRS(location=loc, obstime=t)",
+		" def test_unchanged():",
+	].join("\n");
+
+	it("names the test the patch rewrote", () => {
+		const ids = ["a.py::test_gcrs_itrs", "a.py::test_unchanged"];
+		expect([...swebenchTestsRewrittenByPatch(patch, ids)]).toEqual(["a.py::test_gcrs_itrs"]);
+	});
+
+	it("does not blame a test for merely sharing a file with the patch", () => {
+		expect([...swebenchTestsRewrittenByPatch(patch, ["a.py::test_elsewhere"])]).toEqual([]);
+	});
+
+	it("matches through parametrisation", () => {
+		expect([...swebenchTestsRewrittenByPatch(patch, ["a.py::test_gcrs_itrs[case0]"])]).toEqual([
+			"a.py::test_gcrs_itrs[case0]",
+		]);
 	});
 });
