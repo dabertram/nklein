@@ -699,7 +699,20 @@ export function buildSwebenchInstallLines(input: {
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(`${facts.installCommand}${editableCompat}`, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? editableCompat
+				? // `editable_mode` is a PEP 660 setting and only a pyproject-driven build understands it. astropy 1.3
+					// carries setup.py and no pyproject.toml, where pip already takes the legacy develop path — which
+					// puts the source on sys.path by itself, so the flag is both unnecessary and fatal there: the
+					// install failed while all six of its tests passed, and the grade was refused for an environment
+					// that was fine. The checkout decides, at run time, because only it knows which it is.
+					[
+						"if [ -f /work/pyproject.toml ] || [ -f /src/pyproject.toml ]; then",
+						`  ${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(`${facts.installCommand}${editableCompat}`, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`,
+						"else",
+						`  ${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`,
+						"fi",
+					].join("\n")
+				: `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
