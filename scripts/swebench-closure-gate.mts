@@ -67,6 +67,8 @@ interface LedgerRow {
 	readonly closure: string;
 	readonly instanceId: string;
 	readonly fingerprint: string;
+	/** The spec cache's recorded state when this control ran; see `cacheSignature`. */
+	readonly cacheSig?: string;
 	readonly clean: boolean;
 	readonly p2pTotal: number;
 	readonly p2pFailed: number;
@@ -76,6 +78,25 @@ interface LedgerRow {
 	/** The grader's own output tail, kept for a DIRTY row only: diagnosing it should not need a re-grade. */
 	readonly outputTail?: string;
 	readonly at: string;
+}
+
+/**
+ * What the spec's wheel cache RECORDS about itself — the recorded runtime requirements, the unresolved pins, the
+ * seals. A proof is only a proof of the environment that produced it, and that environment is the grader source
+ * AND this. Recording `pandas<1.3` for one closure changes the cache every sibling closure installs from, and
+ * without this their clean rows would stand unexamined: the fingerprint covers our code, not the cache.
+ *
+ * Wheel FILES are deliberately not hashed — a prepare that only adds wheels leaves what is resolved alone, and
+ * hashing a directory of thousands of files on every row would cost more than it proves.
+ */
+function cacheSignature(specKey: string): string {
+	const dir = join(cacheRoot, "wheels", specKey);
+	const hash = createHash("sha256");
+	for (const name of ["SWEBENCH_RUNTIME_REQS.txt", "SWEBENCH_UNRESOLVED.txt", "SWEBENCH_SEALED_P2P.txt", "SWEBENCH_EXTRA_BUILD_REQS.txt", "SWEBENCH_REJECTED_RUNTIME.txt"]) {
+		hash.update(name);
+		hash.update(existsSync(join(dir, name)) ? readFileSync(join(dir, name)) : "(absent)");
+	}
+	return hash.digest("hex").slice(0, 12);
 }
 
 function graderFingerprint(): string {
@@ -135,7 +156,8 @@ function readClosures(): Closure[] {
 }
 
 /** The newest row per closure at this fingerprint — older fingerprints do not count. */
-function currentProofs(fingerprint: string): Map<string, LedgerRow> {
+function currentProofs(fingerprint: string, closures?: readonly Closure[]): Map<string, LedgerRow> {
+	const cacheSigOf = new Map((closures ?? []).map((closure) => [closure.key, cacheSignature(closure.specKey)]));
 	const latest = new Map<string, LedgerRow>();
 	if (!existsSync(LEDGER)) {
 		return latest;
@@ -146,7 +168,8 @@ function currentProofs(fingerprint: string): Map<string, LedgerRow> {
 		}
 		try {
 			const row = JSON.parse(line) as LedgerRow;
-			if (row.fingerprint === fingerprint) {
+			const wanted = cacheSigOf.get(row.closure);
+			if (row.fingerprint === fingerprint && (wanted === undefined || row.cacheSig === wanted)) {
 				latest.set(row.closure, row);
 			}
 		} catch {
@@ -189,13 +212,13 @@ async function controlOne(closure: Closure, fingerprint: string): Promise<Ledger
 }
 
 function row(closure: Closure, fingerprint: string, facts: Omit<LedgerRow, "closure" | "instanceId" | "fingerprint" | "at">): LedgerRow {
-	return { closure: closure.key, instanceId: closure.representative, fingerprint, ...facts, at: new Date().toISOString() };
+	return { closure: closure.key, instanceId: closure.representative, fingerprint, cacheSig: cacheSignature(closure.specKey), ...facts, at: new Date().toISOString() };
 }
 
 async function commandRun(parallel: number): Promise<void> {
 	const fingerprint = graderFingerprint();
 	const closures = readClosures();
-	const proven = currentProofs(fingerprint);
+	const proven = currentProofs(fingerprint, closures);
 	const queue = closures.filter((closure) => !proven.get(closure.key)?.clean);
 	process.stdout.write(`grader ${fingerprint}: ${closures.length - queue.length} already clean, ${queue.length} to control (parallel ${parallel})\n`);
 	let next = 0;
@@ -232,8 +255,9 @@ async function commandRun(parallel: number): Promise<void> {
  * caught rather than trusted.
  */
 async function recoverUnpreparedClosures(fingerprint: string): Promise<void> {
-	const proofs = currentProofs(fingerprint);
-	const unprepared = readClosures().filter((closure) => {
+	const allClosures = readClosures();
+	const proofs = currentProofs(fingerprint, allClosures);
+	const unprepared = allClosures.filter((closure) => {
 		const proof = proofs.get(closure.key);
 		return proof && !proof.clean && proof.refusal !== null && /No matching distribution found for/u.test(proof.outputTail ?? "");
 	});
@@ -270,7 +294,7 @@ function runPrepare(instanceId: string, specKey: string): Promise<boolean> {
 function commandStatus(): void {
 	const fingerprint = graderFingerprint();
 	const closures = readClosures();
-	const proven = currentProofs(fingerprint);
+	const proven = currentProofs(fingerprint, closures);
 	const clean = closures.filter((closure) => proven.get(closure.key)?.clean);
 	const dirty = closures.filter((closure) => proven.has(closure.key) && !proven.get(closure.key)?.clean);
 	const unproven = closures.filter((closure) => !proven.has(closure.key));
