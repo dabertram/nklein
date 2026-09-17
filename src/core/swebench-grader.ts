@@ -167,6 +167,28 @@ export function networkBoundFailures(output: string): { id: string; cause: strin
 }
 
 /** The runtime requirements a control recorded for this spec's wheel cache. */
+/**
+ * Whether a recorded requirement is the REPO UNDER TEST naming itself — which it must never be. The checkout is
+ * installed editable from /work; asking pip for it offline can only fail.
+ *
+ * Live 2026-09-17, and self-reinforcing: astropy 5.1's editable install failed, so `import astropy` failed, so
+ * the recorder wrote `astropy` as a missing runtime requirement. From then on EVERY astropy 5.1 grade failed the
+ * runtime stage with `No matching distribution found for astropy` — and once a failed runtime stage became a
+ * refusal, every one of those instances was excluded from the score by a record the first failure had created.
+ */
+function isRepoUnderTest(entry: SwebenchGraderEntry, requirement: string): boolean {
+	const normalize = (name: string) =>
+		name
+			.split(/[<>=!~;[\s]/u)[0]
+			?.trim()
+			.toLowerCase()
+			.replace(/_/gu, "-") ?? "";
+	const repo = entry.repo.split("/").pop() ?? "";
+	return (
+		normalize(requirement) === normalize(repo) || normalize(requirement) === normalize(entry.repo.split("/")[0] ?? "")
+	);
+}
+
 export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGraderEntry): string[] {
 	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_RUNTIME_REQUIREMENTS);
 	if (!existsSync(path)) {
@@ -180,7 +202,7 @@ export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGrader
 				.map((line) => line.trim())
 				.filter(Boolean),
 		),
-	].filter((name) => !rejected.has(name));
+	].filter((name) => !rejected.has(name) && !isRepoUnderTest(entry, name));
 }
 
 /** The build requirements the probe discovered for this spec's wheel cache. */
@@ -2123,7 +2145,11 @@ export async function gradeSwebenchWorkspace(
 			...convicted,
 		]);
 		const added =
-			convicted.length > 0 ? [] : discovered.filter((name) => !known.includes(name) && !rejected.has(name));
+			convicted.length > 0
+				? []
+				: discovered.filter(
+						(name) => !known.includes(name) && !rejected.has(name) && !isRepoUnderTest(input.entry, name),
+					);
 		if (added.length > 0) {
 			try {
 				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));

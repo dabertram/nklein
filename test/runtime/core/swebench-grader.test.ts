@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -23,6 +23,7 @@ import {
 	exactRequirementPins,
 	networkBoundFailures,
 	planSealedGrade,
+	readRuntimeRequirements,
 	resolutionFailures,
 	specExactPins,
 	splitSwebenchGradeOutput,
@@ -487,6 +488,30 @@ describe("an install that failed is a REFUSAL, not a score (live 2026-09-17: ast
 	it("says nothing about a grade that installed cleanly, however many tests failed", () => {
 		const honestRed = "===SWEBENCH_F2P===\nFAILED testing/test_x.py::test_new\n===SWEBENCH_END===";
 		expect(swebenchEnvironmentRefusal(honestRed)).toEqual({ installFailures: [], refusal: null });
+	});
+});
+
+describe("the repo under test is never a requirement of itself (live 2026-09-17: astropy 5.1)", () => {
+	// Self-reinforcing failure: astropy 5.1's editable install failed, so `import astropy` failed, so the recorder
+	// wrote `astropy` as a missing runtime requirement. Every later grade then failed the runtime stage with
+	// `No matching distribution found for astropy` — and once that stage became a refusal, every astropy 5.1
+	// instance was EXCLUDED FROM THE SCORE by a record the first failure had created. Haiku's first graded
+	// instance of the full run (14096) was excluded exactly this way, for a patch that touched one library file.
+	it("filters the repo's own name out of a cache that already recorded it, with no re-prepare", async () => {
+		const astropyEntry: SwebenchTrancheEntry = {
+			...entry,
+			instanceId: "astropy__astropy-14096",
+			repo: "astropy/astropy",
+		};
+		const dir = await mkdtemp(join(tmpdir(), "swebench-selfref-"));
+		try {
+			const key = swebenchWheelCacheKey(astropyEntry);
+			await mkdir(join(dir, "wheels", key), { recursive: true });
+			await writeFile(join(dir, "wheels", key, "SWEBENCH_RUNTIME_REQS.txt"), "extension_helpers\nastropy\n");
+			expect(readRuntimeRequirements(dir, astropyEntry)).toEqual(["extension_helpers"]);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });
 
