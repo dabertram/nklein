@@ -22,6 +22,7 @@
  * after the closures were built silently invalidated all of them.)
  */
 
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { appendFile, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -31,6 +32,7 @@ import { resolveSwebenchEnv } from "../src/core/swebench-env-spec";
 import {
 	applyTestPatchToCopy,
 	gradeSwebenchWorkspace,
+	SWEBENCH_PREPARE_MARKER,
 	instanceBuildDeclarations,
 	swebenchWheelCacheKey,
 } from "../src/core/swebench-grader";
@@ -213,7 +215,56 @@ async function commandRun(parallel: number): Promise<void> {
 		}
 	};
 	await Promise.all(Array.from({ length: parallel }, worker));
+	await recoverUnpreparedClosures(fingerprint);
 	commandStatus();
+}
+
+/**
+ * A closure its spec's `prepare` never saw. The wheel cache is shared per spec and `prepare` probes ONE checkout,
+ * then marks the whole spec complete — the per-spec mistake the gate itself already fixed, one layer down. When a
+ * sibling closure's checkout declares a dependency that representative did not, its sealed install cannot find
+ * it: pytest 5.4's `iniconfig`, pytest 7.2's `exceptiongroup` (live 2026-09-17). The grade rightly REFUSES; this
+ * turns that refusal into the missing step.
+ *
+ * It runs AFTER the parallel pass on purpose: a prepare writes into the spec's shared cache, and a control of a
+ * sibling closure reading that cache mid-download would be measuring a moving target. Wheels only accumulate, and
+ * every closure of the spec is re-proven by the gate anyway, so a probe that shifted what a sibling resolves is
+ * caught rather than trusted.
+ */
+async function recoverUnpreparedClosures(fingerprint: string): Promise<void> {
+	const proofs = currentProofs(fingerprint);
+	const unprepared = readClosures().filter((closure) => {
+		const proof = proofs.get(closure.key);
+		return proof && !proof.clean && proof.refusal !== null && /No matching distribution found for/u.test(proof.outputTail ?? "");
+	});
+	for (const closure of unprepared) {
+		const missing = [...(proofs.get(closure.key)?.outputTail ?? "").matchAll(/No matching distribution found for (\S+)/gu)].map((m) => m[1]);
+		process.stdout.write(`UNPREPARED ${closure.key}: its checkout needs ${missing.join(", ")} — ⚠ EGRESS: preparing from ${closure.representative}\n`);
+		// The spec marker says "complete", which is exactly the claim this closure just disproved.
+		await rm(join(cacheRoot, "wheels", closure.specKey, SWEBENCH_PREPARE_MARKER), { force: true });
+		const prepared = await runPrepare(closure.representative, closure.specKey);
+		if (!prepared) {
+			process.stdout.write(`  prepare FAILED for ${closure.representative} — the closure stays dirty; see ${join(GATE_DIR, "prepare.log")}\n`);
+			continue;
+		}
+		const result = await controlOne(closure, fingerprint);
+		await appendFile(LEDGER, `${JSON.stringify(result)}\n`);
+		const detail = result.refusal ? `REFUSED ${result.refusal.slice(0, 120)}` : `${result.p2pTotal - result.p2pFailed}/${result.p2pTotal} p2p`;
+		process.stdout.write(`[recovered] ${result.clean ? "CLEAN" : "DIRTY"} ${closure.key} (${closure.representative}) ${detail}\n`);
+	}
+}
+
+/** Proven only by the marker coming back: `prepare` writes it after the sealed offline install succeeded. */
+function runPrepare(instanceId: string, specKey: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const child = spawn("npx", ["tsx", "scripts/swebench-grade.mts", "prepare", instanceId], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+		const log = join(GATE_DIR, "prepare.log");
+		const sink = (chunk: Buffer) => void appendFile(log, chunk);
+		child.stdout.on("data", sink);
+		child.stderr.on("data", sink);
+		child.on("close", (code) => resolve(code === 0 && existsSync(join(cacheRoot, "wheels", specKey, SWEBENCH_PREPARE_MARKER))));
+		child.on("error", () => resolve(false));
+	});
 }
 
 function commandStatus(): void {
