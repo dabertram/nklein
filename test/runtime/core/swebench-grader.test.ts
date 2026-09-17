@@ -515,6 +515,58 @@ describe("the repo under test is never a requirement of itself (live 2026-09-17:
 	});
 });
 
+describe("a selection pytest cannot fully find corrects itself (live 2026-09-17: pytest 5.4)", () => {
+	// pytest answers ONE unfindable id with `ERROR: not found:` and then runs nothing at all. The collect-only
+	// intersection is meant to prevent that, but it is a prediction: for pytest 5.4's `test_valid_idents[:::]`
+	// and `[a:::c]`, `--collect-only -q` printed nothing for the file, the fallback ran all 58 ids, and 42
+	// pass-to-pass tests read as REGRESSED on a pristine tree. The run must therefore fix itself from what
+	// pytest actually said.
+
+	/** Run the graded pass-to-pass lines against a fake pytest that refuses two ids the first time. */
+	async function runSelection(refuse: readonly string[]) {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-notfound-"));
+		try {
+			const ids = ["t/test_a.py::test_one", "t/test_a.py::test_two", "t/test_a.py::test_valid_idents[:::]"];
+			const plan = { failToPassCommand: [] as string[], passToPassCommand: ids };
+			const script = buildSwebenchGradeScript({ ...entry, repo: "pytest-dev/pytest" }, plan);
+			const p2p = script.slice(script.indexOf("echo '===SWEBENCH_P2P==='")).split("\n");
+			// A fake `python` that (a) collects nothing, forcing the fallback, and (b) reports `ERROR: not found`
+			// for the refused ids and runs NOTHING — exactly pytest's behaviour.
+			const fake = [
+				"#!/bin/bash",
+				'args="$*"',
+				'if [[ "$args" == *--collect-only* ]]; then exit 1; fi',
+				`refused=(${refuse.map((r) => `'${r}'`).join(" ")})`,
+				'hit=""; for r in "${refused[@]}"; do [[ "$args" == *"$r"* ]] && hit="$r"; done',
+				'if [ -n "$hit" ]; then for r in "${refused[@]}"; do [[ "$args" == *"$r"* ]] && echo "ERROR: not found: /work/$r"; done; echo "no tests ran"; exit 4; fi',
+				'for a in "$@"; do [[ "$a" == *::* ]] && echo "PASSED $a"; done; echo "ran"',
+			].join("\n");
+			await writeFile(join(dir, "python"), fake, { mode: 0o755 });
+			const { stdout } = await execFileAsync("bash", ["-c", p2p.join("\n")], {
+				env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+			});
+			return stdout;
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	it("drops exactly the ids pytest could not find, names them, and grades the re-run", async () => {
+		const stdout = await runSelection(["t/test_a.py::test_valid_idents[:::]"]);
+		expect(stdout).toContain("SWEBENCH_ID_NOT_COLLECTED t/test_a.py::test_valid_idents[:::]");
+		// The two findable tests now actually RUN, where before the whole selection was lost.
+		expect(stdout).toContain("PASSED t/test_a.py::test_one");
+		expect(stdout).toContain("PASSED t/test_a.py::test_two");
+		expect(stdout).not.toContain("no tests ran");
+	});
+
+	it("keeps the original output when pytest found everything", async () => {
+		const stdout = await runSelection([]);
+		expect(stdout).toContain("PASSED t/test_a.py::test_one");
+		expect(stdout).not.toContain("SWEBENCH_ID_NOT_COLLECTED");
+	});
+});
+
 describe("a recorded runtime requirement that MOVES a package (live 2026-09-17: astropy 3.1)", () => {
 	// astropy 3.1's `TestHeaderFunctions` uses nose-style `setup()`, which pytest >= 7.2 deprecates into an error, so
 	// its closure recorded `pytest<7.2`. The install froze the WHOLE environment as constraints — pytest==7.4.0

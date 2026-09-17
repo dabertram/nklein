@@ -951,6 +951,9 @@ export function buildSwebenchGradeScript(
 				const wanted = `/tmp/swebench-${label}-wanted.txt`;
 				const collected = `/tmp/swebench-${label}-collected.txt`;
 				const final = `/tmp/swebench-${label}-final.txt`;
+				const out = `/tmp/swebench-${label}-out.txt`;
+				const absent = `/tmp/swebench-${label}-absent.txt`;
+				const retry = `/tmp/swebench-${label}-retry.txt`;
 				return [
 					// The selection lives in a FILE from here on. Embedding 1405 quoted ids in a shell line — twice, once
 					// per branch — produced a command the shell would not run at all, and xarray 2022.06 executed 3 of
@@ -962,7 +965,21 @@ export function buildSwebenchGradeScript(
 					// than silently running nothing.
 					`[ -s ${final} ] || cp ${wanted} ${final}`,
 					`comm -23 <(sort -u ${wanted}) <(sort -u ${final}) | sed 's/^/SWEBENCH_ID_NOT_COLLECTED /' || true`,
-					`${command} $(cat ${final}) 2>&1 || true`,
+					// The intersection is a PREDICTION, and when it is wrong the cost is the whole selection: pytest
+					// answers one unfindable id with `ERROR: not found:` and runs NOTHING. pytest 5.4's
+					// `test_valid_idents[:::]` and `[a:::c]` did exactly that — `--collect-only -q` printed nothing
+					// for that file, so the fallback ran all 58 ids and 42 pass-to-pass tests read as regressed on a
+					// PRISTINE tree. So the run corrects itself: if pytest named ids it could not find, drop exactly
+					// those, say so, and run once more. The second run's output is what gets graded.
+					`${command} $(cat ${final}) > ${out} 2>&1 || true`,
+					`grep -oE '^ERROR: not found: [^ ]+' ${out} | sed 's|^ERROR: not found: ||' | sed 's|^/work/||' | sort -u > ${absent} || true`,
+					`if [ -s ${absent} ]; then`,
+					`  sed 's|^|SWEBENCH_ID_NOT_COLLECTED |' ${absent}`,
+					`  grep -vxF -f ${absent} ${final} > ${retry} || true`,
+					`  if [ -s ${retry} ]; then ${command} $(cat ${retry}) 2>&1 || true; else cat ${out}; fi`,
+					"else",
+					`  cat ${out}`,
+					"fi",
 				];
 			};
 			return [
