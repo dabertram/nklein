@@ -94,6 +94,38 @@ export const SWEBENCH_EXTRA_BUILD_REQUIREMENTS = "SWEBENCH_BUILD_REQS.txt";
 export const SWEBENCH_RUNTIME_REQUIREMENTS = "SWEBENCH_RUNTIME_REQS.txt";
 
 /**
+ * Recorded runtime requirements that BROKE the environment when installed, one `name\tevidence` per line.
+ *
+ * The recorder reads a package name out of a pytest skip — `SKIPPED [1] …: requires iris` — and assumes it is a
+ * distribution name. It is not always: xarray means SciTools Iris, while PyPI's `iris` is a placeholder whose
+ * import raises `RuntimeError: Ambiguous 'iris' package`. Installing it poisoned `xarray/tests/conftest.py` and
+ * took the whole collection down — 945 pass-to-pass tests went to 18, and the NEXT control would have recorded
+ * the wreckage as fresh evidence. A name that collapses collection is retracted here with the error that
+ * convicted it, and never recorded again.
+ */
+export const SWEBENCH_REJECTED_RUNTIME = "SWEBENCH_REJECTED_RUNTIME.txt";
+
+/** The recorded runtime requirements a control retracted, with the evidence that convicted each one. */
+export function readRejectedRuntimeRequirements(
+	cacheRoot: string,
+	entry: SwebenchGraderEntry,
+): { name: string; evidence: string }[] {
+	const path = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_REJECTED_RUNTIME);
+	if (!existsSync(path)) {
+		return [];
+	}
+	return readFileSync(path, "utf8")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.map((line) => {
+			const [name, ...rest] = line.split("\t");
+			return { name: name ?? "", evidence: rest.join(" ") };
+		})
+		.filter((row) => row.name);
+}
+
+/**
  * Pass-to-pass tests a control found to be NETWORK-BOUND, one `id\tcause` per line beside the wheels.
  *
  * Some graded tests reach the internet by design — matplotlib's `test_https_imread_smoketest` fetches an https
@@ -139,6 +171,7 @@ export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGrader
 	if (!existsSync(path)) {
 		return [];
 	}
+	const rejected = new Set(readRejectedRuntimeRequirements(cacheRoot, entry).map((row) => row.name));
 	return [
 		...new Set(
 			readFileSync(path, "utf8")
@@ -146,7 +179,7 @@ export function readRuntimeRequirements(cacheRoot: string, entry: SwebenchGrader
 				.map((line) => line.trim())
 				.filter(Boolean),
 		),
-	];
+	].filter((name) => !rejected.has(name));
 }
 
 /** The build requirements the probe discovered for this spec's wheel cache. */
@@ -711,6 +744,20 @@ export function buildSwebenchGradeScript(
 				]
 			: []),
 		"cd /work",
+		// astropy asks the internet for IERS earth-orientation data, and a sealed grade has none. The fallback
+		// emits a warning — and astropy's own `setup.cfg` sets `filterwarnings = error`, so the FIRST test in the
+		// session to touch it raises inside `iers.py`'s bare `except Exception: pass`, which then fails a line
+		// later with `TypeError: unsupported operand type(s) for -: 'Time' and 'float'`. Python's warning registry
+		// suppresses the repeat, so exactly ONE test dies and WHICH one moves between runs — 13398 failed
+		// `test_cirs_to_altaz` on one control and `test_cirs_to_hadec` on the next. An id that changes every run
+		// cannot be sealed; it has to be removed. Turning the download off restores the bundled IERS_B table with
+		// no warning, and J2000/J2005 sit well inside its range.
+		...(entry.repo === "astropy/astropy"
+			? [
+					'mkdir -p "$HOME/.astropy/config"',
+					"printf '[utils.iers.iers]\\nauto_download = False\\n' > \"$HOME/.astropy/config/astropy.cfg\"",
+				]
+			: []),
 		// Upstream `eval_commands` (locale-gen, LANG/LC_ALL exports — django) run in THIS shell so their exports
 		// reach the test commands below.
 		...("evalCommands" in entry ? entry.evalCommands.map((line) => `${line} 2>&1 || true`) : []),
@@ -1535,6 +1582,34 @@ export async function buildSwebenchEnvImage(
 }
 
 /**
+ * Which recorded runtime requirements does this collapsed run convict?
+ *
+ * A control whose ENTIRE selection failed has nothing to say about individual tests, but it says a great deal
+ * about the environment — and when the environment was last changed by the recorder, the recorder is the first
+ * suspect. A recorded name that appears in a collection-time error is retracted: PyPI's placeholder `iris`
+ * raises `RuntimeError: Ambiguous 'iris' package` while xarray means SciTools Iris, and installing it turned
+ * 945 pass-to-pass tests into 18.
+ *
+ * Deliberately narrow — only the lines where an import or collection actually died, so a package merely
+ * MENTIONED by a passing test is never convicted.
+ */
+export function swebenchConvictedRuntimeRequirements(plainOutput: string, recorded: readonly string[]): string[] {
+	const fatal = plainOutput
+		.split("\n")
+		.filter((line) =>
+			/ImportError while loading conftest|ERROR collecting|RuntimeError|ModuleNotFoundError|ImportError|Ambiguous/u.test(
+				line,
+			),
+		)
+		.join("\n");
+	return recorded.filter((name) =>
+		new RegExp(`(^|[^A-Za-z0-9_-])${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}([^A-Za-z0-9_-]|$)`, "u").test(
+			fatal,
+		),
+	);
+}
+
+/**
  * The packages a pytest run SKIPPED tests for want of. Upstream's conda environments have them, so the dataset
  * lists those tests as pass-to-pass — and a skip is not a pass.
  *
@@ -1758,9 +1833,11 @@ export async function gradeSwebenchWorkspace(
 		// same breath — the seal then outlived the fix and kept excluding a test the next closure would have
 		// passed. When this run added a requirement the environment is known-incomplete; the next control, run
 		// against the completed closure, is the one entitled to seal anything.
-		const learnedSomething = discovered.some(
-			(name) => !readRuntimeRequirements(input.cacheRoot, input.entry).includes(name),
-		);
+		const alreadyKnown = new Set([
+			...readRuntimeRequirements(input.cacheRoot, input.entry),
+			...readRejectedRuntimeRequirements(input.cacheRoot, input.entry).map((row) => row.name),
+		]);
+		const learnedSomething = discovered.some((name) => !alreadyKnown.has(name));
 		const pristineFailures =
 			pristineShare > 0 && pristineShare <= 0.25 && !learnedSomething
 				? verdict.passToPassFailed.map((id) => ({ id, cause: "fails in the pristine control" }))
@@ -1785,7 +1862,41 @@ export async function gradeSwebenchWorkspace(
 			}
 		}
 		const known = readRuntimeRequirements(input.cacheRoot, input.entry);
-		const added = discovered.filter((name) => !known.includes(name));
+		// Retraction comes FIRST. When the whole selection collapsed and a name the recorder itself installed is
+		// named in the wreckage, that name is the suspect — and recording anything more from this run would be
+		// learning from a fire the recorder started.
+		const convicted = collectionFailed ? swebenchConvictedRuntimeRequirements(plainStdout, known) : [];
+		if (convicted.length > 0) {
+			try {
+				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));
+				const evidence =
+					plainStdout
+						.split("\n")
+						.find((line) => convicted.some((name) => line.includes(name)) && /Error|Ambiguous/u.test(line))
+						?.trim()
+						.slice(0, 200) ?? "broke collection";
+				const existing = readRejectedRuntimeRequirements(input.cacheRoot, input.entry);
+				const merged = [...existing];
+				for (const name of convicted) {
+					if (!merged.some((row) => row.name === name)) {
+						merged.push({ name, evidence });
+					}
+				}
+				await writeFile(
+					join(dir, SWEBENCH_REJECTED_RUNTIME),
+					`${merged.map((row) => `${row.name}\t${row.evidence}`).join("\n")}\n`,
+				);
+				await rm(join(dir, SWEBENCH_PREPARE_MARKER), { force: true });
+			} catch {
+				// A diagnostic sink must never change a verdict.
+			}
+		}
+		const rejected = new Set([
+			...readRejectedRuntimeRequirements(input.cacheRoot, input.entry).map((row) => row.name),
+			...convicted,
+		]);
+		const added =
+			convicted.length > 0 ? [] : discovered.filter((name) => !known.includes(name) && !rejected.has(name));
 		if (added.length > 0) {
 			try {
 				const dir = join(input.cacheRoot, "wheels", swebenchWheelCacheKey(input.entry));

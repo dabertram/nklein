@@ -25,6 +25,7 @@ import {
 	resolutionFailures,
 	specExactPins,
 	splitSwebenchGradeOutput,
+	swebenchConvictedRuntimeRequirements,
 	swebenchEnvironmentRefusal,
 	swebenchSkippedForMissingPackage,
 	swebenchWheelCacheKey,
@@ -534,5 +535,29 @@ describe("swebenchSkippedForMissingPackage — a skip is not a pass", () => {
 		const coloured = "\u001b[33mSKIPPED\u001b[0m [1] t.py:16: could not import 'pandas': No module named 'pandas'";
 		expect(swebenchSkippedForMissingPackage(coloured)).toEqual([]);
 		expect(swebenchSkippedForMissingPackage(stripAnsiEscapes(coloured))).toEqual(["pandas"]);
+	});
+});
+
+describe("swebenchConvictedRuntimeRequirements — the recorder retracts what it broke", () => {
+	// xarray skips with `requires iris` meaning SciTools Iris; PyPI's `iris` is a placeholder that raises on
+	// import. Installing it poisoned xarray/tests/conftest.py and took 945 pass-to-pass tests down to 18.
+	const collapsed = [
+		"ImportError while loading conftest '/work/xarray/tests/conftest.py'.",
+		"E   RuntimeError:",
+		"E   Ambiguous 'iris' package.",
+		"E   Please use either:",
+	].join("\n");
+
+	it("convicts a recorded name that appears in the wreckage", () => {
+		expect(swebenchConvictedRuntimeRequirements(collapsed, ["sparse", "iris", "flox"])).toEqual(["iris"]);
+	});
+
+	it("convicts nothing when the run did not name a recorded package", () => {
+		expect(swebenchConvictedRuntimeRequirements(collapsed, ["sparse", "flox"])).toEqual([]);
+	});
+
+	it("does not convict on a mere mention outside an import or collection error", () => {
+		const passing = "PASSED xarray/tests/test_iris.py::test_iris_roundtrip";
+		expect(swebenchConvictedRuntimeRequirements(passing, ["iris"])).toEqual([]);
 	});
 });
