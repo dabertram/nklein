@@ -28,11 +28,61 @@
  *   so a seat that tries to act has nothing to act on. The prompt already tells it to emit tool_calls instead.
  */
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const ROOT = process.env.HITL_ROOT ?? join(process.env.HOME ?? "", ".nklein", "factory-drains", "hitl-drain", "queue");
+// LIVENESS — see the Claude responder for the incident this came from. A rig whose responder has died looks
+// exactly like one thinking hard: the server holds the request for HITL_ANSWER_TIMEOUT_S and the caller hangs.
+// The heartbeat lets the server answer "nobody is home" in milliseconds instead of ninety minutes.
+const HEARTBEAT_PATH = join(ROOT, "responder.heartbeat");
+const HEARTBEAT_EVERY_MS = 2_000;
+let lastHeartbeat = 0;
+function heartbeat(inFlight) {
+	const now = Date.now();
+	if (now - lastHeartbeat < HEARTBEAT_EVERY_MS) {
+		return;
+	}
+	lastHeartbeat = now;
+	try {
+		writeFileSync(
+			HEARTBEAT_PATH,
+			`${JSON.stringify({ pid: process.pid, at: new Date(now).toISOString(), inFlight, kind: "codex-cli" })}\n`,
+		);
+	} catch {
+		// A liveness stamp must never take the responder down with it.
+	}
+}
+// A request older than the server's own answer timeout cannot still have a caller waiting on it.
+const STALE_REQUEST_MS = Number(process.env.HITL_STALE_REQUEST_S ?? 5_400) * 1_000;
+
+/** Park requests too old to still have a caller, so a restarted responder does not spend on abandoned turns. */
+async function parkStaleRequests() {
+	const parked = join(ROOT, `stale-${new Date().toISOString().slice(0, 10)}`);
+	let names = [];
+	try {
+		names = (await readdir(join(ROOT, "pending"))).filter((name) => /^\d+\.json$/u.test(name));
+	} catch {
+		return;
+	}
+	const cutoff = Date.now() - STALE_REQUEST_MS;
+	const stale = names.filter((name) => {
+		try {
+			return statSync(join(ROOT, "pending", name)).mtimeMs < cutoff;
+		} catch {
+			return false;
+		}
+	});
+	if (stale.length === 0) {
+		return;
+	}
+	await mkdir(parked, { recursive: true });
+	for (const name of stale) {
+		await rename(join(ROOT, "pending", name), join(parked, name)).catch(() => undefined);
+	}
+	log(`parked ${stale.length} request(s) older than ${Math.round(STALE_REQUEST_MS / 60_000)} min into ${parked}`);
+}
 const MODEL = process.env.CODEX_MODEL ?? "gpt-5.6-sol";
 const CALL_TIMEOUT_MS = Number(process.env.CODEX_CALL_TIMEOUT_MS ?? 15 * 60_000);
 const MAX_INPUT_CHARS = Number(process.env.CODEX_MAX_INPUT_CHARS ?? 600_000);
@@ -273,7 +323,9 @@ async function main() {
 	);
 	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, default effort ${DEFAULT_EFFORT ?? "cli"}, codex ${version}, root ${ROOT}`);
 	const inFlight = new Set();
+	await parkStaleRequests();
 	for (;;) {
+		heartbeat(inFlight.size);
 		const pending = (await readdir(join(ROOT, "pending")))
 			.filter((name) => /^\d+\.json$/u.test(name))
 			.map((name) => Number(name.slice(0, -5)))

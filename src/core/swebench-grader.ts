@@ -692,7 +692,15 @@ export function buildSwebenchInstallLines(input: {
 								...swebenchSpecBuildRequirements(entry),
 								...pep518BuildRequires,
 								...(input.extraBuildRequirements ?? []),
-							].filter((requirement) => !(dropSetuptoolsCap && swebenchSetuptoolsLacksPep660([requirement]))),
+							]
+								.filter((requirement) => !(dropSetuptoolsCap && swebenchSetuptoolsLacksPep660([requirement])))
+								// The unresolved list was honoured for the package pins and NOT here, which only
+								// mattered once the quotes came off the spec's package list and `numpy==1.19.2`
+								// became a pin pip actually reads. It has no aarch64 wheel and its sdist will not
+								// build, so it is correctly recorded unresolved — and was then asked for again two
+								// stages later, failing the build requirements AND the editable install with it.
+								// scikit-learn 1.3 went from clean to 0 of 59. A pin dropped once stays dropped.
+								.filter((requirement) => !unresolved.has(requirement)),
 						),
 					])} > /tmp/swebench-build-requirements.log 2>&1 || echo "SWEBENCH_PIP_FAILED build-requirements"`,
 					"cat /tmp/swebench-build-requirements.log",
@@ -700,17 +708,18 @@ export function buildSwebenchInstallLines(input: {
 			: []),
 		facts.fromSpec
 			? editableCompat
-				? // `editable_mode` is a PEP 660 setting and only a pyproject-driven build understands it. astropy 1.3
-					// carries setup.py and no pyproject.toml, where pip already takes the legacy develop path — which
-					// puts the source on sys.path by itself, so the flag is both unnecessary and fatal there: the
-					// install failed while all six of its tests passed, and the grade was refused for an environment
-					// that was fine. The checkout decides, at run time, because only it knows which it is.
+				? // ATTEMPT AND FALL BACK, rather than predict which backend the checkout will get. `editable_mode`
+					// is understood only by setuptools 64+, and the presence of a pyproject.toml does not decide it:
+					// pylint 2.14 has setup.py and no pyproject.toml, gets a modern setuptools anyway, and NEEDS the
+					// flag (without it PEP 660 hides the checkout from sys.path and 7 of its tests die); astropy 1.3
+					// also has setup.py and no pyproject.toml, gets an era-pinned setuptools, and the flag kills its
+					// install outright. Both were misjudged by every predicate tried. Asking pip is cheaper and
+					// always right: the second attempt overwrites the log, so what is diagnosed is the install that
+					// actually counted.
 					[
-						"if [ -f /work/pyproject.toml ] || [ -f /src/pyproject.toml ]; then",
-						`  ${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(`${facts.installCommand}${editableCompat}`, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`,
-						"else",
+						`${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(`${facts.installCommand}${editableCompat}`, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || {`,
 						`  ${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`,
-						"fi",
+						"}",
 					].join("\n")
 				: `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(

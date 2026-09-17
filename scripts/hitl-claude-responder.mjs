@@ -18,7 +18,7 @@
  * `$HITL_ROOT/seat.json` for the arm's harness card.
  */
 import { spawn } from "node:child_process";
-import { appendFileSync, existsSync } from "node:fs";
+import { appendFileSync, existsSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -58,6 +58,34 @@ const MAX_COST_USD = Number(process.env.CLAUDE_MAX_COST_USD ?? 0) || 0;
 const QUOTA_PAUSE_MS = Number(process.env.CLAUDE_QUOTA_PAUSE_MS ?? 10 * 60_000);
 const QUOTA_SIGNS =
 	/usage limit|rate.?limit|quota|too many requests|429|insufficient credit|billing|upgrade your plan|overloaded/iu;
+// LIVENESS. A rig whose responder has died looks exactly like one that is thinking hard: the server holds the
+// request open for HITL_ANSWER_TIMEOUT_S (90 minutes by default) and the caller simply hangs. Live 2026-09-17,
+// the dsh rig's responder exited and NOTHING noticed for 25 hours — eight requests piled up unread and the ninth
+// was David's, waiting on a queue no process was reading. The responder now stamps a heartbeat every couple of
+// seconds; the server reads it and fails a request immediately when nobody is home, so "the rig is down" is
+// answered in milliseconds instead of ninety minutes.
+const HEARTBEAT_PATH = join(ROOT, "responder.heartbeat");
+const HEARTBEAT_EVERY_MS = 2_000;
+let lastHeartbeat = 0;
+function heartbeat(inFlight) {
+	const now = Date.now();
+	if (now - lastHeartbeat < HEARTBEAT_EVERY_MS) {
+		return;
+	}
+	lastHeartbeat = now;
+	try {
+		writeFileSync(
+			HEARTBEAT_PATH,
+			`${JSON.stringify({ pid: process.pid, at: new Date(now).toISOString(), inFlight, model: MODEL })}\n`,
+		);
+	} catch {
+		// A liveness stamp must never take the responder down with it.
+	}
+}
+// A request older than the server's own answer timeout CANNOT still have a caller waiting on it — the client gave
+// up long ago. Answering it on startup spends the subscription on a turn nobody will read, so it is parked beside
+// the queue with its arrival time instead. (The dsh rig had eight of these from two days earlier.)
+const STALE_REQUEST_MS = Number(process.env.HITL_STALE_REQUEST_S ?? 5_400) * 1_000;
 let spentUsd = 0;
 let budgetStopped = false;
 
@@ -378,6 +406,33 @@ async function answerOne(seq) {
 	log(`request ${seq}: answered in ${Math.round((Date.now() - startedAt) / 1000)} s — ${answer.tool_calls.map((call) => call.name).join(",") || "text"}${MAX_COST_USD > 0 ? ` | spent $${spentUsd.toFixed(2)} of $${MAX_COST_USD.toFixed(2)}` : ""}`);
 }
 
+/** Park requests too old to still have a caller, so a restarted responder does not spend on abandoned turns. */
+async function parkStaleRequests() {
+	const parked = join(ROOT, `stale-${new Date().toISOString().slice(0, 10)}`);
+	let names = [];
+	try {
+		names = (await readdir(join(ROOT, "pending"))).filter((name) => /^\d+\.json$/u.test(name));
+	} catch {
+		return;
+	}
+	const cutoff = Date.now() - STALE_REQUEST_MS;
+	const stale = names.filter((name) => {
+		try {
+			return statSync(join(ROOT, "pending", name)).mtimeMs < cutoff;
+		} catch {
+			return false;
+		}
+	});
+	if (stale.length === 0) {
+		return;
+	}
+	await mkdir(parked, { recursive: true });
+	for (const name of stale) {
+		await rename(join(ROOT, "pending", name), join(parked, name)).catch(() => undefined);
+	}
+	log(`parked ${stale.length} request(s) older than ${Math.round(STALE_REQUEST_MS / 60_000)} min into ${parked}`);
+}
+
 async function main() {
 	for (const sub of ["pending", "answers", "done", "digest"]) await mkdir(join(ROOT, sub), { recursive: true });
 	let version = "unknown";
@@ -400,9 +455,11 @@ async function main() {
 		),
 	);
 	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, default effort ${DEFAULT_EFFORT ?? "cli"}, answer mode ${ANSWER_MODE}${STREAM ? " (streaming)" : ""}, claude ${version}, root ${ROOT}`);
+	await parkStaleRequests();
 	// Up to CONCURRENCY requests in flight at once; each is claimed exactly once (the in-flight set), answered, released.
 	const inFlight = new Set();
 	for (;;) {
+		heartbeat(inFlight.size);
 		const pending = (await readdir(join(ROOT, "pending")))
 			.filter((name) => /^\d+\.json$/u.test(name))
 			.map((name) => Number(name.slice(0, -5)))
