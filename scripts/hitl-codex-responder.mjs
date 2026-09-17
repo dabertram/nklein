@@ -87,6 +87,9 @@ const MODEL = process.env.CODEX_MODEL ?? "gpt-5.6-sol";
 const CALL_TIMEOUT_MS = Number(process.env.CODEX_CALL_TIMEOUT_MS ?? 15 * 60_000);
 const MAX_INPUT_CHARS = Number(process.env.CODEX_MAX_INPUT_CHARS ?? 600_000);
 const CONCURRENCY = Math.max(1, Number(process.env.CODEX_RESPONDER_CONCURRENCY ?? 1) || 1);
+// One call per model at a time — see the Claude responder for the reasoning. Overall concurrency keeps the rig
+// busy across its four seats; concurrency WITHIN one seat contends for the same per-model limits.
+const SEAT_CONCURRENCY = Math.max(1, Number(process.env.CODEX_SEAT_CONCURRENCY ?? 1) || 1);
 const PLUGIN_CODEX = join(process.env.HOME ?? "", ".codex", "plugins", ".plugin-appserver", "codex");
 const CODEX_BIN = process.env.CODEX_BIN ?? (existsSync(PLUGIN_CODEX) ? PLUGIN_CODEX : "codex");
 const MODEL_MAP = (() => {
@@ -321,8 +324,26 @@ async function main() {
 			2,
 		),
 	);
-	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, default effort ${DEFAULT_EFFORT ?? "cli"}, codex ${version}, root ${ROOT}`);
+	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY} (${SEAT_CONCURRENCY}/seat), default effort ${DEFAULT_EFFORT ?? "cli"}, codex ${version}, root ${ROOT}`);
 	const inFlight = new Set();
+	const inFlightPerSeat = new Map();
+	// Cached: deciding a request's seat costs a parse, and the poll loop would re-parse every waiting request
+	// every 1.5 seconds otherwise.
+	const seatOfSeq = new Map();
+	const seatOf = async (seq) => {
+		const known = seatOfSeq.get(seq);
+		if (known !== undefined) {
+			return known;
+		}
+		try {
+			const { request } = JSON.parse(await readFile(join(ROOT, "pending", `${seq}.json`), "utf8"));
+			const seat = seatFor(request);
+			seatOfSeq.set(seq, seat);
+			return seat;
+		} catch {
+			return null;
+		}
+	};
 	await parkStaleRequests();
 	for (;;) {
 		heartbeat(inFlight.size);
@@ -334,11 +355,28 @@ async function main() {
 		for (const seq of pending) {
 			if (inFlight.size >= CONCURRENCY) break;
 			if (inFlight.has(seq) || existsSync(join(ROOT, "answers", `${seq}.json`))) continue;
+			const seat = await seatOf(seq);
+			// A seat at its limit does not block the queue: a request for a DIFFERENT seat still starts.
+			if (seat !== null && (inFlightPerSeat.get(seat) ?? 0) >= SEAT_CONCURRENCY) continue;
 			inFlight.add(seq);
+			if (seat !== null) {
+				inFlightPerSeat.set(seat, (inFlightPerSeat.get(seat) ?? 0) + 1);
+			}
 			did = true;
 			void answerOne(seq)
 				.catch((error) => log(`request ${seq}: responder error ${error instanceof Error ? error.message : String(error)}`))
-				.finally(() => inFlight.delete(seq));
+				.finally(() => {
+					inFlight.delete(seq);
+					seatOfSeq.delete(seq);
+					if (seat !== null) {
+						const left = (inFlightPerSeat.get(seat) ?? 1) - 1;
+						if (left > 0) {
+							inFlightPerSeat.set(seat, left);
+						} else {
+							inFlightPerSeat.delete(seat);
+						}
+					}
+				});
 		}
 		if (!did) await new Promise((resolve) => setTimeout(resolve, 1500));
 	}

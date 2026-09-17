@@ -27,6 +27,12 @@ const MODEL = process.env.CLAUDE_MODEL ?? "claude-sonnet-5";
 const CALL_TIMEOUT_MS = Number(process.env.CLAUDE_CALL_TIMEOUT_MS ?? 15 * 60_000);
 const MAX_INPUT_CHARS = Number(process.env.CLAUDE_MAX_INPUT_CHARS ?? 600_000);
 const CONCURRENCY = Math.max(1, Number(process.env.CLAUDE_RESPONDER_CONCURRENCY ?? 1) || 1);
+// ONE CALL PER MODEL AT A TIME. Overall concurrency is what keeps a rig busy across its four seats; concurrency
+// WITHIN one seat is a different thing and buys much less — the same model's calls contend for the same
+// per-model limits, so firing four Opus turns at once turns one slow turn into four, and a refusal into four
+// refusals. Different seats still run in parallel; a seat runs one turn at a time. Raise per-seat only with a
+// measurement that says it helped.
+const SEAT_CONCURRENCY = Math.max(1, Number(process.env.CLAUDE_SEAT_CONCURRENCY ?? 1) || 1);
 const MODEL_MAP = (() => {
 	try {
 		const parsed = JSON.parse(process.env.CLAUDE_MODEL_MAP ?? "{}");
@@ -520,10 +526,28 @@ async function main() {
 			2,
 		),
 	);
-	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY}, default effort ${DEFAULT_EFFORT ?? "cli"}, answer mode ${ANSWER_MODE}${STREAM ? " (streaming)" : ""}, claude ${version}, root ${ROOT}`);
+	log(`responder up: model ${MODEL}${Object.keys(MODEL_MAP).length > 0 ? ` (+map ${Object.keys(MODEL_MAP).join(",")})` : ""}, concurrency ${CONCURRENCY} (${SEAT_CONCURRENCY}/seat), default effort ${DEFAULT_EFFORT ?? "cli"}, answer mode ${ANSWER_MODE}${STREAM ? " (streaming)" : ""}, claude ${version}, root ${ROOT}`);
 	await parkStaleRequests();
 	// Up to CONCURRENCY requests in flight at once; each is claimed exactly once (the in-flight set), answered, released.
 	const inFlight = new Set();
+	const inFlightPerSeat = new Map();
+	// Which seat a queued request wants, cached: deciding costs a parse of the pending file, and the poll loop
+	// would otherwise re-parse every waiting request — some of them hundreds of kilobytes — every 1.5 seconds.
+	const seatOfSeq = new Map();
+	const seatOf = async (seq) => {
+		const known = seatOfSeq.get(seq);
+		if (known !== undefined) {
+			return known;
+		}
+		try {
+			const { request } = JSON.parse(await readFile(join(ROOT, "pending", `${seq}.json`), "utf8"));
+			const seat = seatFor(request);
+			seatOfSeq.set(seq, seat);
+			return seat;
+		} catch {
+			return null;
+		}
+	};
 	for (;;) {
 		heartbeat(inFlight.size);
 		const pending = (await readdir(join(ROOT, "pending")))
@@ -534,11 +558,28 @@ async function main() {
 		for (const seq of pending) {
 			if (inFlight.size >= CONCURRENCY) break;
 			if (inFlight.has(seq) || existsSync(join(ROOT, "answers", `${seq}.json`))) continue;
+			const seat = await seatOf(seq);
+			// A seat at its limit does not block the queue: the next request for a DIFFERENT seat still starts.
+			if (seat !== null && (inFlightPerSeat.get(seat) ?? 0) >= SEAT_CONCURRENCY) continue;
 			inFlight.add(seq);
+			if (seat !== null) {
+				inFlightPerSeat.set(seat, (inFlightPerSeat.get(seat) ?? 0) + 1);
+			}
 			did = true;
 			void answerOne(seq)
 				.catch((error) => log(`request ${seq}: responder error ${error instanceof Error ? error.message : String(error)}`))
-				.finally(() => inFlight.delete(seq));
+				.finally(() => {
+					inFlight.delete(seq);
+					seatOfSeq.delete(seq);
+					if (seat !== null) {
+						const left = (inFlightPerSeat.get(seat) ?? 1) - 1;
+						if (left > 0) {
+							inFlightPerSeat.set(seat, left);
+						} else {
+							inFlightPerSeat.delete(seat);
+						}
+					}
+				});
 		}
 		if (!did) await new Promise((resolve) => setTimeout(resolve, 1500));
 	}
