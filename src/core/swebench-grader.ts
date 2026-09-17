@@ -533,19 +533,23 @@ export function buildSwebenchInstallLines(input: {
 	const pipInstall = (what: string, stage: string) =>
 		`python -m pip install --disable-pip-version-check -q ${wheels} ${what} 2>&1 || echo "SWEBENCH_PIP_FAILED ${stage}"`;
 	// The build backend is declared by the CHECKOUT, and the spec's install command cannot know which commit it
-	// is grading. `pylint-dev__pylint-7277` pins `setuptools~=62.6`, which predates PEP 660, so the sealed
-	// editable install was refused outright — `uses a build backend that is missing the 'build_editable' hook` —
-	// while its spec sibling, which declares no build requirements at all, installed fine. Adding the flag here
-	// fixes BOTH consumers at once: `swebenchPipRequirement` then asks for the pip that still accepts it, and
-	// `sealedInstallCommand` passes it to the install.
-	const installCommand =
-		swebenchSetuptoolsLacksPep660([
-			...(facts.fromSpec ? swebenchSpecBuildRequirements(entry as SwebenchResolvedEnv) : entry.buildRequirements),
-			...pep518BuildRequires,
-			...(input.extraBuildRequirements ?? []),
-		]) && !/--no-use-pep517/u.test(facts.installCommand)
-			? `${facts.installCommand} --no-use-pep517`
-			: facts.installCommand;
+	// is grading. `pylint-dev__pylint-7277` pins `setuptools~=62.6`, which predates PEP 660 — and because every
+	// install here runs `--no-build-isolation`, honouring that pin DOWNGRADES the venv's setuptools out from
+	// under the editable install, which pip then refuses: `uses a build backend that is missing the
+	// 'build_editable' hook`. Its spec sibling declares no build requirements at all and installs fine.
+	//
+	// `--no-use-pep517` is not the answer for this one: pylint 2.15 is pyproject-only, and pip answers
+	// `Disabling PEP 517 processing is invalid: project does not have a setup.py`. So the cap is DROPPED instead,
+	// and only where nothing else can save the install — a spec whose install command already carries
+	// `--no-use-pep517` (scikit-learn 1.3's `setuptools<60.0`) keeps its cap and its proven-green behaviour
+	// exactly, because the legacy setup.py path does not need the hook.
+	const declaredBuildRequirements = [
+		...(facts.fromSpec ? swebenchSpecBuildRequirements(entry as SwebenchResolvedEnv) : entry.buildRequirements),
+		...pep518BuildRequires,
+		...(input.extraBuildRequirements ?? []),
+	];
+	const dropSetuptoolsCap =
+		swebenchSetuptoolsLacksPep660(declaredBuildRequirements) && !/--no-use-pep517/u.test(facts.installCommand);
 	return [
 		`export XDG_CACHE_HOME=${xdgHome}`,
 		// Our own pip calls carry --no-index --find-links, but a repo's build can spawn pip ITSELF and that child
@@ -574,7 +578,7 @@ export function buildSwebenchInstallLines(input: {
 		// `bcrypt-4.0.1-cp36-abi3-manylinux_2_28_aarch64.whl`; the venv's pip then reported "from versions: )" for
 		// a file sitting in front of it, and django 3.0/3.2's whole requirements install failed over it. `pip`
 		// alone is a no-op to a pip that considers itself satisfied, hence --upgrade.
-		pipInstall(`--upgrade ${shellQuote(swebenchPipRequirement(installCommand))}`, "pip-upgrade"),
+		pipInstall(`--upgrade ${shellQuote(swebenchPipRequirement(facts.installCommand))}`, "pip-upgrade"),
 		pipInstall(quote(swebenchToolchainRequirements(entry)), "toolchain"),
 		// P1.SWEBENCHFULL: repo-level pre_install lines (sed on pyproject/setup files…) run IN the workspace first.
 		// ONE shell for the whole block (see the prepare script): upstream's pre_install lines share shell state.
@@ -657,17 +661,19 @@ export function buildSwebenchInstallLines(input: {
 					// this log, and `-q` suppresses exactly that line. astropy 5.1 lost all 322 pass-to-pass tests
 					// the one time this stage was quiet — numpy looked untouched, so its pin was never restored.
 					`python -m pip install --disable-pip-version-check ${wheels} ${quote([
-						...new Set([
-							...swebenchSpecBuildRequirements(entry),
-							...pep518BuildRequires,
-							...(input.extraBuildRequirements ?? []),
-						]),
+						...new Set(
+							[
+								...swebenchSpecBuildRequirements(entry),
+								...pep518BuildRequires,
+								...(input.extraBuildRequirements ?? []),
+							].filter((requirement) => !(dropSetuptoolsCap && swebenchSetuptoolsLacksPep660([requirement]))),
+						),
 					])} > /tmp/swebench-build-requirements.log 2>&1 || echo "SWEBENCH_PIP_FAILED build-requirements"`,
 					"cat /tmp/swebench-build-requirements.log",
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
@@ -709,13 +715,18 @@ export function buildSwebenchInstallLines(input: {
 				`if [ -n "$SWEBENCH_REASSERT" ]; then python -m pip install --disable-pip-version-check -q ${wheels} --no-deps $SWEBENCH_REASSERT 2>&1 || echo "SWEBENCH_PIP_FAILED pins-reassert"; fi`,
 			];
 		})(),
-		// Last, so nothing can clobber them: the runtime imports a control found missing. Installed with --no-deps
-		// because the environment is otherwise already the spec's, and a dependency cascade here would undo it.
-		// A recorded name the cache could not fetch is dropped, exactly like an unresolvable pin. A control reads
-		// these out of test output, and test output can name a module that is not a distribution at all.
+		// Last, so nothing can clobber them: the runtime imports a control found missing. A recorded name the cache
+		// could not fetch is dropped, exactly like an unresolvable pin.
+		//
+		// These used to go in with `--no-deps`, to stop a dependency cascade undoing the spec's environment. That
+		// was the blunt version of the right idea and it installed HALF a package: sklearn 1.3 got `pandas` and
+		// then skipped the same four tests with `Unable to import required dependencies: pytz … dateutil`. The
+		// spec's own exact pins are already a constraint file, and a constraint is the precise instrument — it
+		// pins exactly what must not move while letting a package's unpinned dependencies resolve. A dependency
+		// that genuinely conflicts with a pin now fails the stage LOUDLY instead of arriving half-built.
 		...(() => {
 			const wanted = (input.runtimeRequirements ?? []).filter((name) => !unresolved.has(name));
-			return wanted.length > 0 ? [pipInstall(`--no-deps ${quote(wanted)}`, "runtime-requirements")] : [];
+			return wanted.length > 0 ? [pipInstall(`${specPinArg}${quote(wanted)}`, "runtime-requirements")] : [];
 		})(),
 	];
 }
