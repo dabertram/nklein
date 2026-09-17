@@ -17,6 +17,7 @@ import {
 import {
 	applyTestPatchToCopy,
 	buildSwebenchGradeScript,
+	buildSwebenchInstallLines,
 	buildSwebenchPrepareScript,
 	buildSwebenchProbeScript,
 	exactRequirementPins,
@@ -486,6 +487,62 @@ describe("an install that failed is a REFUSAL, not a score (live 2026-09-17: ast
 	it("says nothing about a grade that installed cleanly, however many tests failed", () => {
 		const honestRed = "===SWEBENCH_F2P===\nFAILED testing/test_x.py::test_new\n===SWEBENCH_END===";
 		expect(swebenchEnvironmentRefusal(honestRed)).toEqual({ installFailures: [], refusal: null });
+	});
+});
+
+describe("a recorded runtime requirement that MOVES a package (live 2026-09-17: astropy 3.1)", () => {
+	// astropy 3.1's `TestHeaderFunctions` uses nose-style `setup()`, which pytest >= 7.2 deprecates into an error, so
+	// its closure recorded `pytest<7.2`. The install froze the WHOLE environment as constraints — pytest==7.4.0
+	// included — and handed pip `pytest<7.2` beside it: unsatisfiable by construction. The stage failed, was not a
+	// refusal, and seven pristine pass-to-pass tests were scored as errors.
+
+	/** Run exactly the runtime-requirements stage against a fake `python` that records what pip was asked. */
+	async function runRuntimeStage(installed: readonly string[], runtimeRequirements: readonly string[]) {
+		const dir = await mkdtemp(join(tmpdir(), "swebench-runtime-stage-"));
+		try {
+			const lines = buildSwebenchInstallLines({ entry, root: "/src", xdgHome: "/x", runtimeRequirements });
+			const start = lines.findIndex((line) => line === 'SWEBENCH_WANT=""');
+			const end = lines.indexOf("fi", start);
+			expect(start).toBeGreaterThanOrEqual(0);
+			const fake = [
+				"#!/bin/bash",
+				`installed=(${installed.map((line) => `'${line}'`).join(" ")})`,
+				'if [ "$3" = show ]; then for l in "${installed[@]}"; do [ "${l%%==*}" = "$4" ] && exit 0; done; exit 1; fi',
+				'if [ "$3" = freeze ]; then printf \'%s\\n\' "${installed[@]}"; exit 0; fi',
+				`if [ "$3" = install ]; then printf '%s\\n' "$*" > ${dir}/install-args; for a in "$@"; do [ "$prev" = -c ] && cp "$a" ${dir}/constraints; prev="$a"; done; exit 0; fi`,
+			].join("\n");
+			await writeFile(join(dir, "python"), fake, { mode: 0o755 });
+			await execFileAsync("bash", ["-c", lines.slice(start, end + 1).join("\n")], {
+				env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+			});
+			const read = async (name: string) =>
+				existsSync(join(dir, name)) ? await readFile(join(dir, name), "utf8") : null;
+			return { installArgs: await read("install-args"), constraints: await read("constraints") };
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	}
+
+	it("lifts the freeze for exactly the package a versioned requirement names, and nothing else", async () => {
+		const { installArgs, constraints } = await runRuntimeStage(
+			["pytest==7.4.0", "pytest_astropy==0.10.0", "numpy==1.25.2"],
+			["pytest<7.2"],
+		);
+		expect(installArgs).toContain("pytest<7.2");
+		expect(constraints).not.toMatch(/^pytest==/mu);
+		// A plugin whose name merely STARTS with the moved package stays frozen.
+		expect(constraints).toContain("pytest_astropy==0.10.0");
+		expect(constraints).toContain("numpy==1.25.2");
+	});
+
+	it("still skips a bare name the environment already satisfies (scikit-learn 1.3's recorded pandas)", async () => {
+		const { installArgs } = await runRuntimeStage(["pandas==1.5.3", "numpy==1.19.3"], ["pandas"]);
+		expect(installArgs).toBeNull();
+	});
+
+	it("refuses the grade when a recorded runtime requirement did not apply", () => {
+		const { refusal } = swebenchEnvironmentRefusal("SWEBENCH_PIP_FAILED runtime-requirements\n4 passed, 7 errors");
+		expect(refusal).toContain("a recorded runtime requirement did not apply");
 	});
 });
 

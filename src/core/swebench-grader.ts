@@ -806,7 +806,18 @@ export function buildSwebenchInstallLines(input: {
 						`  SWEBENCH_WANT="$SWEBENCH_WANT $req"`,
 						"done",
 						'if [ -n "$SWEBENCH_WANT" ]; then',
-						"  python -m pip freeze --all 2>/dev/null | grep -E '^[A-Za-z0-9._-]+==[^ ]+$' > /tmp/swebench-frozen.txt || true",
+						// Frozen: everything EXCEPT what a recorded requirement names. The freeze exists so a recorded
+						// package cannot drag anything else along (finding 49). But a requirement that carries a
+						// version specifier is itself an instruction to MOVE that one package, and freezing it too made
+						// the instruction unsatisfiable by construction: astropy 3.1 recorded `pytest<7.2` — its
+						// `TestHeaderFunctions` uses nose-style `setup()`, which pytest >= 7.2 deprecates into an
+						// error — and pip was handed `pytest<7.2` together with a frozen `pytest==7.4.0`. It failed,
+						// the stage was not a refusal, and seven pristine pass-to-pass tests were scored as errors.
+						`  SWEBENCH_MOVE=$(for req in $SWEBENCH_WANT; do printf '%s\\n' "$req" | sed 's/[<>=!~;[].*//' | tr 'A-Z_.' 'a-z--'; done)`,
+						"  python -m pip freeze --all 2>/dev/null | grep -E '^[A-Za-z0-9._-]+==[^ ]+$' | while IFS= read -r line; do",
+						"    pkg=$(printf '%s' \"${line%%==*}\" | tr 'A-Z_.' 'a-z--')",
+						'    printf \'%s\\n\' "$SWEBENCH_MOVE" | grep -qxF "$pkg" || printf \'%s\\n\' "$line"',
+						"  done > /tmp/swebench-frozen.txt || true",
 						`  python -m pip install --disable-pip-version-check -q ${wheels} -c /tmp/swebench-frozen.txt $SWEBENCH_WANT 2>&1 || echo "SWEBENCH_PIP_FAILED runtime-requirements"`,
 						"fi",
 					]
@@ -1862,11 +1873,17 @@ export function swebenchEnvironmentRefusal(stdout: string): {
 	// The repo under test failing to install voids the grade outright. A build-requirements failure alone only
 	// voids it when a module was also missing at test time: some of those pins are deliberately unresolvable on
 	// this platform and are dropped on purpose, and the install succeeds without them.
+	// A recorded runtime requirement refuses on its own. It is on the record because an earlier control PROVED
+	// the closure needs it, so an environment that failed to apply it is not the proven environment — whatever
+	// the tests then say is about a different one. astropy 3.1's `pytest<7.2` failed to apply and nothing missing
+	// was importable-by-name, so the grade scored seven errors instead of refusing.
 	const refusal = installFailures.includes("editable")
 		? `environment refused: the repo under test did not install (SWEBENCH_PIP_FAILED ${installFailures.join(", ")})`
-		: installFailures.length > 0 && /ModuleNotFoundError: No module named/u.test(stdout)
-			? `environment refused: install stage(s) ${installFailures.join(", ")} failed and a module was missing at test time`
-			: null;
+		: installFailures.includes("runtime-requirements")
+			? `environment refused: a recorded runtime requirement did not apply (SWEBENCH_PIP_FAILED ${installFailures.join(", ")})`
+			: installFailures.length > 0 && /ModuleNotFoundError: No module named/u.test(stdout)
+				? `environment refused: install stage(s) ${installFailures.join(", ")} failed and a module was missing at test time`
+				: null;
 	return { installFailures, refusal };
 }
 

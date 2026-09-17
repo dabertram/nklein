@@ -2922,7 +2922,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   we handed the quotes to pip** — scikit-learn's four specs had every VERSIONED pin dropped as "unresolved on
   this platform" while the bare names installed, so the graded environment was quietly not the spec's; that is
   also why four tests skipped for a `pandas` the spec had asked for all along.
-  **REMAINING:** close the 96-closure gate (the grade path itself changed, so all 96 re-prove, not 15); run the
+  **Finding 56 (2026-09-17):** a recorded runtime requirement that MOVES a package could never apply — the
+  runtime stage froze the whole environment, the moved package included (astropy 3.1: `pytest<7.2` beside a frozen
+  `pytest==7.4.0`), and the failed stage was not a refusal. Freeze lifts for the named packages; the stage refuses.
+  **4/11 → 11/11.** The gate itself is now `scripts/swebench-closure-gate.mts` (scan/run/status, ledger in
+  `~/.nklein/swebench-gate`, proofs keyed on a grader-source fingerprint) — its scratchpad predecessor was lost.
+  **REMAINING:** close the 105-closure gate (`swebench-closure-gate.mts status`); run the
   arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
