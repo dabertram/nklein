@@ -2886,7 +2886,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   offline install, 57 defects found and fixed — every one OURS. 71 ids sealed across 11 specs with their cause on
   the receipt. Both former gaps are gone (astropy's submodules, scikit-learn's build). Codex seats added as a fifth
   rig family (`scripts/hitl-codex-responder.mjs`, `scripts/swebench-arm-setup-codex.sh`, four arms created).
-  **REMAINING:** run the arms;
+  **GATE RE-OPENED AND WIDENED 2026-09-17 — the unit is the CLOSURE, not the spec.** The first instance of the
+  first scored run, `astropy__astropy-13398`, scored 0 of 68 in a PRISTINE control: a spec spans base commits whose
+  declared build requirements and exact pins differ, and 13398's closure held its sibling's `cython==0.29.22`. The
+  81/81 gate proved ONE instance per spec, so nothing instance-shaped could be seen. Across all 502 tarballs there
+  are **96 distinct closures, not 81**. Findings 44–48: (44) the closure now unions every sibling's PEP 518
+  requires, `setup_requires` and every exact `name==version` — download-side only, since astropy 5.0 needs BOTH
+  cython pins cached and asking pip for both in one install is unsatisfiable; (45) a failed install is a REFUSAL,
+  not a score — `swebenchEnvironmentRefusal`, `excludedFromScore` in the runner, and the closure-recording path
+  barred on a refusal so a broken grade cannot teach itself a wrong answer; (46) the grade script went in an argv
+  and Linux caps one argument at 128 kB, so xarray 0.12's 1717 ids made it ~153 kB and the container never started
+  (`exec /usr/bin/bash: argument list too long`) while the grade reported 24 of 1717 — it is written into the
+  mounted workspace now; (47) the refusal marker is anchored to a whole line, or a docker error that quotes the
+  script reads the script's own `|| echo "SWEBENCH_PIP_FAILED …"` as failures that happened; (48) sklearn 1.3's
+  pandas tests skipped with `could not import 'pandas'` — a phrasing the recorder missed — and the same pass
+  SEALED them as "fails in the pristine control", so a fixable closure gap was filed as unexplainable. Sealing is
+  now barred in any run that discovered a missing requirement, and **47 premature seals across six specs were
+  cleared for re-proof** (pylint 2.14's seven stay: documented cause, not a gap).
+  **REMAINING:** close the variant gate (96 closures, converge loop running); run the arms;
   ~~mount the spec wheel caches into the agent sandbox as its `UV_FIND_LINKS` wheelhouse~~ SHIPPED (slice 6:
   `NKLEIN_AGENT_SANDBOX_WHEELHOUSE` → read-only `/opt/nklein/wheelhouse` + UV/PIP_FIND_LINKS; `prepare` flattens every
   cached wheel into `wheels/_flat`; both arm launchers export it when present); a per-repo `sealedFailToPassExclusions` sweep for internet-bound graded tests. Costs at measured
