@@ -550,6 +550,22 @@ export function buildSwebenchInstallLines(input: {
 	];
 	const dropSetuptoolsCap =
 		swebenchSetuptoolsLacksPep660(declaredBuildRequirements) && !/--no-use-pep517/u.test(facts.installCommand);
+	// PEP 660's editable install does NOT put the source directory on sys.path — setuptools registers a
+	// MetaPathFinder shim instead. Every SWE-bench repo is graded from its own checkout, and any of them that
+	// introspects its own package directory breaks on that. pylint is the proof, with the evidence on the line:
+	// `Problem importing module typecheck.py: Unable to find module for /work/pylint/checkers/typecheck.py in
+	// /usr/local/lib/python39.zip, …`. Its `register_plugins` walks the checkers directory and resolves each file
+	// back to a module path through sys.path; with /work absent, seven checkers never registered, the repo's own
+	// pylintrc then named a message nothing had defined, and 105 tests died of
+	// `UnknownMessageError: No such message id or symbol 'c-extension-no-member'` — including the seven that
+	// pylint 2.14 had been carrying SEALED as "root cause unexplained".
+	//
+	// `editable_mode=compat` restores the legacy `.pth` layout, which puts /work on sys.path — the behaviour
+	// upstream's own era-pinned images produced, so this is closer to the reference environment, not further.
+	const editableCompat =
+		/(^|\s)-e(\s|$)/u.test(facts.installCommand) && !/--no-use-pep517/u.test(facts.installCommand)
+			? " --config-settings editable_mode=compat"
+			: "";
 	return [
 		`export XDG_CACHE_HOME=${xdgHome}`,
 		// Our own pip calls carry --no-index --find-links, but a repo's build can spawn pip ITSELF and that child
@@ -673,7 +689,7 @@ export function buildSwebenchInstallLines(input: {
 				]
 			: []),
 		facts.fromSpec
-			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(facts.installCommand, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
+			? `${installEnv ? `env ${installEnv} ` : ""}${sealedInstallCommand(`${facts.installCommand}${editableCompat}`, wheels, root).replace(" -q ", " ")} > /tmp/swebench-editable.log 2>&1 || echo "SWEBENCH_PIP_FAILED editable"`
 			: `${installEnv ? `env ${installEnv} ` : ""}${pipInstall(
 					`--no-build-isolation ${quote(entry.installArgs.filter((arg) => arg !== "--no-build-isolation"))} -e ${root}`
 						.replace(/\s+/g, " ")
