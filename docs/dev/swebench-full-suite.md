@@ -94,6 +94,8 @@ reading it. Listed in the order they bit, with the commit that closed each:
 | 41 | pylint 3.0: a perfectly good pin recorded as unavailable | pip strips a requirements file's inline comments and does NOT strip them from an argument, and the per-line fallback passes arguments | comments are stripped where the file is flattened and again in the fallback (`5c7705324`) |
 | 42 | requests 2.0: 35 of 79 pass-to-pass tests lost to `requests.exceptions` | the era suites read `HTTPBIN_URL` and fall back to the real httpbin.org, which a sealed grade cannot reach | detect that variable, put `httpbin` in the closure, serve it on loopback inside the sealed namespace (`39e0ff997`) |
 | 43 | xarray 2022.06: `Pandas requires version '0.19.0' or newer of 'xarray' (version '0.0.0' …)` | `requires = [...]` was matched lazily to the FIRST `]`, and `"setuptools_scm[toml]>=3.4"` closes it mid-string — so setuptools_scm never entered the closure and the build had no version source | scan the array by bracket DEPTH, skipping quoted text (`cf5962d66`) |
+| 44 | astropy 13398: a PRISTINE tree scored 0 of 68 pass-to-pass tests, and its receipt blamed the model | the closure is keyed per `(repo, version)` spec, but build requirements move between base commits INSIDE a spec — `astropy__astropy__5.0` was probed from instance 13236 (`cython==0.29.22`) while 13398 declares `cython==0.29.30`, so the sealed install could not resolve it, `extension_helpers` never installed, and pytest aborted parsing `setup.cfg` with `No module named 'astropy'` | `prepare` unions EVERY sibling instance's build requirements into the cache — download-side only, because astropy 5.0 needs both cython pins cached and asking pip for both in one install is unsatisfiable |
+| 45 | the same grade reported a score at all | the grade script is `set -u`, not `set -e`: it emitted `SWEBENCH_PIP_FAILED` twice and ran pytest anyway, and the receipt keeps a 1200-char TAIL, so the marker on line 1 was truncated out of the evidence | a failed install is a REFUSAL — `swebenchEnvironmentRefusal` names the stages, the runner excludes the instance from the score, and the closure-recording path is barred (it would have learned `astropy` as a missing runtime requirement and sealed real tests as pristine failures) |
 
 The pattern worth keeping: **the negative control is what proves an environment**, and EVERY "pass-to-pass
 regression" in a pristine tree so far was our harness diverging from upstream, not a broken repo.
@@ -103,6 +105,20 @@ sealed grade's own install, offline against the cache it just filled, and refuse
 that install succeeds. It also drives the closure to completion — each round downloads exactly what the sealed
 install named as missing, three rounds at most. Run `NKLEIN_SWEBENCH_GRADER_LOG_DIR=<dir>` to keep full grader
 transcripts; the receipt's 2 kB tail cannot diagnose an install.
+
+## The gate's unit is the CLOSURE, not the spec (2026-09-17)
+
+The 2026-09-16 gate below proved **one instance per spec** — and a spec spans many base commits whose declared
+build requirements differ. The first instance of the first scored run walked straight into the gap (findings 44
+and 45): a pristine `astropy__astropy-13398` scored 0 of 68 because its closure held its *sibling's* cython pin.
+
+Scanning all 502 cached tarballs' `pyproject.toml` and `setup.py`: **11 of 81 specs carry more than one distinct
+build-requirements set, and there are 96 distinct closures, not 81.** The gate's unit is now the
+`(spec, build-requirements)` pair. The 81 receipts below stand; the 15 variants they never covered are proven
+separately in `docs/benchmarks/swebench-controls-variants-2026-09-17.jsonl`.
+
+The rule this leaves behind: **whenever the closure is shared by more instances than the control proved, the gate
+is open however green it looks.** A closure that one instance proves must be one that every instance uses.
 
 ## The gate is closed (2026-09-16)
 

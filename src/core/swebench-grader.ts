@@ -211,6 +211,11 @@ export function buildSwebenchPrepareScript(
 	pep518BuildRequires: readonly string[] = [],
 	setupRequires: readonly string[] = [],
 	repoRequirementLines: readonly string[] = [],
+	// Sibling checkouts' build requirements: DOWNLOAD-only. They belong in the cache but never in an install —
+	// `astropy__astropy__5.0` spans `cython==0.29.22` AND `cython==0.29.30`, and asking pip for both at once is
+	// unsatisfiable. The download stages fall back per pin, so both wheels land; the install stages below, and
+	// every probe and grade, keep asking only for what THEIR checkout declares.
+	downloadOnlyBuildRequires: readonly string[] = [],
 ): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
@@ -264,10 +269,14 @@ export function buildSwebenchPrepareScript(
 			: []),
 		{
 			label: "toolchain",
-			args: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])]
+			args: [
+				...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires, ...downloadOnlyBuildRequires]),
+			]
 				.map((pin) => shellQuote(pin))
 				.join(" "),
-			pins: [...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires])],
+			pins: [
+				...new Set([...swebenchToolchainRequirements(entry), ...pep518BuildRequires, ...downloadOnlyBuildRequires]),
+			],
 			fatal: false,
 		},
 		{
@@ -965,6 +974,76 @@ const defaultDeps: SwebenchGraderDeps = {
 	},
 };
 
+/**
+ * The PEP 518 build requirements and `setup_requires` of EVERY cached instance that shares this entry's wheel
+ * cache key, unioned.
+ *
+ * The closure is keyed per `(repo, version)` spec, but a spec spans many base commits and a checkout's declared
+ * build requirements move between them. The per-spec control gate proved ONE instance per spec, so this was
+ * invisible until a scored run hit a sibling: `astropy__astropy__5.0` was probed from instance 13236
+ * (`cython==0.29.22`) while instance 13398 pins `cython==0.29.30`, the sealed install could not resolve it,
+ * `extension_helpers` never installed, and a PRISTINE tree scored 0 of 68 pass-to-pass tests.
+ *
+ * Reading each sibling's `pyproject.toml`/`setup.py` straight out of its cached tarball costs one `tar` per
+ * sibling and removes the whole class: whichever instance the prepare happens to materialize, the closure holds
+ * what all of them ask for. A hand-proven tranche entry keys on its own instance id, has no siblings, and is
+ * therefore untouched — pass-1 numbers stay comparable.
+ */
+export async function specSiblingBuildRequirements(
+	entry: SwebenchGraderEntry,
+	cacheRoot: string,
+	deps: SwebenchGraderDeps = defaultDeps,
+): Promise<{ buildRequires: string[]; setupRequires: string[] }> {
+	const key = swebenchWheelCacheKey(entry);
+	const instancesDir = join(cacheRoot, "instances");
+	if (!("resolvedFrom" in entry) || entry.resolvedFrom !== "spec" || !existsSync(instancesDir)) {
+		return { buildRequires: [], setupRequires: [] };
+	}
+	const buildRequires = new Set<string>();
+	const setupRequires = new Set<string>();
+	for (const file of readdirSync(instancesDir)) {
+		if (!file.endsWith(".json")) {
+			continue;
+		}
+		let meta: { repo?: string; version?: string };
+		try {
+			meta = JSON.parse(readFileSync(join(instancesDir, file), "utf8")) as { repo?: string; version?: string };
+		} catch {
+			continue;
+		}
+		if (!meta.repo || !meta.version || `${meta.repo.replace(/\//gu, "__")}__${meta.version}` !== key) {
+			continue;
+		}
+		const tarball = join(cacheRoot, "repos", `${file.slice(0, -".json".length)}.tar.gz`);
+		if (!existsSync(tarball)) {
+			continue;
+		}
+		// The archive's top-level directory is `<name>-<baseCommit>`; read it rather than reconstruct it.
+		const listed = await deps
+			.exec("bash", ["-lc", `tar -tzf ${shellQuote(tarball)} 2>/dev/null | head -1`])
+			.catch(() => null);
+		const top = (listed?.stdout ?? "").trim().replace(/\/$/u, "");
+		if (!top) {
+			continue;
+		}
+		for (const [name, parse, sink] of [
+			["pyproject.toml", parsePep518BuildRequires, buildRequires],
+			["setup.py", parseSetupRequires, setupRequires],
+		] as const) {
+			const read = await deps
+				.exec("bash", [
+					"-lc",
+					`tar -xzOf ${shellQuote(tarball)} ${shellQuote(`${top}/${name}`)} 2>/dev/null || true`,
+				])
+				.catch(() => null);
+			for (const requirement of read?.stdout ? parse(read.stdout) : []) {
+				sink.add(requirement);
+			}
+		}
+	}
+	return { buildRequires: [...buildRequires].sort(), setupRequires: [...setupRequires].sort() };
+}
+
 /** One-time per instance, network ON — the wheel-cache egress step. `sourceDir` is a PRISTINE materialization. */
 export async function prepareSwebenchWheels(
 	input: { entry: SwebenchGraderEntry; sourceDir: string; cacheRoot: string; instanceVersion?: string | null },
@@ -981,6 +1060,11 @@ export async function prepareSwebenchWheels(
 		: [];
 	const buildRequires = readPep518BuildRequires(input.sourceDir);
 	const setupRequires = readSetupRequires(input.sourceDir);
+	// What the OTHER instances of this spec declare. Cached, never installed here — see the parameter's note.
+	const siblings = await specSiblingBuildRequirements(input.entry, input.cacheRoot, deps);
+	const siblingOnly = [...siblings.buildRequires, ...siblings.setupRequires].filter(
+		(requirement) => !buildRequires.includes(requirement) && !setupRequires.includes(requirement),
+	);
 	// The loopback httpbin the grade will serve has to be IN the closure, or the sealed install cannot start it.
 	const httpbinRequirement = detectsHttpbinUrl(input.sourceDir) && !input.entry.httpbinService ? ["httpbin"] : [];
 	const scmEnv = setuptoolsScmPretendVersion(input.sourceDir, input.instanceVersion ?? null);
@@ -1010,6 +1094,7 @@ export async function prepareSwebenchWheels(
 			buildRequires,
 			[...setupRequires, ...httpbinRequirement],
 			repoRequirementLines,
+			siblingOnly,
 		),
 	]);
 	// A stage that could not resolve leaves the cache short of wheels the sealed grade will ask for, and a silent
@@ -1398,6 +1483,35 @@ export async function buildSwebenchEnvImage(
 }
 
 /**
+ * Did this grade MEASURE anything? An install that failed is not a measurement.
+ *
+ * The grade script runs under `set -u`, not `set -e`, so before this check a failed editable install went on to
+ * run pytest anyway — pytest aborted while parsing `setup.cfg`'s warning filters with `ModuleNotFoundError: No
+ * module named '<repo>'`, and every pass-to-pass id was reported REGRESSED against whichever model happened to
+ * be in the seat. Live 2026-09-17 on the first instance of the Haiku Verified run: `astropy__astropy-13398`'s
+ * closure held `cython==0.29.22` — its spec SIBLING's pin — and not the `cython==0.29.30` its own checkout
+ * declares, so `extension_helpers` never installed and a PRISTINE tree, with no fix in it to have broken
+ * anything, scored 0 of 68. A number that says nothing about any model must not be reported as one.
+ */
+export function swebenchEnvironmentRefusal(stdout: string): {
+	readonly installFailures: readonly string[];
+	readonly refusal: string | null;
+} {
+	const installFailures = [...new Set([...stdout.matchAll(/SWEBENCH_PIP_FAILED (\S+)/gu)].map((m) => m[1] ?? ""))]
+		.filter(Boolean)
+		.sort();
+	// The repo under test failing to install voids the grade outright. A build-requirements failure alone only
+	// voids it when a module was also missing at test time: some of those pins are deliberately unresolvable on
+	// this platform and are dropped on purpose, and the install succeeds without them.
+	const refusal = installFailures.includes("editable")
+		? `environment refused: the repo under test did not install (SWEBENCH_PIP_FAILED ${installFailures.join(", ")})`
+		: installFailures.length > 0 && /ModuleNotFoundError: No module named/u.test(stdout)
+			? `environment refused: install stage(s) ${installFailures.join(", ")} failed and a module was missing at test time`
+			: null;
+	return { installFailures, refusal };
+}
+
+/**
  * Grade a workspace COPY (test_patch already applied host-side by the caller) with the network namespace off.
  * Returns the pure parser's verdict; docker/env failures surface as unresolved-with-reason, never a throw the
  * drain has to interpret.
@@ -1410,7 +1524,13 @@ export async function gradeSwebenchWorkspace(
 		cacheRoot: string;
 	},
 	deps: SwebenchGraderDeps = defaultDeps,
-): Promise<SwebenchGradeVerdict & { graderStdoutTail: string }> {
+): Promise<
+	SwebenchGradeVerdict & {
+		graderStdoutTail: string;
+		installFailures: readonly string[];
+		environmentRefusal: string | null;
+	}
+> {
 	const scmEnv = setuptoolsScmPretendVersion(input.workspaceCopyDir, input.instance.version);
 	const gradeEntry = {
 		...input.entry,
@@ -1463,6 +1583,7 @@ export async function gradeSwebenchWorkspace(
 	} catch (error) {
 		stdout = error instanceof Error ? error.message : String(error);
 	}
+	const { installFailures, refusal: environmentRefusal } = swebenchEnvironmentRefusal(stdout);
 	const { failToPassOutput, passToPassOutput } = splitSwebenchGradeOutput(stdout);
 	const { plan, excludedCount, sealedFailToPassExcluded } = sealed;
 	const logParser = graderEntryFacts(input.entry).logParser;
@@ -1495,7 +1616,10 @@ export async function gradeSwebenchWorkspace(
 	// A CONTROL may discover a runtime import nothing declares — the closure probe proves an INSTALL, and these
 	// only appear when tests are collected. Recording is gated on an env var the control sweep sets and a scored
 	// run never does: a graded arm must not quietly repair its own environment mid-benchmark.
-	if (process.env.NKLEIN_SWEBENCH_RECORD_RUNTIME_REQS) {
+	// A REFUSED environment must never teach the closure. With a failed install every id fails and every import
+	// is missing, so the recorder would write the repo's own name (`astropy`) in as a runtime requirement and
+	// seal real tests as "fails in the pristine control" — a broken grade repairing itself into a wrong answer.
+	if (process.env.NKLEIN_SWEBENCH_RECORD_RUNTIME_REQS && environmentRefusal === null) {
 		// Two signatures, both naming the package exactly. An ImportError is the obvious one. The quieter one is a
 		// pytest SKIP: `SKIPPED [1] xarray/tests/test_variable.py:1616: requires bottleneck`. Upstream's conda
 		// environments HAVE those optional packages, so the dataset lists such tests as pass-to-pass — and a skip
@@ -1582,8 +1706,10 @@ export async function gradeSwebenchWorkspace(
 	}
 	return {
 		...verdict,
-		resolved: verdict.resolved && resolvable,
-		reason,
+		resolved: verdict.resolved && resolvable && environmentRefusal === null,
+		reason: environmentRefusal ? `${environmentRefusal}; ${reason}` : reason,
+		installFailures,
+		environmentRefusal,
 		graderStdoutTail: stdout.slice(-2_000),
 	};
 }

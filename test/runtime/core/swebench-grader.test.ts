@@ -19,6 +19,7 @@ import {
 	resolutionFailures,
 	specExactPins,
 	splitSwebenchGradeOutput,
+	swebenchEnvironmentRefusal,
 	swebenchWheelCacheKey,
 } from "../../../src/core/swebench-grader";
 import type { SwebenchInstanceMetadata } from "../../../src/core/swebench-instance";
@@ -425,5 +426,62 @@ describe("network-bound failures", () => {
 	it("reads through ANSI colour", () => {
 		const coloured = "\u001B[31mFAILED\u001B[0m tests/t.py::test_a - requests.exceptions.ConnectTimeout: x";
 		expect(networkBoundFailures(coloured).map((row) => row.id)).toEqual(["tests/t.py::test_a"]);
+	});
+});
+
+describe("an install that failed is a REFUSAL, not a score (live 2026-09-17: astropy 13398)", () => {
+	// The exact shape the first instance of the Haiku Verified run produced: the closure held the spec SIBLING's
+	// cython pin, the build requirements could not resolve, the editable install died on the missing
+	// `extension_helpers`, and pytest then aborted parsing setup.cfg's warning filters. Scored naively that is a
+	// PRISTINE tree "regressing" all 68 of its own pass-to-pass tests.
+	const brokenInstall = [
+		"SWEBENCH_PIP_FAILED build-requirements",
+		"ERROR: Could not find a version that satisfies the requirement cython==0.29.30 (from versions: 0.29.22)",
+		"SWEBENCH_PIP_FAILED editable",
+		"  ModuleNotFoundError: No module named 'extension_helpers'",
+		"error: metadata-generation-failed",
+		"===SWEBENCH_F2P===",
+		"ModuleNotFoundError: No module named 'astropy'",
+		"===SWEBENCH_P2P===",
+		"ModuleNotFoundError: No module named 'astropy'",
+		"===SWEBENCH_END===",
+	].join("\n");
+
+	it("refuses when the repo under test did not install, and names every failed stage", () => {
+		const { installFailures, refusal } = swebenchEnvironmentRefusal(brokenInstall);
+		expect(installFailures).toEqual(["build-requirements", "editable"]);
+		expect(refusal).toContain("environment refused");
+		expect(refusal).toContain("the repo under test did not install");
+		expect(refusal).toContain("build-requirements, editable");
+	});
+
+	it("refuses a build-requirements failure only when a module was then missing at test time", () => {
+		expect(swebenchEnvironmentRefusal("SWEBENCH_PIP_FAILED build-requirements\n1 passed").refusal).toBeNull();
+		expect(
+			swebenchEnvironmentRefusal(
+				"SWEBENCH_PIP_FAILED build-requirements\nModuleNotFoundError: No module named 'roman'",
+			).refusal,
+		).toContain("a module was missing at test time");
+	});
+
+	it("says nothing about a grade that installed cleanly, however many tests failed", () => {
+		const honestRed = "===SWEBENCH_F2P===\nFAILED testing/test_x.py::test_new\n===SWEBENCH_END===";
+		expect(swebenchEnvironmentRefusal(honestRed)).toEqual({ installFailures: [], refusal: null });
+	});
+});
+
+describe("a spec's closure covers its SIBLING instances' build requirements (live 2026-09-17)", () => {
+	// A closure is keyed per (repo, version), but a spec spans base commits and their declared build requirements
+	// move: astropy 5.0 asks for cython==0.29.22 at one commit and cython==0.29.30 at another. Both wheels have to
+	// be IN the cache — and neither may reach an install, because together they are unsatisfiable.
+	it("downloads the sibling pins without ever installing them", () => {
+		const script = buildSwebenchPrepareScript(entry, [], null, ["cython==0.29.30"], [], [], ["cython==0.29.22"]);
+		const download = script.split("\n").filter((line) => line.includes("pip download"));
+		const install = script.split("\n").filter((line) => line.includes("pip install"));
+		expect(download.some((line) => line.includes("'cython==0.29.22'"))).toBe(true);
+		expect(download.some((line) => line.includes("'cython==0.29.30'"))).toBe(true);
+		for (const line of install) {
+			expect(line, `a sibling pin reached an install: ${line}`).not.toContain("cython==0.29.22");
+		}
 	});
 });

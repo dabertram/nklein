@@ -553,7 +553,14 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 	}
 
 	const resolved = verdict?.resolved === true;
-	const excludedFromScore = seatOutage
+	// A grade whose environment REFUSED measured nothing. Counting it as an unresolved attempt would charge the
+	// model for our closure — live 2026-09-17, astropy 13398's pristine control scored 0/68 for a missing
+	// `cython==0.29.30`. It is excluded and named, exactly like a seat outage.
+	const environmentRefusal =
+		verdict && "environmentRefusal" in verdict ? ((verdict as { environmentRefusal?: string | null }).environmentRefusal ?? null) : null;
+	const excludedFromScore = environmentRefusal
+		? environmentRefusal
+		: seatOutage
 		? `seat outage: every responder call failed in the run window (${seatFailures?.failed ?? 0} FAILED, 0 answered)`
 		: seatViolation
 		? `seat violation: attempt on ${seatViolation.modelId ?? "(unknown)"} (${seatViolation.taskId ?? "?"})`
