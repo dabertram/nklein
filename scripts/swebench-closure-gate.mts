@@ -71,6 +71,8 @@ interface LedgerRow {
 	readonly firstFailures: readonly string[];
 	readonly refusal: string | null;
 	readonly reason: string;
+	/** The grader's own output tail, kept for a DIRTY row only: diagnosing it should not need a re-grade. */
+	readonly outputTail?: string;
 	readonly at: string;
 }
 
@@ -175,6 +177,7 @@ async function controlOne(closure: Closure, fingerprint: string): Promise<Ledger
 			firstFailures: verdict.passToPassFailed.slice(0, 8),
 			refusal: verdict.environmentRefusal,
 			reason: verdict.reason,
+			...(clean ? {} : { outputTail: verdict.graderStdoutTail }),
 		});
 	} catch (error) {
 		return row(closure, fingerprint, { clean: false, p2pTotal: 0, p2pFailed: 0, firstFailures: [], refusal: `control crashed: ${error instanceof Error ? error.message.slice(0, 400) : String(error)}`, reason: "control crashed" });
