@@ -89,6 +89,31 @@ const STALE_REQUEST_MS = Number(process.env.HITL_STALE_REQUEST_S ?? 5_400) * 1_0
 let spentUsd = 0;
 let budgetStopped = false;
 
+// The safeguard refusal is not a quota problem and not a model failure: it is this MODEL declining this
+// MESSAGE. Live 2026-09-17 a single historical assistant turn — a tool call plus five kilobytes of first-person
+// deliberation — made every later Opus request in that dsh session fail, deterministically (3/3), because the
+// turn stays in the transcript forever. Each half of that message passed on its own; the whole did not.
+const SAFEGUARD_SIGNS = /safeguards flagged|\[reasoning_extraction\]/iu;
+
+/** Whether the model refused this message under its safeguards (as opposed to failing to answer). */
+function isSafeguardRefusal(error) {
+	return SAFEGUARD_SIGNS.test(error instanceof Error ? error.message : String(error));
+}
+
+/** The CLI states its own reason in the result envelope; show THAT, not 1.2 kB of JSON around it. */
+function vendorMessage(error) {
+	const text = error instanceof Error ? error.message : String(error);
+	const quoted = /"result":"((?:[^"\\]|\\.)*)"/u.exec(text)?.[1];
+	if (!quoted) {
+		return text.split("\n")[0];
+	}
+	try {
+		return JSON.parse(`"${quoted}"`);
+	} catch {
+		return quoted;
+	}
+}
+
 /** Whether an error is the subscription saying no, rather than the model failing a turn. */
 function isQuotaRefusal(error) {
 	return QUOTA_SIGNS.test(error instanceof Error ? error.message : String(error));
@@ -142,15 +167,25 @@ function messageText(content) {
 }
 
 /** The instruction that turns a chat request into "act as the model": the wire contract, verbatim tools, the transcript. */
-function buildPrompt(request) {
+function buildPrompt(request, { dropPastAssistantProse = false } = {}) {
 	const tools = (request.tools ?? []).map((tool) => tool?.function ?? tool).filter(Boolean);
-	const transcript = (request.messages ?? []).map((message) => {
+	const messages = request.messages ?? [];
+	const transcript = messages.map((message, index) => {
 		const parts = [`### ${message.role}${message.tool_call_id ? ` (tool_call_id=${message.tool_call_id})` : ""}`];
 		for (const call of message.tool_calls ?? []) {
 			const fn = call.function ?? {};
 			parts.push(`[tool_call id=${call.id} name=${fn.name}] ${typeof fn.arguments === "string" ? fn.arguments : JSON.stringify(fn.arguments)}`);
 		}
-		parts.push(messageText(message.content));
+		// A PAST assistant turn's prose is that turn's own deliberation, replayed. dsh flattens a model's
+		// reasoning into `content`, so the transcript carries first-person chain-of-thought — and Opus 5's
+		// safeguards flag exactly that, with `Details: [reasoning_extraction]`. Dropping it is lossy (266 kB of
+		// transcript became 58 kB on the session that found this), so it is NOT the default: it is what the
+		// retry below does when a turn has already been refused. Tool calls and every user/tool message stay,
+		// because those are facts, not deliberation.
+		const pastAssistant = dropPastAssistantProse && message.role === "assistant" && index < messages.length - 1;
+		if (!pastAssistant) {
+			parts.push(messageText(message.content));
+		}
 		return parts.join("\n");
 	});
 	let body = transcript.join("\n\n");
@@ -298,7 +333,15 @@ function runClaude(prompt, { model, effort, onThinking, onText }) {
 		child.on("close", (code) => {
 			clearTimeout(timer);
 			if (STREAM && lineBuffer.trim()) onStreamLine(lineBuffer);
-			if (code !== 0) reject(new Error(`claude -p exited ${code}: ${stderr.slice(-800)}`));
+			if (code !== 0) {
+				// BOTH streams, because the reason is usually not on the one you would expect. Under `--json` the
+				// CLI reports its errors as events on STDOUT and leaves stderr empty, so reporting stderr alone
+				// produced `claude -p exited 1: ` — a failure with the reason cut off, which is also invisible to
+				// the quota check (it matches on this message). Live 2026-09-17: the dsh Opus seat failed exactly
+				// this way and said nothing about why.
+				const detail = [stderr.trim(), stdout.trim()].filter(Boolean).join(" | ").slice(-1200);
+				reject(new Error(`claude -p exited ${code}: ${detail || "(no output on either stream)"}`));
+			}
 			else if (STREAM) resolve(resultEnvelope ?? { result: "" });
 			else resolve(stdout);
 		});
@@ -385,8 +428,31 @@ async function answerOne(seq) {
 			await new Promise((resolve) => setTimeout(resolve, QUOTA_PAUSE_MS));
 			return;
 		}
-		log(`request ${seq}: FAILED (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — answering with an error message so the agent can recover`);
-		answer = { content: `The model seat failed to answer this turn: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`, tool_calls: [], finish_reason: "stop" };
+		if (isSafeguardRefusal(error)) {
+			// One retry with the past turns' deliberation removed. Verified on the session that found this: the
+			// full transcript was refused 3/3 and the trimmed one answered cleanly.
+			log(`request ${seq}: SAFEGUARD REFUSAL on ${model} — retrying once without past assistant deliberation`);
+			try {
+				answer = extractAnswer(
+					await runClaude(buildPrompt(request, { dropPastAssistantProse: true }), {
+						model,
+						effort,
+						onThinking: STREAM ? (text) => appendStream({ reasoning: text }) : undefined,
+						onText: STREAM ? streamContent : undefined,
+					}),
+				);
+				log(`request ${seq}: the trimmed retry was accepted`);
+			} catch (retryError) {
+				// Say what the model said. "Try a different model or a new session" is actionable; a wall of
+				// envelope JSON is not, and the caller is a person waiting at a prompt.
+				const said = vendorMessage(retryError);
+				log(`request ${seq}: SAFEGUARD REFUSAL stands after the trimmed retry — answering with the model's own message`);
+				answer = { content: said, tool_calls: [], finish_reason: "stop" };
+			}
+		} else {
+			log(`request ${seq}: FAILED (${error instanceof Error ? error.message.split("\n")[0] : String(error)}) — answering with an error message so the agent can recover`);
+			answer = { content: `The model seat failed to answer this turn: ${vendorMessage(error)}`, tool_calls: [], finish_reason: "stop" };
+		}
 	}
 	const tmp = `${answerPath}.tmp`;
 	await writeFile(tmp, JSON.stringify({ content: answer.content, tool_calls: answer.tool_calls, finish_reason: answer.finish_reason }));
