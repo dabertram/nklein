@@ -9,6 +9,7 @@ import {
 	isSwebenchRequirementsSentinel,
 	normalizeSwebenchSpecRow,
 	parseCondaEnvironmentYml,
+	parseInstallRequires,
 	parsePep518BuildRequires,
 	parseSetupRequires,
 	parseSwebenchSpecDump,
@@ -28,6 +29,7 @@ import {
 	swebenchInstallExtras,
 	swebenchLegacyCBuildEnvLines,
 	swebenchSetuptoolsLacksPep660,
+	swebenchSpecEraConstraints,
 	swebenchSpecKey,
 	swebenchTestCommand,
 	sympyTestFiles,
@@ -568,5 +570,156 @@ describe("splitSpecPackageList — upstream quotes its version specifiers", () =
 
 	it("leaves an unquoted list exactly as it was", () => {
 		expect(splitSpecPackageList("pytest joblib threadpoolctl")).toEqual(["pytest", "joblib", "threadpoolctl"]);
+	});
+});
+
+describe("spec-scoped era constraints (finding 60: astropy 3.1's pyparsing)", () => {
+	// astropy 3.1's `[test]` extra pulls matplotlib, whose `_mathtext` calls `enablePackrat()`; pyparsing 3.3 deprecates
+	// that name, astropy's own `filterwarnings = error` makes the warning an import-time error, and ~80 pristine
+	// pass-to-pass tests errored at collection. The cap must hold for 3.1 — and for NOTHING else.
+	const install = "python -m pip install -e .[test] --verbose";
+	const table = parseSwebenchSpecDump({
+		source: { package: "swebench", version: "3.0.17", sha256: "ab".repeat(32), generatedAt: "2026-09-19T00:00:00Z" },
+		specs: {
+			"astropy/astropy": {
+				"3.0": { python: "3.9", install, test_cmd: "pytest -rA" },
+				"3.1": { python: "3.9", install, test_cmd: "pytest -rA" },
+				"3.2": { python: "3.9", install, test_cmd: "pytest -rA" },
+				"4.3": { python: "3.9", install, test_cmd: "pytest -rA" },
+				"5.1": { python: "3.9", install, test_cmd: "pytest -rA" },
+			},
+			"django/django": {
+				"3.0": { python: "3.6", install: "python -m pip install -e .", test_cmd: "./tests/runtests.py" },
+			},
+		},
+	});
+	const resolve = (instanceId: string, repo: string, version: string) =>
+		resolveSwebenchEnv({
+			instance: {
+				instanceId,
+				repo,
+				version,
+				baseCommit: "0".repeat(40),
+				datasets: ["verified"],
+				failToPass: [],
+				passToPass: [],
+				testPatch: "",
+				problemStatement: "",
+				goldPatchBytes: 0,
+				goldPatchFiles: 0,
+			},
+			table,
+			overrides: [],
+		});
+
+	it("caps pyparsing below 3 for astropy 3.1, in the constraints file every pip call reads", () => {
+		const astropy31 = resolve("astropy__astropy-8707", "astropy/astropy", "3.1");
+		expect(swebenchSpecEraConstraints(astropy31)).toEqual(["pyparsing<3"]);
+		const lines = swebenchEraConstraintLines([], swebenchSpecEraConstraints(astropy31));
+		expect(lines[0]).toContain("'pyparsing<3'");
+		expect(lines[0]).toContain("'setuptools<82'");
+		expect(lines[1]).toBe("export PIP_CONSTRAINT=/tmp/swebench-era-constraints.txt");
+	});
+
+	it("leaves every other spec — neighbouring astropy versions and django included — exactly as it was", () => {
+		for (const [id, repo, version] of [
+			["astropy__astropy-7166", "astropy/astropy", "3.0"],
+			["astropy__astropy-8251", "astropy/astropy", "3.2"],
+			["astropy__astropy-12907", "astropy/astropy", "4.3"],
+			["astropy__astropy-13033", "astropy/astropy", "5.1"],
+			["django__django-11333", "django/django", "3.0"],
+		] as const) {
+			const env = resolve(id, repo, version);
+			expect(swebenchSpecEraConstraints(env), `${repo} ${version}`).toEqual([]);
+			expect(swebenchEraConstraintLines([], swebenchSpecEraConstraints(env))).toEqual(swebenchEraConstraintLines());
+		}
+	});
+
+	it("never touches a hand-proven tranche entry, whose environment its own probe proved", () => {
+		const tranche: SwebenchTrancheEntry = {
+			instanceId: "astropy__astropy-8707",
+			repo: "astropy/astropy",
+			python: "3.9",
+			preInstallRequirements: [],
+			installEnv: {},
+			installArgs: [],
+			buildRequirements: [],
+			extraRequirements: [],
+		};
+		expect(swebenchSpecEraConstraints(tranche)).toEqual([]);
+	});
+});
+
+describe("parseInstallRequires (finding 62: a runtime requirement a sibling commit added)", () => {
+	it("reads the setup.py literal — django 3.0's 11333 shape, where asgiref arrived", () => {
+		const setupPy = [
+			"setup(",
+			"    name='Django',",
+			"    install_requires=['pytz', 'sqlparse', 'asgiref'],",
+			"    extras_require={",
+			'        "bcrypt": ["bcrypt"],',
+			"    },",
+			")",
+		].join("\n");
+		expect(parseInstallRequires("setup.py", setupPy)).toEqual(["pytz", "sqlparse", "asgiref"]);
+		// A computed list cannot be read without executing the file: an honest miss, never a guess.
+		expect(parseInstallRequires("setup.py", "setup(install_requires=requirements)")).toEqual([]);
+	});
+
+	it("reads setup.cfg's [options] key, single-line and continued, keeping an environment marker whole", () => {
+		// astropy 3.1's own setup.cfg: the key on one line, `setup_requires` beside it.
+		const singleLine = [
+			"[metadata]",
+			"name = astropy",
+			"",
+			"[options]",
+			"setup_requires = numpy>=1.13",
+			"install_requires = numpy>=1.13",
+			"python_requires = >=3.5",
+			"",
+			"[options.extras_require]",
+			"test = pytest-astropy",
+		].join("\n");
+		expect(parseInstallRequires("setup.cfg", singleLine)).toEqual(["numpy>=1.13"]);
+		const continued = [
+			"[options]",
+			"python_requires = >=3.6",
+			"install_requires =",
+			"    pytz",
+			"    sqlparse >= 0.2.2  # comment",
+			"    asgiref ~= 3.2",
+			'    backports.zoneinfo; python_version<"3.9"',
+			"zip_safe = false",
+			"",
+			"[options.extras_require]",
+			"argon2 = argon2-cffi >= 19.1.0",
+		].join("\n");
+		expect(parseInstallRequires("setup.cfg", continued)).toEqual([
+			"pytz",
+			"sqlparse >= 0.2.2",
+			"asgiref ~= 3.2",
+			'backports.zoneinfo; python_version<"3.9"',
+		]);
+		// `list-semi`: a `;` that does not open a marker separates two requirements.
+		expect(parseInstallRequires("setup.cfg", "[options]\ninstall_requires = a; b\n")).toEqual(["a", "b"]);
+	});
+
+	it("reads PEP 621 [project] dependencies and not [build-system] requires", () => {
+		const pyproject = [
+			"[build-system]",
+			'requires = ["setuptools>=61", "wheel"]',
+			"",
+			"[project]",
+			'name = "demo"',
+			"dependencies = [",
+			'    "numpy>=1.20",',
+			'    "packaging[extra]>=19.0",',
+			"]",
+			"",
+			"[project.optional-dependencies]",
+			'test = ["pytest"]',
+		].join("\n");
+		expect(parseInstallRequires("pyproject.toml", pyproject)).toEqual(["numpy>=1.20", "packaging[extra]>=19.0"]);
+		expect(parsePep518BuildRequires(pyproject)).toEqual(["setuptools>=61", "wheel"]);
 	});
 });

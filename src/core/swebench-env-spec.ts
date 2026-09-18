@@ -650,10 +650,48 @@ export function swebenchSpecBuildRequirements(entry: SwebenchResolvedEnv): strin
  */
 export const SWEBENCH_ERA_CONSTRAINTS: readonly string[] = ["setuptools<82", "setuptools_scm<10"];
 
-/** The shell lines that materialize the era constraints and point every pip invocation at them. */
-export function swebenchEraConstraintLines(specPins: readonly string[] = []): string[] {
+/**
+ * Era caps that hold for ONE `(repo, version)` spec only, keyed by spec key. Same mechanism as
+ * `SWEBENCH_ERA_CONSTRAINTS` — a `PIP_CONSTRAINT` line every pip invocation of that spec honours: the prepare
+ * download, the closure probe, the editable install and the recorded runtime stage alike — but scoped, because the
+ * evidence is scoped. Upstream's table pins none of these: its images resolved in 2024, before the release that
+ * broke the era code existed. Each entry names the evidence:
+ *
+ * - `astropy__astropy__3.1` → `pyparsing<3` (finding 60). astropy 3.1's `[test]` extra installs pytest-mpl, which
+ *   pulls matplotlib (3.9.4 on the spec's python 3.9), and matplotlib's `_mathtext` calls
+ *   `ParserElement.enablePackrat()`. pyparsing 3.3 deprecates the camelCase names with a
+ *   `PyparsingDeprecationWarning`, and astropy's own `filterwarnings = error` turns that into an import-time error
+ *   — ~80 pristine pass-to-pass tests errored at collection. Recording `pyparsing<3` as a RUNTIME requirement did
+ *   not cure it: that stage runs last and can only try to move the package back after the editable install had
+ *   already resolved 3.3.2. A constraint keeps 3.x out of the environment from the first resolution on, so there is
+ *   nothing to move. `<3` rather than `<3.3` because 2.4.7 is the era's own release line and the wheel the cache
+ *   already holds; matplotlib 3.9 declares `pyparsing>=2.3.1`. Only 3.1 is listed because only 3.1 has been shown
+ *   to hit it — the astropy 1.3 and 4.x+ caches hold no matplotlib at all.
+ */
+export const SWEBENCH_SPEC_ERA_CONSTRAINTS: Readonly<Record<string, readonly string[]>> = {
+	"astropy__astropy__3.1": ["pyparsing<3"],
+};
+
+/**
+ * The spec-scoped era caps for an entry. A hand-proven tranche entry keeps exactly the environment its probe
+ * proved, so it gets none.
+ */
+export function swebenchSpecEraConstraints(entry: SwebenchTrancheEntry | SwebenchResolvedEnv): string[] {
+	return "resolvedFrom" in entry && entry.resolvedFrom === "spec"
+		? [...(SWEBENCH_SPEC_ERA_CONSTRAINTS[entry.specKey] ?? [])]
+		: [];
+}
+
+/**
+ * The shell lines that materialize the era constraints and point every pip invocation at them. `specEra` is the
+ * spec-scoped cap list (`swebenchSpecEraConstraints`), written into the SAME file so no pip call can miss it.
+ */
+export function swebenchEraConstraintLines(
+	specPins: readonly string[] = [],
+	specEra: readonly string[] = [],
+): string[] {
 	return [
-		`printf '%s\\n' ${SWEBENCH_ERA_CONSTRAINTS.map((line) => `'${line}'`).join(" ")} > ${SWEBENCH_ERA_CONSTRAINT_FILE}`,
+		`printf '%s\\n' ${[...SWEBENCH_ERA_CONSTRAINTS, ...specEra].map((line) => `'${line}'`).join(" ")} > ${SWEBENCH_ERA_CONSTRAINT_FILE}`,
 		`export PIP_CONSTRAINT=${SWEBENCH_ERA_CONSTRAINT_FILE}`,
 		// The spec's own pins constrain the PACKAGE stages only, never the editable install. Globally they are too
 		// strong and contradict the spec itself: sphinx 4.1 pins `Jinja2==3.0.3` in `pip_packages` while its own
@@ -893,20 +931,40 @@ export function parsePep518BuildRequires(pyprojectToml: string): string[] {
 	if (!section?.[1]) {
 		return [];
 	}
-	// The array has to be scanned with bracket DEPTH, not matched lazily to the first `]`: a requirement may
-	// carry an extras marker, and `"setuptools_scm[toml]>=3.4"` closes the naive match in the middle of the list.
-	// xarray 2022.06's build requirements were truncated to the two entries before it, so setuptools_scm never
-	// entered the closure, the editable build fell back to setup.cfg's `version = 0.0.0`, and pandas refused the
-	// package with `Pandas requires version '0.19.0' or newer of 'xarray'` — 105 pass-to-pass tests in a pristine
-	// tree. Quoted text is skipped, because a bracket inside a string is not structure.
-	const start = /requires\s*=\s*\[/u.exec(section[1]);
-	if (!start) {
+	const body = bracketedListBody(section[1], /requires\s*=\s*\[/u);
+	if (body === null) {
 		return [];
 	}
-	const body = section[1].slice(start.index + start[0].length);
+	// Match TOML strings by their OWN quote type: a double-quoted requirement legitimately contains single quotes
+	// (scikit-learn: `"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'"`). A naive
+	// character class split that marker into fragments and pip died with `InvalidMarker: 'python_version!='`.
+	return quotedStrings(body);
+}
+
+/** Every quoted string literal in `text`, each matched by its own quote type, trimmed, empties dropped. */
+function quotedStrings(text: string): string[] {
+	return [...text.matchAll(/"([^"]*)"|'([^']*)'/gu)]
+		.map((match) => (match[1] ?? match[2] ?? "").trim())
+		.filter(Boolean);
+}
+
+/**
+ * The body of the list literal that `opener` (a regex ending in `[`) starts, scanned with bracket DEPTH rather
+ * than matched lazily to the first `]`: a requirement may carry an extras marker, and `"setuptools_scm[toml]>=3.4"`
+ * closes the naive match in the middle of the list. xarray 2022.06's build requirements were truncated to the two
+ * entries before it, so setuptools_scm never entered the closure, the editable build fell back to setup.cfg's
+ * `version = 0.0.0`, and pandas refused the package with `Pandas requires version '0.19.0' or newer of 'xarray'`
+ * — 105 pass-to-pass tests in a pristine tree. Quoted text is skipped, because a bracket inside a string is not
+ * structure. Null when `opener` does not occur.
+ */
+function bracketedListBody(text: string, opener: RegExp): string | null {
+	const start = opener.exec(text);
+	if (!start) {
+		return null;
+	}
+	const body = text.slice(start.index + start[0].length);
 	let depth = 1;
 	let quote: string | null = null;
-	let end = body.length;
 	for (let index = 0; index < body.length; index += 1) {
 		const character = body[index];
 		if (quote) {
@@ -922,18 +980,74 @@ export function parsePep518BuildRequires(pyprojectToml: string): string[] {
 		} else if (character === "]") {
 			depth -= 1;
 			if (depth === 0) {
-				end = index;
-				break;
+				return body.slice(0, index);
 			}
 		}
 	}
-	const requires = [null, body.slice(0, end)] as const;
-	// Match TOML strings by their OWN quote type: a double-quoted requirement legitimately contains single quotes
-	// (scikit-learn: `"oldest-supported-numpy; python_version!='3.10' or platform_system!='Windows'"`). A naive
-	// character class split that marker into fragments and pip died with `InvalidMarker: 'python_version!='`.
-	return [...requires[1].matchAll(/"([^"]*)"|'([^']*)'/gu)]
-		.map((match) => (match[1] ?? match[2] ?? "").trim())
-		.filter(Boolean);
+	return body;
+}
+
+/**
+ * A checkout's RUNTIME requirements — setuptools `install_requires` (a `setup.py` literal or `setup.cfg`'s
+ * `[options]` key) and PEP 621 `[project] dependencies` — read out of one of its declaration files by name.
+ *
+ * These decide what the sealed editable install asks the wheel cache for, exactly as build requirements do, and
+ * they move between the base commits of one `(repo, version)` spec the same way (finding 62): `asgiref` entered
+ * django's `install_requires` partway through 3.0's development, so the closure prepared and gated from 10554 held
+ * no asgiref wheel and 11333's sealed install refused with `No matching distribution found for asgiref`.
+ *
+ * Literal only, like `parseSetupRequires`: a computed list cannot be read without executing the file, and a
+ * guessed one is worse than the honest miss the gate then reports.
+ */
+export function parseInstallRequires(fileName: string, text: string): string[] {
+	if (fileName === "setup.py") {
+		const body = bracketedListBody(text, /\binstall_requires\s*=\s*\[/u);
+		return body === null ? [] : quotedStrings(body);
+	}
+	if (fileName === "pyproject.toml") {
+		const section = /(?:^|\n)\[project\]([\s\S]*?)(?:\n\[|$)/u.exec(text);
+		const body = section?.[1] ? bracketedListBody(section[1], /(?:^|\n)\s*dependencies\s*=\s*\[/u) : null;
+		return body === null ? [] : quotedStrings(body);
+	}
+	if (fileName === "setup.cfg") {
+		const section = /(?:^|\n)\[options\][^\n]*\n([\s\S]*?)(?=\n\[|$)/u.exec(text);
+		if (!section?.[1]) {
+			return [];
+		}
+		const lines = section[1].split("\n");
+		const keyAt = lines.findIndex((line) => /^install_requires\s*[=:]/u.test(line));
+		if (keyAt < 0) {
+			return [];
+		}
+		// The value is the rest of the key's line plus every INDENTED continuation line after it (INI syntax).
+		const value = [lines[keyAt]?.replace(/^install_requires\s*[=:]/u, "") ?? ""];
+		for (const line of lines.slice(keyAt + 1)) {
+			if (!/^\s+\S/u.test(line) && line.trim() !== "") {
+				break;
+			}
+			value.push(line);
+		}
+		// setuptools reads this key as `list-semi`: newline OR `;` separated. A `;` that opens an environment
+		// marker belongs to its requirement and is not a separator.
+		const marker = /^\s*(?:python_(?:full_)?version|sys_platform|platform_|os_name|implementation_|extra\b)/u;
+		return value
+			.map((line) => line.replace(/(^|\s)#.*$/u, "").trim())
+			.filter((line) => line && !line.startsWith("file:"))
+			.flatMap((line) =>
+				line.split(";").reduce<string[]>((parts, part) => {
+					const previous = parts.at(-1);
+					if (previous !== undefined && marker.test(part)) {
+						parts[parts.length - 1] = `${previous};${part}`;
+					} else {
+						parts.push(part);
+					}
+					return parts;
+				}, []),
+			)
+			.map((requirement) => requirement.trim())
+			.filter(Boolean);
+	}
+	return [];
 }
 
 /**

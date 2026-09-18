@@ -21,14 +21,20 @@ import {
 	buildSwebenchPrepareScript,
 	buildSwebenchProbeScript,
 	exactRequirementPins,
+	instanceBuildDeclarations,
 	networkBoundFailures,
 	planSealedGrade,
 	readRuntimeRequirements,
 	resolutionFailures,
+	SWEBENCH_PREPARE_MARKER,
 	specExactPins,
+	specSiblingBuildRequirements,
 	splitSwebenchGradeOutput,
+	swebenchClosureSignature,
 	swebenchConvictedRuntimeRequirements,
 	swebenchEnvironmentRefusal,
+	swebenchPrepareIsCurrent,
+	swebenchPrepareMarkerContent,
 	swebenchSkippedForMissingPackage,
 	swebenchTestsRewrittenByPatch,
 	swebenchWheelCacheKey,
@@ -722,5 +728,144 @@ describe("swebenchTestsRewrittenByPatch — the dataset's doing, not the environ
 		expect([...swebenchTestsRewrittenByPatch(patch, ["a.py::test_gcrs_itrs[case0]"])]).toEqual([
 			"a.py::test_gcrs_itrs[case0]",
 		]);
+	});
+});
+
+describe("a closure covers its siblings' RUNTIME requirements too (finding 62: django 3.0's asgiref)", () => {
+	// The gate proved django 3.0 CLEAN three times from 10554, whose setup.py declares `pytz, sqlparse`. 11333, a
+	// later commit of the SAME spec, declares `asgiref` as well, and its sealed install refused offline with
+	// `No matching distribution found for asgiref`: the closure signature and the prepare's sibling union covered
+	// build requirements, setup_requires and exact pins — never install_requires.
+	const setupPy = (installRequires: readonly string[]) =>
+		[
+			"from setuptools import setup",
+			"setup(",
+			"    name='Django',",
+			`    install_requires=[${installRequires.map((name) => `'${name}'`).join(", ")}],`,
+			"    zip_safe=False,",
+			")",
+			"",
+		].join("\n");
+
+	/** A cache root holding real tarballs + instance metadata, exactly the layout `materialize` writes. */
+	async function cacheWith(instances: Readonly<Record<string, readonly string[]>>): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), "swebench-siblings-"));
+		await mkdir(join(root, "instances"), { recursive: true });
+		await mkdir(join(root, "repos"), { recursive: true });
+		for (const [instanceId, installRequires] of Object.entries(instances)) {
+			await addInstance(root, instanceId, installRequires);
+		}
+		return root;
+	}
+
+	async function addInstance(root: string, instanceId: string, installRequires: readonly string[]): Promise<void> {
+		const top = `django-${instanceId.replace(/\D/gu, "").padEnd(40, "0")}`;
+		const staging = await mkdtemp(join(tmpdir(), "swebench-sibling-tree-"));
+		try {
+			await mkdir(join(staging, top), { recursive: true });
+			await writeFile(join(staging, top, "setup.py"), setupPy(installRequires));
+			await execFileAsync("tar", ["-czf", join(root, "repos", `${instanceId}.tar.gz`), "-C", staging, top]);
+		} finally {
+			await rm(staging, { recursive: true, force: true });
+		}
+		await writeFile(
+			join(root, "instances", `${instanceId}.json`),
+			JSON.stringify({ instanceId, repo: "django/django", version: "3.0" }),
+		);
+	}
+
+	const table = parseSwebenchSpecDump({
+		source: { package: "swebench", version: "3.0.17", sha256: "ef".repeat(32), generatedAt: "2026-09-19T00:00:00Z" },
+		specs: {
+			"django/django": {
+				"3.0": { python: "3.6", install: "python -m pip install -e .", test_cmd: "./tests/runtests.py" },
+			},
+		},
+	});
+	const django = (instanceId: string) =>
+		resolveSwebenchEnv({
+			instance: { ...instance, instanceId, repo: "django/django", version: "3.0" },
+			table,
+			overrides: [],
+		});
+
+	it("gives siblings that differ only in install_requires DIFFERENT closure signatures", async () => {
+		const root = await cacheWith({
+			"django__django-10554": ["pytz", "sqlparse"],
+			"django__django-11333": ["pytz", "sqlparse", "asgiref"],
+		});
+		try {
+			const early = await instanceBuildDeclarations(root, "django__django-10554");
+			const late = await instanceBuildDeclarations(root, "django__django-11333");
+			expect(early.installRequires).toEqual(["pytz", "sqlparse"]);
+			expect(late.installRequires).toEqual(["asgiref", "pytz", "sqlparse"]);
+			// Everything the gate used to group by is identical — which is exactly how 11333 hid inside 10554's proof.
+			expect({ ...early, installRequires: [] }).toEqual({ ...late, installRequires: [] });
+			expect(swebenchClosureSignature(early)).not.toBe(swebenchClosureSignature(late));
+			// Same declarations, same closure: the signature is not merely noisy.
+			await addInstance(root, "django__django-10999", ["pytz", "sqlparse"]);
+			expect(swebenchClosureSignature(await instanceBuildDeclarations(root, "django__django-10999"))).toBe(
+				swebenchClosureSignature(early),
+			);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("unions install_requires across every cached sibling of the spec, whichever one the prepare starts from", async () => {
+		const root = await cacheWith({
+			"django__django-10554": ["pytz", "sqlparse"],
+			"django__django-11333": ["pytz", "sqlparse", "asgiref"],
+		});
+		try {
+			for (const from of ["django__django-10554", "django__django-11333"]) {
+				const union = await specSiblingBuildRequirements(django(from), root);
+				expect(union.installRequires, `prepared from ${from}`).toEqual(["asgiref", "pytz", "sqlparse"]);
+			}
+			// A hand-proven tranche entry keys on its own id and has no siblings: untouched.
+			expect((await specSiblingBuildRequirements(entry, root)).installRequires).toEqual([]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("downloads a sibling's runtime requirements into the cache without installing or recording them", () => {
+		const script = buildSwebenchPrepareScript(django("django__django-10554"), [], null, [], [], [], [], ["asgiref"]);
+		const lines = script.split("\n");
+		expect(lines.some((line) => line.includes("pip download") && line.includes("'asgiref'"))).toBe(true);
+		for (const line of lines.filter((candidate) => candidate.includes("pip install"))) {
+			expect(line, `a sibling runtime requirement reached an install: ${line}`).not.toContain("asgiref");
+		}
+		// A sibling's requirement that cannot resolve must not enter the unresolved list, which filters what THIS
+		// spec's grades install — it is named in the transcript instead.
+		const fallback = lines.find((line) => line.includes("SWEBENCH_SIBLING_UNRESOLVED"));
+		expect(fallback).toBeDefined();
+		expect(fallback).not.toContain("SWEBENCH_UNRESOLVED.txt");
+		// Absent when there is nothing to fetch: a spec with one instance keeps its script byte-identical.
+		expect(buildSwebenchPrepareScript(django("django__django-10554"))).not.toContain("sibling-install-requires");
+	});
+
+	it("reads a cache as prepared only for the sibling union its marker recorded", async () => {
+		const root = await cacheWith({ "django__django-10554": ["pytz", "sqlparse"] });
+		try {
+			const env = django("django__django-10554");
+			const marker = join(root, "wheels", swebenchWheelCacheKey(env), SWEBENCH_PREPARE_MARKER);
+			await mkdir(join(root, "wheels", swebenchWheelCacheKey(env)), { recursive: true });
+			expect((await swebenchPrepareIsCurrent(env, root)).current).toBe(false);
+			// The marker every prepare before this fix wrote: empty. It never cached a sibling's runtime needs.
+			await writeFile(marker, "");
+			const legacy = await swebenchPrepareIsCurrent(env, root);
+			expect(legacy.current).toBe(false);
+			expect(legacy.reason).toContain("install_requires");
+			await writeFile(marker, swebenchPrepareMarkerContent(await specSiblingBuildRequirements(env, root)));
+			expect((await swebenchPrepareIsCurrent(env, root)).current).toBe(true);
+			// Then 11333 is cached, declaring asgiref: the same marker no longer covers the spec.
+			await addInstance(root, "django__django-11333", ["pytz", "sqlparse", "asgiref"]);
+			const stale = await swebenchPrepareIsCurrent(env, root);
+			expect(stale.current).toBe(false);
+			expect(stale.reason).toContain("siblings now declare");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

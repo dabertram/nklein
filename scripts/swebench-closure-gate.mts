@@ -7,8 +7,11 @@
  *
  * WHY THIS EXISTS AS A FILE. The gate's unit is the CLOSURE, not the spec: a `(repo, version)` spec spans many base
  * commits, and two instances share a sealed environment only when their checkouts declare the same build
- * requirements, `setup_requires` and exact pins (`instanceBuildDeclarations`). A per-spec gate went 81/81 green
- * and the first scored instance walked straight into a closure it had never proven. The scanner and workers that
+ * requirements, `setup_requires`, exact pins AND runtime `install_requires` (`instanceBuildDeclarations`). A
+ * per-spec gate went 81/81 green and the first scored instance walked straight into a closure it had never proven.
+ * The runtime requirements joined on 2026-09-19 (finding 62): django 3.0's 10554 and 11333 differ only in
+ * `asgiref`, the gate proved them as ONE closure from 10554, and 11333 refused at install. They are two closures
+ * now, and the prepare caches the union of every sibling's runtime requirements. The scanner and workers that
  * found the 96 closures lived in a session scratchpad, and on 2026-09-17 they vanished with it — mid-gate, with
  * six re-controls running and nothing recorded. Twice now the gate's state has lived in /tmp.
  *
@@ -34,6 +37,7 @@ import {
 	gradeSwebenchWorkspace,
 	SWEBENCH_PREPARE_MARKER,
 	instanceBuildDeclarations,
+	swebenchClosureSignature,
 	swebenchWheelCacheKey,
 } from "../src/core/swebench-grader";
 import { materializeSwebenchInstance, readSwebenchCacheEntry, swebenchCacheRoot } from "../src/core/swebench-materialize";
@@ -129,7 +133,7 @@ async function commandScan(): Promise<Closure[]> {
 			continue;
 		}
 		const declared = await instanceBuildDeclarations(cacheRoot, instanceId);
-		const signature = createHash("sha256").update(JSON.stringify(declared)).digest("hex").slice(0, 12);
+		const signature = swebenchClosureSignature(declared);
 		const key = `${specKey}#${signature}`;
 		const group = groups.get(key) ?? { specKey, members: [] };
 		group.members.push(instanceId);

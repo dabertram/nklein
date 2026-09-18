@@ -22,7 +22,7 @@ import {
 	flattenSwebenchWheels,
 	gradeSwebenchWorkspace,
 	prepareSwebenchWheels,
-	SWEBENCH_PREPARE_MARKER,
+	swebenchPrepareIsCurrent,
 	swebenchWheelCacheKey,
 } from "../src/core/swebench-grader";
 import { detectGradedTestTampering, listGradedTestFiles } from "../src/core/swebench-instance";
@@ -64,11 +64,18 @@ async function commandPrepare(ids: readonly string[]): Promise<void> {
 		const cacheDir = join(cacheRoot, "wheels", cacheKey);
 		// Only a COMPLETE prepare counts: the marker is written after the fatal repo stage, so a partial closure
 		// (some stages downloaded, the repo's resolution failed) re-runs instead of grading against missing deps.
-		const cached = existsSync(join(cacheDir, SWEBENCH_PREPARE_MARKER));
-		if (preparedKeys.has(cacheKey) || cached) {
+		// And only a CURRENT one: the marker records the sibling union it cached, so a spec whose siblings now
+		// declare more than that prepare saw — django 3.0's `asgiref` (finding 62) — is prepared again.
+		const status = preparedKeys.has(cacheKey)
+			? { current: true, reason: "prepared earlier in this run" }
+			: await swebenchPrepareIsCurrent(entry, cacheRoot);
+		if (status.current) {
 			process.stdout.write(`  ${instanceId}: wheels for ${cacheKey} already cached — skipping\n`);
 			preparedKeys.add(cacheKey);
 			continue;
+		}
+		if (existsSync(cacheDir)) {
+			process.stdout.write(`  ${cacheKey}: cache not current (${status.reason}) — preparing again\n`);
 		}
 		const sourceDir = join(await mkdtemp(join(tmpdir(), "swebench-prep-")), instanceId);
 		process.stdout.write(`⚠ EGRESS (once): resolving ${instanceId}'s wheel cache inside the grader…\n`);

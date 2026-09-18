@@ -15,6 +15,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { copyFile, link, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +29,7 @@ import {
 	flattenSwebenchRequirements,
 	isSwebenchRequirementsSentinel,
 	parseCondaEnvironmentYml,
+	parseInstallRequires,
 	parsePep518BuildRequires,
 	parseSetupRequires,
 	passedIdsFromOutput,
@@ -44,6 +46,7 @@ import {
 	swebenchPipRequirement,
 	swebenchSetuptoolsLacksPep660,
 	swebenchSpecBuildRequirements,
+	swebenchSpecEraConstraints,
 	swebenchSpecPinConstraintArg,
 	swebenchTestCommand,
 } from "./swebench-env-spec";
@@ -273,6 +276,12 @@ export function buildSwebenchPrepareScript(
 	// unsatisfiable. The download stages fall back per pin, so both wheels land; the install stages below, and
 	// every probe and grade, keep asking only for what THEIR checkout declares.
 	downloadOnlyBuildRequires: readonly string[] = [],
+	// Sibling checkouts' RUNTIME requirements (`install_requires`), also DOWNLOAD-only and for the same reason:
+	// siblings may declare incompatible ranges, and only the sibling's own editable install ever asks for them.
+	// Unlike every other stage, a requirement here that cannot resolve is NOT recorded as unresolvable: that list
+	// filters what THIS spec's grades install, and a sibling's runtime requirement is not one of those names. It
+	// is named in the transcript, and the closure gate proves the sibling's own install anyway.
+	downloadOnlyInstallRequires: readonly string[] = [],
 ): string {
 	// The grade-time closure: era pins AND the offline build toolchain (pip download never includes PEP 517
 	// build requirements in a source's closure — the whole first control sweep failed on exactly that).
@@ -343,6 +352,16 @@ export function buildSwebenchPrepareScript(
 			pins: [],
 			fatal: true,
 		},
+		...(downloadOnlyInstallRequires.length > 0
+			? [
+					{
+						label: "sibling-install-requires",
+						args: downloadOnlyInstallRequires.map((pin) => shellQuote(pin)).join(" "),
+						pins: [...downloadOnlyInstallRequires],
+						fatal: false,
+					},
+				]
+			: []),
 		...(entry.extraRequirements.length > 0
 			? [
 					{
@@ -373,7 +392,7 @@ export function buildSwebenchPrepareScript(
 		// the environment the grade will install, not a newer one it cannot. `wheel` unconstrained came back as
 		// 0.48.0, which requires packaging>=24.0 and therefore cannot coexist with matplotlib 3.7's pinned
 		// packaging==23.1; constrained, pip simply picks the last `wheel` that fits.
-		...swebenchEraConstraintLines(prepareSpecPins),
+		...swebenchEraConstraintLines(prepareSpecPins, swebenchSpecEraConstraints(entry)),
 		...swebenchLegacyCBuildEnvLines(),
 		`mkdir -p /cache/wheels/${swebenchWheelCacheKey(entry)}`,
 		...repoPreInstall,
@@ -413,7 +432,9 @@ export function buildSwebenchPrepareScript(
 				}${
 					// The spec's pins constrain the PACKAGE stages of the download exactly as they do the install, so
 					// an unversioned conda entry resolves to a release that fits them rather than to today's.
-					label === "packages" || label === "requirements" ? prepareSpecPinArg : ""
+					label === "packages" || label === "requirements" || label === "sibling-install-requires"
+						? prepareSpecPinArg
+						: ""
 				}--dest /cache/wheels/${swebenchWheelCacheKey(entry)} ${what}`.replace(/\s+/g, " ");
 			if (fatal) {
 				return download(args);
@@ -426,10 +447,14 @@ export function buildSwebenchPrepareScript(
 			if (pins.length === 0) {
 				return `${download(args)} || { echo "SWEBENCH_DOWNLOAD_INCOMPLETE ${label}"; incomplete="$incomplete ${label}"; }`;
 			}
+			const onUnresolved =
+				label === "sibling-install-requires"
+					? `echo "SWEBENCH_SIBLING_UNRESOLVED $pin"`
+					: `echo "SWEBENCH_UNRESOLVED_PIN $pin"; echo "$pin" >> ${unresolvedPath}`;
 			return [
 				`if ! ${download(args)}; then`,
 				`  for pin in ${pins.map((pin) => shellQuote(pin)).join(" ")}; do`,
-				`    ${download('"$pin"')} || { echo "SWEBENCH_UNRESOLVED_PIN $pin"; echo "$pin" >> ${unresolvedPath}; }`,
+				`    ${download('"$pin"')} || { ${onUnresolved}; }`,
 				"  done",
 				"fi",
 			].join("\n");
@@ -618,7 +643,7 @@ export function buildSwebenchInstallLines(input: {
 		// cannot coexist with the spec's `numpy==1.25.2`, and the whole packages stage died with
 		// ResolutionImpossible. Constrained, pip picks the pandas that fits the pinned numpy — which is what conda
 		// did for upstream.
-		...swebenchEraConstraintLines(specPins),
+		...swebenchEraConstraintLines(specPins, swebenchSpecEraConstraints(entry)),
 		...swebenchLegacyCBuildEnvLines(),
 		// FIRST, before anything else is resolved: `python -m venv` seeds the interpreter's OWN bundled pip, and on
 		// the python 3.6 image that is pip 18.1 — which predates PEP 600 and cannot read a `manylinux_2_28` or
@@ -1243,8 +1268,9 @@ export function exactRequirementPins(text: string): string[] {
 
 /**
  * Everything EVERY cached instance sharing this entry's wheel cache key can ask its sealed install for: their
- * PEP 518 build requirements, their `setup_requires`, and every EXACT pin (`name==version`) declared anywhere in
- * their `pyproject.toml`, `setup.cfg` or `setup.py`.
+ * PEP 518 build requirements, their `setup_requires`, every EXACT pin (`name==version`) declared anywhere in
+ * their `pyproject.toml`, `setup.cfg` or `setup.py`, and their runtime `install_requires` (finding 62 — see
+ * `SwebenchBuildDeclarations`).
  *
  * The closure is keyed per `(repo, version)` spec, but a spec spans many base commits and a checkout's declared
  * build requirements move between them. The per-spec control gate proved ONE instance per spec, so this was
@@ -1270,29 +1296,95 @@ export async function specSiblingBuildRequirements(
 ): Promise<SwebenchBuildDeclarations> {
 	const key = swebenchWheelCacheKey(entry);
 	if (!("resolvedFrom" in entry) || entry.resolvedFrom !== "spec") {
-		return { buildRequires: [], setupRequires: [], exactPins: [] };
+		return emptyBuildDeclarations();
 	}
-	const buildRequires = new Set<string>();
-	const setupRequires = new Set<string>();
-	const exactPins = new Set<string>();
+	// One sibling at a time: each read decompresses a whole checkout, and a django spec has dozens of them.
+	const declared: SwebenchBuildDeclarations[] = [];
 	for (const instanceId of cachedInstancesOfSpec(cacheRoot, key)) {
-		const declared = await instanceBuildDeclarations(cacheRoot, instanceId, deps);
-		for (const requirement of declared.buildRequires) buildRequires.add(requirement);
-		for (const requirement of declared.setupRequires) setupRequires.add(requirement);
-		for (const pin of declared.exactPins) exactPins.add(pin);
+		declared.push(await instanceBuildDeclarations(cacheRoot, instanceId, deps));
 	}
-	return {
-		buildRequires: [...buildRequires].sort(),
-		setupRequires: [...setupRequires].sort(),
-		exactPins: [...exactPins].sort(),
-	};
+	return unionBuildDeclarations(declared);
 }
 
-/** What one checkout declares for its own build: PEP 518 requires, `setup_requires`, and every exact pin. */
+/**
+ * What one checkout declares that its sealed install will ask the wheel cache for: PEP 518 requires,
+ * `setup_requires`, every exact pin, and its runtime `install_requires`.
+ *
+ * `installRequires` joined on 2026-09-19 (finding 62). Without it the closure signature could not tell django
+ * 3.0's 10554 (`pytz`, `sqlparse`) from 11333 (`pytz`, `sqlparse`, `asgiref`): one closure, gated CLEAN three
+ * times from 10554, and 11333 then refused at install with `No matching distribution found for asgiref`.
+ */
 export interface SwebenchBuildDeclarations {
 	readonly buildRequires: readonly string[];
 	readonly setupRequires: readonly string[];
 	readonly exactPins: readonly string[];
+	readonly installRequires: readonly string[];
+}
+
+function emptyBuildDeclarations(): SwebenchBuildDeclarations {
+	return { buildRequires: [], setupRequires: [], exactPins: [], installRequires: [] };
+}
+
+/** The field-by-field union of several checkouts' declarations, each field deduplicated and sorted. */
+export function unionBuildDeclarations(all: readonly SwebenchBuildDeclarations[]): SwebenchBuildDeclarations {
+	const union = (pick: (declared: SwebenchBuildDeclarations) => readonly string[]) =>
+		[...new Set(all.flatMap((declared) => [...pick(declared)]))].sort();
+	return {
+		buildRequires: union((declared) => declared.buildRequires),
+		setupRequires: union((declared) => declared.setupRequires),
+		exactPins: union((declared) => declared.exactPins),
+		installRequires: union((declared) => declared.installRequires),
+	};
+}
+
+/**
+ * A short digest of a spec's sibling union — what the prepare that wrote the completion marker was asked to cache.
+ * The marker carries it, so a spec whose siblings now declare something that prepare never saw (a newly cached
+ * instance, or a declaration kind the prepare did not yet read) is no longer a cache hit.
+ */
+export function swebenchSiblingDeclarationsDigest(declared: SwebenchBuildDeclarations): string {
+	return createHash("sha256").update(JSON.stringify(declared)).digest("hex").slice(0, 16);
+}
+
+/**
+ * The closure gate's grouping signature for ONE instance: two instances of a spec share a closure exactly when
+ * their declarations hash the same. Lives here, beside the declarations, so what the gate groups by cannot drift
+ * from what the prepare unions.
+ */
+export function swebenchClosureSignature(declared: SwebenchBuildDeclarations): string {
+	return createHash("sha256").update(JSON.stringify(declared)).digest("hex").slice(0, 12);
+}
+
+/** The completion marker's content for a prepare that cached this sibling union. */
+export function swebenchPrepareMarkerContent(declared: SwebenchBuildDeclarations): string {
+	return `siblings ${swebenchSiblingDeclarationsDigest(declared)}\n`;
+}
+
+/**
+ * Whether the spec's wheel cache is COMPLETE for the siblings cached today: the marker exists AND records the
+ * current sibling union. A marker written before `install_requires` joined the union is empty, and correctly reads
+ * as stale — that prepare never downloaded a sibling's runtime requirements (finding 62).
+ */
+export async function swebenchPrepareIsCurrent(
+	entry: SwebenchGraderEntry,
+	cacheRoot: string,
+	deps: SwebenchGraderDeps = defaultDeps,
+): Promise<{ current: boolean; reason: string }> {
+	const marker = join(cacheRoot, "wheels", swebenchWheelCacheKey(entry), SWEBENCH_PREPARE_MARKER);
+	if (!existsSync(marker)) {
+		return { current: false, reason: "no completion marker" };
+	}
+	const wanted = swebenchPrepareMarkerContent(await specSiblingBuildRequirements(entry, cacheRoot, deps));
+	const recorded = readFileSync(marker, "utf8");
+	if (recorded === wanted) {
+		return { current: true, reason: "complete for the current sibling union" };
+	}
+	return {
+		current: false,
+		reason: recorded.trim()
+			? `prepared for sibling union ${recorded.trim().replace(/^siblings /u, "")}, siblings now declare ${wanted.trim().replace(/^siblings /u, "")}`
+			: "prepared before sibling install_requires were part of the closure",
+	};
 }
 
 /** The cached instance ids whose `(repo, version)` spec is `specKey`, sorted. */
@@ -1328,7 +1420,7 @@ export async function instanceBuildDeclarations(
 	instanceId: string,
 	deps: SwebenchGraderDeps = defaultDeps,
 ): Promise<SwebenchBuildDeclarations> {
-	const empty = { buildRequires: [], setupRequires: [], exactPins: [] };
+	const empty = emptyBuildDeclarations();
 	const tarball = join(cacheRoot, "repos", `${instanceId}.tar.gz`);
 	if (!existsSync(tarball)) {
 		return empty;
@@ -1341,32 +1433,45 @@ export async function instanceBuildDeclarations(
 	if (!top) {
 		return empty;
 	}
-	const buildRequires = new Set<string>();
-	const setupRequires = new Set<string>();
-	const exactPins = new Set<string>();
-	for (const [name, parse, sink] of [
-		["pyproject.toml", parsePep518BuildRequires, buildRequires],
-		["setup.py", parseSetupRequires, setupRequires],
-		["setup.cfg", () => [], setupRequires],
-	] as const) {
+	const files: Record<string, string> = {};
+	for (const name of ["pyproject.toml", "setup.py", "setup.cfg"]) {
 		const read = await deps
 			.exec("bash", ["-lc", `tar -xzOf ${shellQuote(tarball)} ${shellQuote(`${top}/${name}`)} 2>/dev/null || true`])
 			.catch(() => null);
-		if (!read?.stdout) {
-			continue;
-		}
-		for (const requirement of parse(read.stdout)) {
-			sink.add(requirement);
-		}
-		for (const pin of exactRequirementPins(read.stdout)) {
-			exactPins.add(pin);
+		if (read?.stdout) {
+			files[name] = read.stdout;
 		}
 	}
+	return checkoutBuildDeclarations(files);
+}
+
+/**
+ * The declarations of one checkout, from its declaration files' TEXT keyed by file name. Shared by the tarball
+ * reader above and the prepare's own host-side read of the tree it materialized, so both see the same thing.
+ */
+export function checkoutBuildDeclarations(files: Readonly<Record<string, string>>): SwebenchBuildDeclarations {
+	const pyproject = files["pyproject.toml"] ?? "";
+	const setupPy = files["setup.py"] ?? "";
+	const setupCfg = files["setup.cfg"] ?? "";
+	const sorted = (values: readonly string[]) => [...new Set(values)].sort();
 	return {
-		buildRequires: [...buildRequires].sort(),
-		setupRequires: [...setupRequires].sort(),
-		exactPins: [...exactPins].sort(),
+		buildRequires: sorted(parsePep518BuildRequires(pyproject)),
+		setupRequires: sorted(parseSetupRequires(setupPy)),
+		exactPins: sorted([pyproject, setupPy, setupCfg].flatMap((text) => exactRequirementPins(text))),
+		installRequires: sorted(Object.entries(files).flatMap(([name, text]) => parseInstallRequires(name, text))),
 	};
+}
+
+/** `checkoutBuildDeclarations` for a materialized tree on the host. */
+function readCheckoutBuildDeclarations(treeDir: string): SwebenchBuildDeclarations {
+	const files: Record<string, string> = {};
+	for (const name of ["pyproject.toml", "setup.py", "setup.cfg"]) {
+		const path = join(treeDir, name);
+		if (existsSync(path)) {
+			files[name] = readFileSync(path, "utf8");
+		}
+	}
+	return checkoutBuildDeclarations(files);
 }
 
 /** One-time per instance, network ON — the wheel-cache egress step. `sourceDir` is a PRISTINE materialization. */
@@ -1389,6 +1494,14 @@ export async function prepareSwebenchWheels(
 	const siblings = await specSiblingBuildRequirements(input.entry, input.cacheRoot, deps);
 	const siblingOnly = [...siblings.buildRequires, ...siblings.setupRequires, ...siblings.exactPins].filter(
 		(requirement) => !buildRequires.includes(requirement) && !setupRequires.includes(requirement),
+	);
+	// The siblings' RUNTIME requirements, unioned the same way (finding 62): the repo stage resolves only THIS
+	// checkout's `install_requires`, so a dependency a sibling commit added — django 3.0's `asgiref` — never entered
+	// the cache, and that sibling's sealed install refused offline. What this checkout declares itself is already
+	// covered by the repo stage and is not asked for twice.
+	const ownInstallRequires = new Set(readCheckoutBuildDeclarations(input.sourceDir).installRequires);
+	const siblingInstallRequires = siblings.installRequires.filter(
+		(requirement) => !ownInstallRequires.has(requirement),
 	);
 	// The loopback httpbin the grade will serve has to be IN the closure, or the sealed install cannot start it.
 	const httpbinRequirement = detectsHttpbinUrl(input.sourceDir) && !input.entry.httpbinService ? ["httpbin"] : [];
@@ -1420,6 +1533,7 @@ export async function prepareSwebenchWheels(
 			[...setupRequires, ...httpbinRequirement],
 			repoRequirementLines,
 			siblingOnly,
+			siblingInstallRequires,
 		),
 	]);
 	// A stage that could not resolve leaves the cache short of wheels the sealed grade will ask for, and a silent
@@ -1587,7 +1701,7 @@ export async function prepareSwebenchWheels(
 				"-lc",
 				[
 					"set -u",
-					...swebenchEraConstraintLines(),
+					...swebenchEraConstraintLines([], swebenchSpecEraConstraints(input.entry)),
 					`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} 'pytest<7.2' 'py' || true`,
 				].join("\n"),
 			]);
@@ -1612,7 +1726,7 @@ export async function prepareSwebenchWheels(
 				"-lc",
 				[
 					"set -u",
-					...swebenchEraConstraintLines(),
+					...swebenchEraConstraintLines([], swebenchSpecEraConstraints(input.entry)),
 					`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} 'Cython<3' || true`,
 				].join("\n"),
 			]);
@@ -1638,7 +1752,7 @@ export async function prepareSwebenchWheels(
 					"-lc",
 					[
 						"set -u",
-						...swebenchEraConstraintLines(),
+						...swebenchEraConstraintLines([], swebenchSpecEraConstraints(input.entry)),
 						`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} ${guesses
 							.map((guess) => shellQuote(guess))
 							.join(" ")} && echo "SWEBENCH_GUESS_OK ${guesses.join(" ")}"`,
@@ -1673,7 +1787,7 @@ export async function prepareSwebenchWheels(
 			"-lc",
 			[
 				"set -u",
-				...swebenchEraConstraintLines(),
+				...swebenchEraConstraintLines([], swebenchSpecEraConstraints(input.entry)),
 				`python -m pip download --disable-pip-version-check -q --cache-dir /cache/pip-cache --dest /cache/wheels/${key} ${missing
 					.map((requirement) => shellQuote(requirement))
 					.join(" ")} || { echo "SWEBENCH_UNRESOLVED_PIN"; ${missing
@@ -1693,7 +1807,11 @@ export async function prepareSwebenchWheels(
 		);
 	}
 	// The marker is written HOST-side, after the download closed AND the sealed install proved it.
-	await writeFile(join(input.cacheRoot, "wheels", key, SWEBENCH_PREPARE_MARKER), "");
+	// It records WHICH sibling union it covers, so a later sibling that declares more reads as not-yet-prepared.
+	await writeFile(
+		join(input.cacheRoot, "wheels", key, SWEBENCH_PREPARE_MARKER),
+		swebenchPrepareMarkerContent(siblings),
+	);
 }
 
 /**
