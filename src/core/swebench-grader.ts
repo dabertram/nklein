@@ -1995,6 +1995,15 @@ export async function gradeSwebenchWorkspace(
 			"--rm",
 			"--network",
 			"none",
+			// Python's stdout encoding follows the locale, and the spec's own `locale-gen` cannot be relied on: the
+			// grader image may not carry the `locales` package, leaving LANG pointing at a locale that was never
+			// generated and stdout back on ASCII. django then dies MID-TEST-DATABASE-SETUP the moment `migrate`
+			// prints its Unicode ellipsis — `UnicodeEncodeError: 'ascii' codec can't encode character '\u2026'` in
+			// `Creating tables…` — and every test in the run fails. Live 2026-09-18: django-10880 reported 55
+			// pass-to-pass REGRESSIONS for a 633-byte patch that had nothing to do with it. This forces the
+			// encoding regardless of what locales exist, which is the only version that cannot drift.
+			"-e",
+			"PYTHONIOENCODING=utf-8",
 			"-v",
 			`${input.workspaceCopyDir}:/work`,
 			"-v",
