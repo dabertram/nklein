@@ -93,6 +93,8 @@ function heartbeat(inFlight) {
 // the queue with its arrival time instead. (The dsh rig had eight of these from two days earlier.)
 const STALE_REQUEST_MS = Number(process.env.HITL_STALE_REQUEST_S ?? 5_400) * 1_000;
 let spentUsd = 0;
+/** How many times a request has been retried for a WIRE failure, so a broken network cannot loop forever. */
+const transientAttempts = new Map();
 let budgetStopped = false;
 
 // The safeguard refusal is not a quota problem and not a model failure: it is this MODEL declining this
@@ -123,6 +125,24 @@ function vendorMessage(error) {
 /** Whether an error is the subscription saying no, rather than the model failing a turn. */
 function isQuotaRefusal(error) {
 	return QUOTA_SIGNS.test(error instanceof Error ? error.message : String(error));
+}
+
+/**
+ * A failure of the WIRE, not of the model: DNS, a dropped socket, a gateway. Answering one of these with an error
+ * message spends a turn of the agent's budget and puts a lie in its context — the model never said anything.
+ *
+ * Live 2026-09-18, and it costs whole instances: this uplink is a phone hotspot, and a single
+ * `API Error: Can't reach the API server — check your internet or DNS (ENOTFOUND)` turned into an error answer,
+ * after which django-10999 went `stagnant` with an EMPTY patch after 4 turns. That scores as a model failure
+ * while measuring our network.
+ */
+const TRANSIENT_SIGNS =
+	/ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket hang up|network error|Can't reach the API server|502|503|504|Bad Gateway|Service Unavailable|Gateway Time-?out/iu;
+const TRANSIENT_RETRIES = Math.max(0, Number(process.env.CLAUDE_TRANSIENT_RETRIES ?? 3) || 3);
+const TRANSIENT_BACKOFF_MS = Math.max(1_000, Number(process.env.CLAUDE_TRANSIENT_BACKOFF_MS ?? 15_000) || 15_000);
+
+function isTransientFailure(error) {
+	return TRANSIENT_SIGNS.test(error instanceof Error ? error.message : String(error));
 }
 
 /** The CLI seat for a request: its `model` through CLAUDE_MODEL_MAP, else the configured default. */
@@ -427,6 +447,17 @@ async function answerOne(seq) {
 			}),
 		);
 	} catch (error) {
+		// The wire failed, not the model: back off and let the SAME request be picked up again, exactly as a quota
+		// refusal is handled. No answer is written, so the agent's turn is not spent on our network.
+		if (isTransientFailure(error) && (transientAttempts.get(seq) ?? 0) < TRANSIENT_RETRIES) {
+			const attempt = (transientAttempts.get(seq) ?? 0) + 1;
+			transientAttempts.set(seq, attempt);
+			log(
+				`request ${seq}: TRANSPORT failure (${error instanceof Error ? error.message.split("\n")[0].slice(0, 120) : String(error)}) — retry ${attempt}/${TRANSIENT_RETRIES} in ${Math.round(TRANSIENT_BACKOFF_MS / 1000)} s, NOT answering`,
+			);
+			await new Promise((resolve) => setTimeout(resolve, TRANSIENT_BACKOFF_MS));
+			return;
+		}
 		if (isQuotaRefusal(error)) {
 			// NOT an answer. Leave the request pending so the loop retries it after the pause; the arm stalls where
 			// anyone can see it rather than banking a refusal as the model's turn.
@@ -570,6 +601,11 @@ async function main() {
 				.catch((error) => log(`request ${seq}: responder error ${error instanceof Error ? error.message : String(error)}`))
 				.finally(() => {
 					inFlight.delete(seq);
+					// Cleared only once an answer EXISTS. Clearing it on every completion would reset the counter on
+					// each transient retry and let a broken network retry forever.
+					if (existsSync(join(ROOT, "answers", `${seq}.json`))) {
+						transientAttempts.delete(seq);
+					}
 					seatOfSeq.delete(seq);
 					if (seat !== null) {
 						const left = (inFlightPerSeat.get(seat) ?? 1) - 1;
