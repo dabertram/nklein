@@ -568,6 +568,15 @@ async function runInstance(options: Options, instanceId: string, harness: Record
 			? "no model attempt was recorded for this run (the seat never answered a turn)"
 		: execution?.result.classification.outcome === "runtime_down" || execution?.result.infrastructureFailure
 			? `infrastructure: ${execution.result.infrastructureFailure ?? execution.result.classification.summary}`
+			// A RESOLVE ON AN EMPTY PATCH IS IMPOSSIBLE BY CONSTRUCTION. If the delivery changed nothing and the
+			// fail-to-pass set is green, those tests pass on the unfixed tree and the instance measures nothing —
+			// the credit belongs to no one. Live 2026-09-17: django-10097 was scored RESOLVED with 438/438
+			// fail-to-pass green on a ZERO-BYTE patch; a negative control on the pristine tree graded it resolved
+			// too. Its test patch touches tests/validators/*_urls.txt (URL validators) while all 438 ids name
+			// auth_tests.test_validators (username/password validators) — an unrelated module that passes either
+			// way. Unguarded, that is a free win straight into the score.
+			: resolved && (capture?.patchBytes ?? 0) === 0
+				? "unmeasurable: graded RESOLVED on an empty patch — the delivery changed nothing, so its fail-to-pass ids pass on the unfixed tree and no delivery can be judged by them"
 			: null;
 	const receipt = {
 		schemaVersion: 1,
