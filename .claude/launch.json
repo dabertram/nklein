@@ -4,9 +4,28 @@
     {
       "name": "web-ui-dschinn",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "cwd": "web-ui",
-      "env": { "NKLEIN_RUNTIME_PORT": "3502" },
+      "env": {
+        "NKLEIN_RUNTIME_PORT": "3502"
+      },
+      "port": 4173
+    },
+    {
+      "name": "haiku-board",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "cwd": "web-ui",
+      "env": {
+        "NKLEIN_RUNTIME_PORT": "3530",
+        "NKLEIN_WEB_UI_PORT": "4173"
+      },
       "port": 4173
     }
   ]

@@ -315,7 +315,7 @@ import {
 	buildChatAgentSandboxPoolConfig,
 	createCheckingAgentSandboxStatus,
 } from "./agent-sandbox-runtime-config";
-import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
+import { getWebUiDir, isBuiltWebUiDir, normalizeRequestPath, readAsset, unbuiltWebUiPage } from "./assets";
 import {
 	buildManualReviewHoldObservation,
 	buildReviewParkedHoldObservation,
@@ -559,10 +559,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		};
 	});
 
-	try {
-		await readFile(join(webUiDir, "index.html"));
-	} catch {
-		throw new Error("Could not find web UI assets. Run `npm run build` to generate and package the web UI.");
+	const indexHtml = await readFile(join(webUiDir, "index.html"), "utf8").catch(() => null);
+	// NOT a startup failure: headless runs (the SWE-bench drains) start the runtime from checkouts that were
+	// never given a web-ui build and never serve a page. What must not happen is serving the web-ui SOURCE
+	// index.html as if it were the app — that rendered a blank board with no explanation. Warn once here, and
+	// answer page requests with the reason (see unbuiltWebUiPage) instead.
+	const webUiBuilt = isBuiltWebUiDir(webUiDir, indexHtml);
+	if (!webUiBuilt) {
+		deps.warn(
+			`No built web UI in ${webUiDir} — the API works, the browser UI will show how to build it ` +
+				"(`npm run build`). Or point a Vite dev server at this runtime.",
+		);
 	}
 
 	const resolveWorkspaceScopeFromRequest = async (
@@ -7900,6 +7907,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			if (pathname.startsWith("/api/")) {
 				res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
 				res.end('{"error":"Not found"}');
+				return;
+			}
+
+			if (!webUiBuilt) {
+				// Every non-API path of an unbuilt UI — the page itself and its /src/*.tsx module — gets the reason,
+				// not source files a browser cannot run.
+				res.writeHead(503, {
+					"Content-Type": "text/html; charset=utf-8",
+					"Cache-Control": "no-store",
+					"X-Content-Type-Options": "nosniff",
+				});
+				res.end(unbuiltWebUiPage(webUiDir));
 				return;
 			}
 

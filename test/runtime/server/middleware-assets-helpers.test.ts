@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	getKanbanRuntimeHost,
@@ -7,7 +10,7 @@ import {
 	setKanbanRuntimePort,
 	setKanbanRuntimePublicHost,
 } from "../../../src/core/runtime-endpoint";
-import { normalizeRequestPath } from "../../../src/server/assets";
+import { isBuiltWebUiDir, normalizeRequestPath, unbuiltWebUiPage } from "../../../src/server/assets";
 import { evaluateHost, getAllowedHostHeaders, getAllowedRuntimeOrigins } from "../../../src/server/middleware";
 
 const originalRuntimeHost = getKanbanRuntimeHost();
@@ -117,5 +120,43 @@ describe("getAllowedRuntimeOrigins (§ desktop app #2 — LAN serving)", () => {
 		expect(origins.has("http://localhost:4273")).toBe(true);
 		expect(origins.has("http://127.0.0.1:4173")).toBe(false);
 		expect(origins.has("http://127.0.0.1:9999")).toBe(false);
+	});
+});
+
+describe("isBuiltWebUiDir", () => {
+	const dirWithAssets = () => {
+		const dir = mkdtempSync(join(tmpdir(), "webui-"));
+		mkdirSync(join(dir, "assets"));
+		return dir;
+	};
+	const built = '<script type="module" crossorigin src="/assets/index-DP3bIysk.js"></script>';
+	const source = '<script type="module" src="/src/main.tsx"></script>';
+
+	it("accepts a built web UI", () => {
+		expect(isBuiltWebUiDir(dirWithAssets(), built)).toBe(true);
+	});
+
+	// The pinned SWE-bench checkout on 2026-09-18: the source index.html passed the old check and the board
+	// rendered blank.
+	it("rejects the web-ui SOURCE folder even though it has an index.html", () => {
+		expect(isBuiltWebUiDir(mkdtempSync(join(tmpdir(), "webui-src-")), source)).toBe(false);
+		expect(isBuiltWebUiDir(dirWithAssets(), source)).toBe(false);
+	});
+
+	it("rejects a missing index.html", () => {
+		expect(isBuiltWebUiDir(dirWithAssets(), null)).toBe(false);
+	});
+});
+
+describe("unbuiltWebUiPage", () => {
+	it("says why and how to fix it, instead of a blank page", () => {
+		const html = unbuiltWebUiPage("/pinned/src/web-ui");
+		expect(html).toContain("no built web UI");
+		expect(html).toContain("npm run build");
+		expect(html).toContain("/pinned/src/web-ui");
+	});
+
+	it("escapes the path it echoes", () => {
+		expect(unbuiltWebUiPage('/x/<script>"')).not.toContain("<script>");
 	});
 });

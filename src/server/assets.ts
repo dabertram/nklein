@@ -44,6 +44,42 @@ export function getWebUiDir(): string {
 	return repoSourcePath;
 }
 
+/**
+ * Whether [dir] holds a BUILT web UI. An `index.html` alone is not enough: the web UI's source folder has one
+ * too, whose module script is `/src/main.tsx` — which only the Vite dev server can serve, never a browser.
+ * `getWebUiDir()` falls back to that source folder when no build exists, and the old startup check (index.html
+ * readable) passed it, so a runtime started from a checkout without `web-ui/dist` (the pinned SWE-bench drain,
+ * 2026-09-18) served a blank page: the browser fetched `/src/main.tsx` as application/octet-stream and refused
+ * to run it, with nothing anywhere saying the UI had never been built.
+ */
+export function isBuiltWebUiDir(dir: string, indexHtml: string | null): boolean {
+	if (indexHtml === null) {
+		return false;
+	}
+	if (!existsSync(join(dir, "assets"))) {
+		return false;
+	}
+	return !/src=["']\/src\/main\.tsx["']/.test(indexHtml);
+}
+
+/** What the browser gets from a runtime with no built web UI: the reason and the fix, instead of a blank page. */
+export function unbuiltWebUiPage(webUiDir: string): string {
+	const escaped = webUiDir.replace(
+		/[&<>"]/g,
+		(c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c,
+	);
+	return `<!doctype html><html><head><meta charset="utf-8"><title>!Klein — web UI not built</title></head>
+<body style="font-family:system-ui;background:#0d0f14;color:#e6e6e6;max-width:640px;margin:15vh auto;padding:0 24px">
+<h1 style="font-size:20px">This !Klein runtime has no built web UI</h1>
+<p>The runtime and its API are running. The browser UI was never built for this checkout, so there is nothing to show
+here — this used to be a blank page.</p>
+<p>Looked in: <code>${escaped}</code></p>
+<p>Either build it — <code>npm run build</code> in the checkout the runtime runs from — or run the web UI's Vite dev
+server pointed at this runtime (<code>NKLEIN_RUNTIME_PORT=&lt;this port&gt; npm run dev</code> in <code>web-ui/</code>,
+on the dev port the runtime allows, 4173 by default).</p>
+</body></html>`;
+}
+
 function shouldFallbackToIndexHtml(pathname: string): boolean {
 	return !extname(pathname);
 }
