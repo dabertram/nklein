@@ -63,7 +63,7 @@ const STREAM = process.env.CLAUDE_STREAM === "1";
 const MAX_COST_USD = Number(process.env.CLAUDE_MAX_COST_USD ?? 0) || 0;
 const QUOTA_PAUSE_MS = Number(process.env.CLAUDE_QUOTA_PAUSE_MS ?? 10 * 60_000);
 const QUOTA_SIGNS =
-	/usage limit|rate.?limit|quota|too many requests|429|insufficient credit|billing|upgrade your plan|overloaded/iu;
+	/usage limit|rate.?limit|quota|too many requests|\b429\b|insufficient credit|billing|upgrade your plan|overloaded|reached your .{0,40}limit/iu;
 // LIVENESS. A rig whose responder has died looks exactly like one that is thinking hard: the server holds the
 // request open for HITL_ANSWER_TIMEOUT_S (90 minutes by default) and the caller simply hangs. Live 2026-09-17,
 // the dsh rig's responder exited and NOTHING noticed for 25 hours — eight requests piled up unread and the ninth
@@ -122,9 +122,32 @@ function vendorMessage(error) {
 	}
 }
 
-/** Whether an error is the subscription saying no, rather than the model failing a turn. */
-function isQuotaRefusal(error) {
-	return QUOTA_SIGNS.test(error instanceof Error ? error.message : String(error));
+/**
+ * Whether an error is the subscription saying no, rather than the model failing a turn.
+ *
+ * When `claude -p` fails it prints its whole JSON result — token counts, costs, a session UUID — and the error
+ * message carries it. Matching the quota signs over ALL of that misread a UUID as a rate limit: live 2026-09-18,
+ * "06d54718-1f6d-429b-…" matched the bare `429` of the old pattern, and a turn where Haiku overran the 16k
+ * output cap ("Claude's response exceeded the 16000 output token maximum") was treated as quota — paused 15
+ * minutes, then re-sent. So the CLI's own verdict comes first: its HTTP status, then its `result` text. Only a
+ * message with neither (a crash, plain stderr) is searched whole, with 429 matched as a number and not inside
+ * an id.
+ */
+export function isQuotaRefusal(error) {
+	const { text, status, result } = cliVerdict(error);
+	if (status === "429" || status === "529") return true;
+	if (result !== undefined) return QUOTA_SIGNS.test(result);
+	return QUOTA_SIGNS.test(text);
+}
+
+/** The CLI's own account of a failure, when its JSON result is in the message: HTTP status and `result` text. */
+function cliVerdict(error) {
+	const text = error instanceof Error ? error.message : String(error);
+	return {
+		text,
+		status: /"api_error_status":\s*(\d{3})/u.exec(text)?.[1],
+		result: /"result":\s*"((?:[^"\\]|\\.)*)"/u.exec(text)?.[1],
+	};
 }
 
 /**
@@ -137,12 +160,17 @@ function isQuotaRefusal(error) {
  * while measuring our network.
  */
 const TRANSIENT_SIGNS =
-	/ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket hang up|network error|Can't reach the API server|502|503|504|Bad Gateway|Service Unavailable|Gateway Time-?out/iu;
+	/ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket hang up|network error|Can't reach the API server|\b50[234]\b|Bad Gateway|Service Unavailable|Gateway Time-?out/iu;
 const TRANSIENT_RETRIES = Math.max(0, Number(process.env.CLAUDE_TRANSIENT_RETRIES ?? 3) || 3);
 const TRANSIENT_BACKOFF_MS = Math.max(1_000, Number(process.env.CLAUDE_TRANSIENT_BACKOFF_MS ?? 15_000) || 15_000);
 
-function isTransientFailure(error) {
-	return TRANSIENT_SIGNS.test(error instanceof Error ? error.message : String(error));
+// Same rule as quota: the CLI's verdict first. Unanchored 502/503/504 matched token counts ("outputTokens":5034)
+// in the CLI's JSON, which would re-send a turn the model had simply failed three times as a "network error".
+export function isTransientFailure(error) {
+	const { text, status, result } = cliVerdict(error);
+	if (status !== undefined) return status === "502" || status === "503" || status === "504";
+	if (result !== undefined) return TRANSIENT_SIGNS.test(result);
+	return TRANSIENT_SIGNS.test(text);
 }
 
 /** The CLI seat for a request: its `model` through CLAUDE_MODEL_MAP, else the configured default. */
@@ -621,4 +649,5 @@ async function main() {
 	}
 }
 
-await main();
+// Tests import the classifiers; importing must not start the queue loop.
+if (process.env.CLAUDE_RESPONDER_IMPORT_ONLY !== "1") await main();
