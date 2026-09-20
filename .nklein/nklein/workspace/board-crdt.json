@@ -324,7 +324,7 @@
         "title": {
           "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -385,9 +385,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -409,7 +409,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -736,7 +736,7 @@
         "title": {
           "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own eviden…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -797,9 +797,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -821,7 +821,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -839,7 +839,7 @@
         "title": {
           "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -900,9 +900,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -924,7 +924,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -942,7 +942,7 @@
         "title": {
           "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1003,9 +1003,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1027,7 +1027,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1045,7 +1045,7 @@
         "title": {
           "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runti…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1106,9 +1106,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1130,7 +1130,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -4377,9 +4377,9 @@
           }
         },
         "prompt": {
-          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 404):\n- ebc76fec9 fix(rig): a UUID is not a rate limit — the Claude responder reads the CLI's verdict before pattern-matching\n- e34472d39 fix(runtime): an unbuilt web UI served a blank page — explain it instead\n- b0a9e391e docs(swebench): finding 62 — the closure signature ignores install_requires, and it cost django 3.0\n- 1e712f5a7 fix(rig): a wire failure is retried, not answered — it was costing whole benchmark instances\n- 7a38d762d fix(swebench): force UTF-8 stdout in the grade container — django dies on its own ellipsis without it\n- 2142d120a docs(swebench): finding 61 — the free win that would have inflated the score\n- 4446c626a fix(swebench): a resolve on an EMPTY patch is impossible by construction\n- b49341315 docs(swebench): finding 60 — astropy 3.1's unpinned pyparsing turns a deprecation into 80 collection errors\n- 3376ccfda docs(swebench): findings 57-59 — the self-inflicted record, the aborted selection, and the starved daemon\n- 30b3dfd23 fix(swebench): a selection pytest cannot fully find corrects itself\n- 65f5a29c5 fix(swebench): the repo under test is never a requirement of itself\n- 5991629d5 fix(swebench): a gate proof is of the grader AND the cache it installed from\n- 7a9f7aeb5 feat(swebench): the gate prepares a closure its spec's prepare never saw\n- e3e9d9bdc feat(swebench): a dirty gate row keeps the grader's output tail\n- e6cfb3562 fix(swebench): a recorded requirement that moves a package can apply, and one that cannot refuses\n- e7e8e011d feat(swebench): the closure gate is a committed tool with a durable ledger, not a scratchpad\n- 34109dfa3 fix(rig): one call per model seat — concurrency across seats, not within one\n- f3dce30b3 fix(rig): a safeguard refusal is retried without past deliberation, and says what the model said\n- b9c363a46 fix(swebench): a recorded requirement is a floor, not an order to reinstall\n- 4f458efdb fix(swebench): honour the unresolved list in build requirements, and stop predicting which backend a checkout gets\n- 4e4bdb285 fix(swebench): editable_mode is a PEP 660 setting — a setup.py-only checkout must not be given it\n- 24fe0bce5 fix(swebench): a build pin the platform cannot supply is NAMED, not fatal\n- 9df14a9e0 docs(todo): findings 49–55 — the closure gate's recoveries, and the quotes we were handing to pip\n- 72e33a736 fix(swebench): upstream quotes its version specifiers, and we were handing the quotes to pip\n- 55d061a32 docs(swebench): findings 49–54 from the closure gate, with the recoveries they bought\n- d994cd6df fix(swebench): the constraint for a recorded requirement is the environment itself, frozen\n- f3f2882e7 fix(swebench): PEP 660 hid the checkout from sys.path — pylint's \"unexplained\" 105 tests explained\n- f8dee39c1 fix(swebench): fill in only the MISSING dependencies, set astropy offline from a plugin, name the dataset's own seals\n- 3f6857394 fix(swebench): drop a build-era setuptools cap that makes the install impossible, and stop installing half a package\n- b55c8f1e6 fix(swebench): the build backend is declared by the checkout, not by the spec\n- 75fc278e8 fix(swebench): the recorder retracts what it broke, and astropy stops asking the internet for the time\n- 72ffc2033 fix(swebench): colour hid the missing-package skips — the third time colour has changed a result\n- 51f7db34f docs(swebench): findings 44–48 and the gate's new unit — the closure, not the spec\n- 515270533 fix(swebench): three more defects the per-spec gate could not see, all found by the variant gate\n- 33f2ad0ec fix(swebench): a spec's closure covers every sibling instance, and a failed install refuses instead of scoring\n- 0edd285df feat(rigs): a budget stop and a quota pause, so an arm cannot spend into overage\n- b74067dfd docs(swebench): the environment gate is closed — 81 of 81 controls clean\n- cab7c393f fix(swebench): the era's pytest for nose-style suites, and graphviz in the image\n- 36e2ba443 feat(swebench): a test that fails in a pristine tree is sealed and named, not counted\n- a6088af5f fix(swebench): the collect intersection is for node ids only, and the selection lives in a file",
+          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 404):\n- 2228d0aa5 ui: the two \"less\" detail levels show less — and the chrome around them stops fighting the viewport\n- ebc76fec9 fix(rig): a UUID is not a rate limit — the Claude responder reads the CLI's verdict before pattern-matching\n- e34472d39 fix(runtime): an unbuilt web UI served a blank page — explain it instead\n- b0a9e391e docs(swebench): finding 62 — the closure signature ignores install_requires, and it cost django 3.0\n- 1e712f5a7 fix(rig): a wire failure is retried, not answered — it was costing whole benchmark instances\n- 7a38d762d fix(swebench): force UTF-8 stdout in the grade container — django dies on its own ellipsis without it\n- 2142d120a docs(swebench): finding 61 — the free win that would have inflated the score\n- 4446c626a fix(swebench): a resolve on an EMPTY patch is impossible by construction\n- b49341315 docs(swebench): finding 60 — astropy 3.1's unpinned pyparsing turns a deprecation into 80 collection errors\n- 3376ccfda docs(swebench): findings 57-59 — the self-inflicted record, the aborted selection, and the starved daemon\n- 30b3dfd23 fix(swebench): a selection pytest cannot fully find corrects itself\n- 65f5a29c5 fix(swebench): the repo under test is never a requirement of itself\n- 5991629d5 fix(swebench): a gate proof is of the grader AND the cache it installed from\n- 7a9f7aeb5 feat(swebench): the gate prepares a closure its spec's prepare never saw\n- e3e9d9bdc feat(swebench): a dirty gate row keeps the grader's output tail\n- e6cfb3562 fix(swebench): a recorded requirement that moves a package can apply, and one that cannot refuses\n- e7e8e011d feat(swebench): the closure gate is a committed tool with a durable ledger, not a scratchpad\n- 34109dfa3 fix(rig): one call per model seat — concurrency across seats, not within one\n- f3dce30b3 fix(rig): a safeguard refusal is retried without past deliberation, and says what the model said\n- b9c363a46 fix(swebench): a recorded requirement is a floor, not an order to reinstall\n- 4f458efdb fix(swebench): honour the unresolved list in build requirements, and stop predicting which backend a checkout gets\n- 4e4bdb285 fix(swebench): editable_mode is a PEP 660 setting — a setup.py-only checkout must not be given it\n- 24fe0bce5 fix(swebench): a build pin the platform cannot supply is NAMED, not fatal\n- 9df14a9e0 docs(todo): findings 49–55 — the closure gate's recoveries, and the quotes we were handing to pip\n- 72e33a736 fix(swebench): upstream quotes its version specifiers, and we were handing the quotes to pip\n- 55d061a32 docs(swebench): findings 49–54 from the closure gate, with the recoveries they bought\n- d994cd6df fix(swebench): the constraint for a recorded requirement is the environment itself, frozen\n- f3f2882e7 fix(swebench): PEP 660 hid the checkout from sys.path — pylint's \"unexplained\" 105 tests explained\n- f8dee39c1 fix(swebench): fill in only the MISSING dependencies, set astropy offline from a plugin, name the dataset's own seals\n- 3f6857394 fix(swebench): drop a build-era setuptools cap that makes the install impossible, and stop installing half a package\n- b55c8f1e6 fix(swebench): the build backend is declared by the checkout, not by the spec\n- 75fc278e8 fix(swebench): the recorder retracts what it broke, and astropy stops asking the internet for the time\n- 72ffc2033 fix(swebench): colour hid the missing-package skips — the third time colour has changed a result\n- 51f7db34f docs(swebench): findings 44–48 and the gate's new unit — the closure, not the spec\n- 515270533 fix(swebench): three more defects the per-spec gate could not see, all found by the variant gate\n- 33f2ad0ec fix(swebench): a spec's closure covers every sibling instance, and a failed install refuses instead of scoring\n- 0edd285df feat(rigs): a budget stop and a quota pause, so an arm cannot spend into overage\n- b74067dfd docs(swebench): the environment gate is closed — 81 of 81 controls clean\n- cab7c393f fix(swebench): the era's pytest for nose-style suites, and graphviz in the image\n- 36e2ba443 feat(swebench): a test that fails in a pristine tree is sealed and named, not counted",
           "stamp": {
-            "counter": 1789873819185,
+            "counter": 1789873947031,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4433,9 +4433,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873819185,
+          "value": 1789873947031,
           "stamp": {
-            "counter": 1789873819185,
+            "counter": 1789873947031,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4457,7 +4457,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873819185,
+          "counter": 1789873947031,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5276,7 +5276,7 @@
         "title": {
           "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5337,9 +5337,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5361,7 +5361,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8357,7 +8357,7 @@
         "title": {
           "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8431,9 +8431,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8448,7 +8448,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8793,7 +8793,7 @@
         "title": {
           "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8867,9 +8867,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8884,7 +8884,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9229,7 +9229,7 @@
         "title": {
           "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9303,9 +9303,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9320,7 +9320,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9447,7 +9447,7 @@
         "title": {
           "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9521,9 +9521,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9538,7 +9538,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9992,7 +9992,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — Phase 3 — model learning, ro…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10059,9 +10059,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10083,7 +10083,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10101,7 +10101,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.BD — Schema-tolerance swee…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10168,9 +10168,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10192,7 +10192,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10210,7 +10210,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM — Surfaced test-failure…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10277,9 +10277,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10301,7 +10301,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10319,7 +10319,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM + 5.BD — moved from tod…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10386,9 +10386,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10410,7 +10410,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10428,7 +10428,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/config/runtime-co…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10495,9 +10495,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10519,7 +10519,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10537,7 +10537,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/commands/task.ts`…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10604,9 +10604,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10628,7 +10628,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10646,7 +10646,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.13 Recovery, artifact appl…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10713,9 +10713,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10737,7 +10737,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10755,7 +10755,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.12 SDK vendoring & repo in…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10822,9 +10822,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10846,7 +10846,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10864,7 +10864,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.11 Runtime control, chat U…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10931,9 +10931,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10955,7 +10955,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10973,7 +10973,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.10 Polyglot core, native a…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11040,9 +11040,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11064,7 +11064,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11082,7 +11082,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.9 Strict Docker agent isol…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11149,9 +11149,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11173,7 +11173,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11191,7 +11191,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.8 Operator UI & observabil…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11258,9 +11258,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11282,7 +11282,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11395,7 +11395,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.6 Autonomous decomposition…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11462,9 +11462,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11486,7 +11486,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11504,7 +11504,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.5 Parallel local swarm exe…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11571,9 +11571,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11595,7 +11595,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11613,7 +11613,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.4 Model Capability & Speed…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11680,9 +11680,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11704,7 +11704,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11722,7 +11722,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.3 Context budget visualiza…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11789,9 +11789,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11813,7 +11813,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11926,7 +11926,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.1 Local-only platform & cl…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11993,9 +11993,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12017,7 +12017,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12035,7 +12035,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Y — Security hardening backlog *(rais…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12102,9 +12102,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12126,7 +12126,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12144,7 +12144,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.T — Settings/UI polish *(raised 2026-…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12211,9 +12211,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12235,7 +12235,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12253,7 +12253,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Q — Model telemetry & performance-sta…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12320,9 +12320,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12344,7 +12344,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12362,7 +12362,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.K — Second-opinion reviewer workflow…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12429,9 +12429,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12453,7 +12453,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12566,7 +12566,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.A — Finish strict-isolation reconcili…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12633,9 +12633,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12657,7 +12657,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12675,7 +12675,7 @@
         "title": {
           "value": "P1.SANDBOXPACKS — the sandbox is READY for Python and extensible per ecosystem (…",
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12749,9 +12749,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789873857910,
+          "value": 1789873984942,
           "stamp": {
-            "counter": 1789873857910,
+            "counter": 1789873984942,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12766,7 +12766,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13093,7 +13093,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13129,7 +13129,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13141,7 +13141,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13153,7 +13153,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13165,7 +13165,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13177,7 +13177,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13189,7 +13189,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13201,7 +13201,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13213,7 +13213,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13225,7 +13225,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13237,7 +13237,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13249,7 +13249,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13405,7 +13405,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13417,7 +13417,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13429,7 +13429,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13441,7 +13441,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13465,7 +13465,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13489,7 +13489,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13501,7 +13501,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13513,7 +13513,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13525,7 +13525,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13645,7 +13645,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13693,7 +13693,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13741,7 +13741,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13765,7 +13765,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13825,7 +13825,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13837,7 +13837,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13849,7 +13849,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13861,7 +13861,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13873,7 +13873,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13885,7 +13885,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13897,7 +13897,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13909,7 +13909,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13921,7 +13921,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13933,7 +13933,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13945,7 +13945,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13957,7 +13957,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13969,7 +13969,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13981,7 +13981,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13993,7 +13993,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14005,7 +14005,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14017,7 +14017,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14029,7 +14029,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14041,7 +14041,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14053,7 +14053,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14065,7 +14065,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14077,7 +14077,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14089,7 +14089,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14101,7 +14101,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14113,7 +14113,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14125,7 +14125,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14137,7 +14137,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14149,7 +14149,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789873857910,
+          "counter": 1789873984942,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }

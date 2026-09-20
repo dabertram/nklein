@@ -155,6 +155,9 @@ export type RuntimeSettingsSection = "shortcuts";
 
 const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["nklein"];
 
+/** The maintained documentation: the repository README (quick start) and docs/. */
+const DOCS_URL = "https://github.com/dabertram/nklein#readme";
+
 const ADVANCED_POLICY_ROWS = [
 	{
 		label: "Routing policy",
@@ -1959,8 +1962,8 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Injects the current date into the chat agent&apos;s context when a message is
-										time-sensitive (&sect;5.AC &quot;knows today&quot;). Off by default; relevance-gated +
-										placed to preserve prompt caching.
+										time-sensitive. Off by default; only added when relevant, and placed so prompt caching
+										keeps working.
 									</p>
 								</div>
 								<div className="border-t border-border pt-4">
@@ -1981,8 +1984,8 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										A chat reply cut off mid-answer is re-asked with an escalating token budget (bounded by a
-										pass cap + ceiling, &sect;5.AA). ON by default; when off, a single one-shot retry remains.
-										The <code>NKLEIN_CHAT_ADAPTIVE_TRUNCATION</code> env var still overrides either way.
+										pass cap + ceiling). ON by default; when off, a single one-shot retry remains. The{" "}
+										<code>NKLEIN_CHAT_ADAPTIVE_TRUNCATION</code> env var still overrides either way.
 									</p>
 								</div>
 								<div className="border-t border-border pt-4">
@@ -2004,7 +2007,7 @@ export function RuntimeSettingsDialog({
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Sizes a chat turn&apos;s <code>max_tokens</code> with a thinking reserve on top of the
 										answer budget so a reasoning model&apos;s reply isn&apos;t starved by its own thinking
-										burn (&sect;5.AN). OFF by default; only applies when no explicit budget is set. The{" "}
+										burn. OFF by default; only applies when no explicit budget is set. The{" "}
 										<code>NKLEIN_REASONING_BUDGET</code> env var also enables it.
 									</p>
 								</div>
@@ -2026,8 +2029,8 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Lets agents + chat use the online <code>research</code>/<code>web_search</code> tool
-										against a configured search backend (&sect;5.AC). OFF by default (fail-closed); the
-										runtime reaches only that backend, which queries the web. SSRF-guarded.
+										against a configured search backend. OFF by default (fail-closed); the runtime reaches
+										only that backend, which queries the web. SSRF-guarded.
 									</p>
 									<div className="ml-11 mt-2">
 										<label
@@ -2121,8 +2124,8 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Offers the baked-in, offline MCP servers (codebase-memory, sequential-thinking,
-										basic-memory) to agents whose capability ruleset allows MCP (&sect;5.AR). ON by default;
-										each runs inside the <code>--network none</code> sandbox.
+										basic-memory) to agents whose capability ruleset allows MCP. ON by default; each runs
+										inside the <code>--network none</code> sandbox.
 									</p>
 								</div>
 								<div className="border-t border-border pt-4">
@@ -2143,9 +2146,9 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Lets agents keep persistent per-project Markdown notes via the sandboxed basic-memory MCP
-										server (&sect;5.AR). OFF by default because it adds the ONLY writable mounts to the
-										otherwise read-only sandbox. Needs curated sandbox MCP servers on; applies to newly
-										started containers. The <code>NKLEIN_BASIC_MEMORY</code> env var also enables it.
+										server. OFF by default because it adds the ONLY writable mounts to the otherwise read-only
+										sandbox. Needs curated sandbox MCP servers on; applies to newly started containers. The{" "}
+										<code>NKLEIN_BASIC_MEMORY</code> env var also enables it.
 									</p>
 									<CuratedMcpStatusPanel
 										preview={sandboxMcpPreview}
@@ -2172,8 +2175,8 @@ export function RuntimeSettingsDialog({
 									</label>
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Taints untrusted (web/MCP/repo) content and refuses a later protected sink (host
-										write/command/git) without a trusted plan (&sect;5.M). OFF by default;
-										assume-injection-succeeds defense for when online + MCP tools are live.
+										write/command/git) without a trusted plan. OFF by default; assume-injection-succeeds
+										defense for when online + MCP tools are live.
 									</p>
 								</div>
 							</div>
@@ -2558,7 +2561,7 @@ export function RuntimeSettingsDialog({
 										</select>
 									</label>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-										§5.AB routing policy for hard cards: wait for the top qualified model to free up, or start
+										Routing policy for hard cards: wait for the top qualified model to free up, or start
 										immediately on the best model available.
 									</p>
 								</div>
@@ -2615,9 +2618,9 @@ export function RuntimeSettingsDialog({
 									</div>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
 										Seeds each second-opinion review with complexity-matched focus lenses (correctness, edge
-										cases, security, …) so the reviewer covers distinct angles instead of one generic pass
-										(&sect;5.AW). OFF by default; needs second-opinion review on. The{" "}
-										<code>NKLEIN_REVIEW_LENSES</code> env var also enables it.
+										cases, security, …) so the reviewer covers distinct angles instead of one generic pass OFF
+										by default; needs second-opinion review on. The <code>NKLEIN_REVIEW_LENSES</code> env var
+										also enables it.
 									</p>
 								</div>
 								<div style={{ gridColumn: "1 / span 2" }}>
@@ -3238,8 +3241,8 @@ export function RuntimeSettingsDialog({
 											Skill dynamics
 										</h6>
 										<p className="m-0 mb-3 text-[12px] text-text-secondary">
-											How dynamic vs. strict !Klein’s per-task skill/prompt assignment is (§5.AE). A project
-											can override this in its Project Settings.
+											How dynamic vs. strict !Klein’s per-task skill/prompt assignment is. A project can
+											override this in its Project Settings.
 										</p>
 										<NativeSelect
 											id="runtime-settings-skill-dynamics-level"
@@ -4057,14 +4060,17 @@ export function RuntimeSettingsDialog({
 					</div>
 				</div>
 				<DialogFooter>
-					{/* Docs aren't published yet (todo §5.T): keep the entry point visible but disabled so it doesn't
-					    open a dead link. Native title attr (the dialog's tooltip pattern; no TooltipProvider here).
-					    Re-enable once docs.nklein.bot is live. */}
-					<span className="mr-auto mt-[3px] inline-flex" title="Documentation isn't available yet — coming soon.">
-						<Button size="sm" variant="ghost" icon={<ExternalLink size={14} />} disabled>
-							Read the docs (not yet available)
-						</Button>
-					</span>
+					{/* The maintained docs live in the repository (README quick start + docs/); a hosted site does not
+					    exist yet, so link the source of truth rather than showing a disabled "coming soon" control. */}
+					<a
+						href={DOCS_URL}
+						target="_blank"
+						rel="noreferrer"
+						className="mr-auto inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-border-focus"
+					>
+						<ExternalLink size={14} />
+						Read the docs
+					</a>
 					<Button onClick={() => handleDialogOpenChange(false)} disabled={controlsDisabled}>
 						Cancel
 					</Button>

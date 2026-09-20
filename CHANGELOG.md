@@ -2,6 +2,16 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The two "less" detail levels now show less.** Minimalistic (the conversation) and Clean (the live map) drop
+  the board-operator chrome: git branch/fetch/pull/push, script shortcuts, the code-intelligence status and the
+  shortcut cheat-sheet appear from Advanced up. The level strip itself fits a phone (short keys, one row, no
+  three-line badges), the title bar shows the tail of the workspace path on one line with the full path in the
+  tooltip, and a long path can no longer squeeze the branch chip to one letter per row. Also: the Get-started
+  dialog had two close buttons; the board header clipped the "needs you" chip on wide screens; the sidebar's
+  code-intelligence status wrapped into a five-line column; a card's empty chat pane now says what it is for;
+  a linked LM Link host is labelled as one instead of by its raw 32-hex id; and Settings copy no longer cites
+  internal backlog section codes — the "Read the docs" link now opens the repository documentation.
+
 - **A model that batches several tool calls in one turn now gets all of them executed.** When a skill profile
   routed a turn through the direct forced-tool path, only the first call of the batch was run and persisted — a
   planner that laid out a whole spine in one turn (one focus-chain update plus fifty-two cards) saw exactly one
