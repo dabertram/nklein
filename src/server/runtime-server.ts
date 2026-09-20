@@ -7837,6 +7837,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// Expose the nonce only when the runtime was spawned by the desktop
 			// shell (env var set). Readable only by someone who already knows the
 			// URL; never logged or written to disk by this handler.
+			// ── Liveness ──────────────────────────────────────────────────────────
+			// The SWE-bench runner (and any operator script) probes GET /health before driving a runtime. There was
+			// never a route for it: the probe passed only because an unrouted path fell through to the web UI's
+			// index.html with a 200. e34472d39 made an UNBUILT web UI answer every non-API path with a 503 page, and
+			// with that the probe failed on every pinned arm snapshot (no web-ui/dist) — the planning arm on
+			// 2026-09-20 refused to start over a page that had nothing to do with its health. Liveness is a route.
+			if (pathname === "/health" && req.method === "GET") {
+				res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+				res.end(JSON.stringify({ ok: true, webUiBuilt }));
+				return;
+			}
 			if (pathname === "/api/desktop-health" && req.method === "GET") {
 				const nonce = process.env.NKLEIN_DESKTOP_NONCE?.trim() || null;
 				if (!nonce) {
