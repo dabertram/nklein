@@ -10,6 +10,20 @@ import {
 } from "../../../src/chat/chat-browser-tool";
 import { readAllInjectionEvents } from "../../../src/state/injection-event-store";
 
+// The SSRF guard resolves hostnames through `node:dns/promises`. These tests used the REAL resolver for example.com
+// and friends, so on a saturated full-suite run over a slow uplink two of them exceeded the 15 s budget and failed the
+// pre-commit gate (2026-09-20). Same semantics as the live resolver for the names these tests use — example.com and
+// x.com resolve public; every other name is ENOTFOUND (which the guard treats as "cannot confirm internal", i.e. allowed)
+// — with zero network.
+vi.mock("node:dns/promises", () => ({
+	lookup: vi.fn(async (host: string) => {
+		if (host === "example.com" || host.endsWith(".example.com") || host === "x.com") {
+			return [{ address: "93.184.216.34", family: 4 }];
+		}
+		throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${host}`), { code: "ENOTFOUND" });
+	}),
+}));
+
 const tempRoots: string[] = [];
 afterAll(async () => {
 	await Promise.all(tempRoots.map((root) => rm(root, { recursive: true, force: true })));

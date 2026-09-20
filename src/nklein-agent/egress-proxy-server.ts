@@ -110,6 +110,12 @@ export interface EgressProxyServerDeps {
 	validateTaskIdentity?: (taskId: string, token: string) => boolean;
 	/** F2.5b production boundary: absent/invalid task credentials are denied before DNS or upstream dial. */
 	requireTaskIdentity?: boolean;
+	/**
+	 * Per-task time-bounded host grants (`egress-task-grants.ts`): hosts the ATTRIBUTED task may reach beyond the
+	 * role's static allowlist. Consulted only after a valid per-task credential attributed the request, so an
+	 * unattributed connection never inherits anyone's grant. Absent ⇒ static allowlist only (byte-identical).
+	 */
+	taskGrantHosts?: (taskId: string) => readonly string[];
 }
 
 export interface EgressProxyServer {
@@ -532,6 +538,14 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					if (identityClaim) {
 						attributedTaskId = identityClaim.taskId;
 					}
+					// Grants ride the ATTRIBUTED task only (never the anonymous listener); merged AFTER the static list so
+					// an operator allowlist entry is never shadowed and the audit still names the role + task.
+					const grantedHosts =
+						attributedTaskId !== null && deps.taskGrantHosts ? deps.taskGrantHosts(attributedTaskId) : [];
+					const effectiveSnapshot =
+						snapshot !== undefined && grantedHosts.length > 0
+							? { ...snapshot, allowlist: [...snapshot.allowlist, ...grantedHosts] }
+							: snapshot;
 					const transport: EgressProxyAuditTransport = parsed.ok
 						? egressProxyTransportForParsedKind(parsed.kind)
 						: "connect";
@@ -550,7 +564,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					}
 
 					// §5 step 2: decide WITHOUT addresses (no socket may open yet).
-					const verdict1 = decideProxyVerdict(parsed, snapshot);
+					const verdict1 = decideProxyVerdict(parsed, effectiveSnapshot);
 					if (verdict1.decision === "deny") {
 						refuse(verdict1, transport, null);
 						return;
@@ -585,7 +599,7 @@ export function createEgressProxyServer(deps: EgressProxyServerDeps): EgressProx
 					// §5 step 3: resolve host-side, then RE-decide WITH the addresses (anti-rebind).
 					const resolved = await resolveWithDeadline(parsed.host);
 					const resolvedIps = resolved.length > 0 ? resolved : null;
-					const verdict2 = decideProxyVerdict(parsed, snapshot, resolved);
+					const verdict2 = decideProxyVerdict(parsed, effectiveSnapshot, resolved);
 					if (verdict2.decision === "deny") {
 						refuse(verdict2, transport, resolvedIps);
 						return;

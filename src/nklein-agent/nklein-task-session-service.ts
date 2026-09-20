@@ -1,10 +1,13 @@
 import { readdirSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildEditorPrompt } from "../core/architect-editor-split";
 import { foldCapturedWorkProbe } from "../core/captured-work-basis";
 import { setCardPaused } from "../core/card-pause";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import { restrictToolPoliciesForVerdictSession, VERDICT_ONLY_SESSION_KINDS } from "../core/judge-tool-policy";
+import { isLookupEnabled } from "../core/lookup-policy";
 import { isModelMarkedDead } from "../core/model-liveness-ledger";
 import {
 	applyModelStatsTrackingLevel,
@@ -30,9 +33,14 @@ import {
 	restrictCommunitySkillToolExecutors,
 	restrictCommunitySkillToolPolicies,
 } from "./community-skill-tool-admission";
+import { createLookupReceiptStore, type LookupReceiptStore } from "./lookup-receipt-store";
 import { createArchitectRunner } from "./nklein-architect-runner";
-
+import { createLookupClient } from "./nklein-lookup-client";
+import { createNKleinLookupTool } from "./nklein-lookup-tool";
 import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
+import { createStepPlanController } from "./nklein-step-plan-controller";
+import { createStepPlanRunner, type StepPlanRole } from "./nklein-step-plan-runner";
+import { createStepPlanStore, type StepPlanStore } from "./step-plan-store";
 
 // Task-oriented facade for native NKlein sessions.
 // runtime-api.ts uses this service to start sessions, send messages, load
@@ -127,6 +135,7 @@ import { forgetAcceptanceEvidence } from "./nklein-acceptance-evidence-registry.
 import { createAcceptanceVerifier } from "./nklein-acceptance-verifier";
 import { createAdaptiveBudgetController } from "./nklein-adaptive-budget-controller";
 import {
+	AgentSandboxExecutionError,
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
 	type AgentSandboxShellTarget,
@@ -540,6 +549,116 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+	});
+	/**
+	 * Step planning (David 2026-09-20, NKLEIN_STEP_PLANNING): the bounded `::step-plan` planner + `::step-plan-review`
+	 * reviewer sessions and the per-card one-step-at-a-time controller. Stores are lazy (the diagnostic root is set
+	 * in the constructor); every degraded path runs the card unplanned.
+	 */
+	private lookupReceiptStoreCache: LookupReceiptStore | null = null;
+	private stepPlanStoreCache: StepPlanStore | null = null;
+	private resolveStepPlanRoleModel:
+		| ((role: StepPlanRole) => { providerId?: string | null; modelId?: string | null } | null)
+		| undefined;
+	private diagnosticRootOrDefault(): string {
+		return this.diagnosticStoreRoot ?? resolveNkleinRuntimeHomePath(homedir());
+	}
+	private getLookupReceiptStore(): LookupReceiptStore {
+		this.lookupReceiptStoreCache ??= createLookupReceiptStore(this.diagnosticRootOrDefault());
+		return this.lookupReceiptStoreCache;
+	}
+	/**
+	 * The `lookup` tool for a session, or null: the flag must be on, the sandbox egress proxy must have published its
+	 * worker listener, and the session's placement must hold a proxy credential — there is no direct-fetch fallback.
+	 */
+	private buildLookupToolForSession(sessionTaskId: string, cardId: string, projectRepoPath: string): AgentTool | null {
+		if (!isLookupEnabled()) {
+			return null;
+		}
+		const manager = this.agentSandboxManager;
+		const proxyUrl = manager?.getLookupProxyUrl(sessionTaskId) ?? null;
+		if (!manager || !proxyUrl) {
+			this.recordObservationWithModel({
+				signal: "custom",
+				severity: "warning",
+				message: `lookup is enabled but ${sessionTaskId} has no egress-proxy route (proxy off, listener not published, or no placement credential) — the tool is withheld, never routed around the proxy.`,
+				taskId: cardId,
+				metadata: { category: "lookup_route_unavailable", sessionTaskId },
+			});
+			return null;
+		}
+		return createNKleinLookupTool({
+			client: createLookupClient({ proxyUrl, grantHost: (host) => manager.issueLookupGrant(sessionTaskId, host) }),
+			store: this.getLookupReceiptStore(),
+			workspaceHash: hashWorkspacePathForLedger(projectRepoPath),
+			cardId,
+			currentStepId: () => this.stepPlanController.currentStepId(cardId),
+			onReceipt: (receipt) => this.stepPlanController.noteReceipt(cardId, receipt),
+		});
+	}
+	/** `complete_step` (when the card has an approved plan) + `lookup` (when enabled) for a WORKER session. */
+	private buildStepPlanSessionTools(taskId: string, projectRepoPath: string): AgentTool[] {
+		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
+			return [];
+		}
+		const tools: AgentTool[] = [];
+		const completeStep = this.stepPlanController.buildCompleteStepTool(taskId);
+		if (completeStep) {
+			tools.push(completeStep);
+		}
+		const lookup = this.buildLookupToolForSession(taskId, taskId, projectRepoPath);
+		if (lookup) {
+			tools.push(lookup);
+		}
+		return tools;
+	}
+	private readonly stepPlanRunner = createStepPlanRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		getPauseController: () => this.pauseController,
+		getHarness: () => this.secondarySessionHarness,
+		startRuntimeSession: (input) => this.startAuxiliaryRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt, admissionParentTaskId) =>
+			this.sendAuxiliaryTaskSessionInput(taskId, prompt, admissionParentTaskId ?? undefined),
+		pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
+		resolveRoleModel: (role) => this.resolveStepPlanRoleModel?.(role) ?? null,
+		buildLookupTool: (syntheticTaskId, cardId) =>
+			this.buildLookupToolForSession(
+				syntheticTaskId,
+				cardId,
+				this.launchConfigByTaskId.get(cardId)?.workspaceRoot ??
+					this.sessionRuntime.getTaskHostWorkspaceRoot(cardId) ??
+					"",
+			),
+		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+	});
+	private readonly stepPlanController = createStepPlanController({
+		runner: this.stepPlanRunner,
+		getStore: () => {
+			this.stepPlanStoreCache ??= createStepPlanStore(this.diagnosticRootOrDefault());
+			return this.stepPlanStoreCache;
+		},
+		runStepAcceptance: async (taskId, command) => {
+			const manager = this.agentSandboxManager;
+			if (!manager) {
+				throw new Error("no sandbox manager — a step acceptance cannot run");
+			}
+			try {
+				const output = await manager.runTool(taskId, "bash", { command });
+				return { exitCode: 0, output };
+			} catch (error) {
+				if (error instanceof AgentSandboxExecutionError) {
+					return {
+						exitCode: error.result.exitCode ?? 1,
+						output: `${error.result.stdout}\n${error.result.stderr}`,
+					};
+				}
+				return { exitCode: 1, output: error instanceof Error ? error.message : String(error) };
+			}
+		},
+		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
+		lookupAvailable: (taskId) => isLookupEnabled() && Boolean(this.agentSandboxManager?.getLookupProxyUrl(taskId)),
 	});
 	/** F11.2j auxiliary secondary-session runner: the bounded read-only `::explore` subagent (per-run query budget). */
 	private readonly explorerRunner = createExplorerRunner({
@@ -993,6 +1112,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		});
 		this.pauseController = options.pauseController ?? new NKleinPauseController();
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
+		this.resolveStepPlanRoleModel = options.resolveStepPlanRoleModel;
 		this.agentLedgerRoot = options.diagnosticStoreRoot
 			? join(options.diagnosticStoreRoot, "agent-attempt-ledger")
 			: undefined;
@@ -2157,10 +2277,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// §5.AC step 3: append the egress-gated web_search tool AFTER the sandbox tools (never mutate what
 		// createAgentSandboxExtraTools returns). retrievalToolsBuilder.build fails closed (default-off config, blank
 		// backend) and returns [] for synthetic `::` sessions, so reviewers/critics rebuilt here get no egress.
-		const baseCombinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
-			sandboxExtraTools,
-			this.retrievalToolsBuilder.build(input.taskId),
-		);
+		const baseCombinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(sandboxExtraTools, [
+			...this.retrievalToolsBuilder.build(input.taskId),
+			...this.buildStepPlanSessionTools(
+				input.taskId,
+				input.workspaceRoot ?? launchConfig.workspaceRoot ?? input.cwd,
+			),
+		]);
 		const sandboxToolExecutors = communitySkillAdmission
 			? restrictCommunitySkillToolExecutors(baseSandboxToolExecutors, communitySkillAdmission.effectiveTools)
 			: baseSandboxToolExecutors;
@@ -2342,6 +2465,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
 				onExplorerCitationsSubmitted: input.onExplorerCitationsSubmitted,
 				onArchitectBriefSubmitted: input.onArchitectBriefSubmitted,
+				onStepPlanSubmitted: input.onStepPlanSubmitted,
+				onStepPlanReviewSubmitted: input.onStepPlanReviewSubmitted,
 				// F11.2j (OPT-IN via NKLEIN_EXPLORER_SUBAGENT; default OFF = tool absent, byte-identical sessions):
 				// the worker-side `explore` delegation — one bounded read-only subagent query per call.
 				runExplorerQuery: isTruthyEnv(process.env.NKLEIN_EXPLORER_SUBAGENT)
@@ -3170,6 +3295,38 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						);
 					}
 				}
+				// Step planning (David 2026-09-20, opt-in NKLEIN_STEP_PLANNING; default OFF = byte-identical): a refinable
+				// work card gets a REVIEWED detailed step plan before its worker starts, and the worker's start prompt is
+				// step 1's self-contained instruction. Any planning failure runs the card unplanned (recorded by the controller).
+				if (
+					isTruthyEnv(process.env.NKLEIN_STEP_PLANNING) &&
+					!isDerivedTaskSessionId(request.taskId) &&
+					!isHomeAgentSessionId(request.taskId) &&
+					this.refinableWorkCardTaskIds.has(request.taskId)
+				) {
+					const stepPlanPrompt = await this.stepPlanController
+						.prepareStart({
+							taskId: request.taskId,
+							projectRepoPath: request.workspaceRoot ?? request.cwd,
+							taskTitle: request.taskTitle ?? null,
+							taskPrompt: runtimePrompt,
+							filesLikelyTouched: request.filesLikelyTouched ?? null,
+							writeScope: request.writeScope ?? null,
+						})
+						.catch((error) => {
+							process.stderr.write(
+								`[nklein] Step planning FAILED for ${request.taskId}: ${error instanceof Error ? error.message : String(error)} — worker starts unplanned.\n`,
+							);
+							return null;
+						});
+					if (stepPlanPrompt) {
+						workerStartPrompt = [
+							workerStartPrompt,
+							"A reviewed step plan exists for this card: the refinement pass is DONE. Call begin_implementation now, then execute the step below exactly as written.",
+							stepPlanPrompt,
+						].join("\n\n");
+					}
+				}
 				const baseToolApproval = runtimeSetup.createToolApproval({
 					taskId: request.taskId,
 					contextWindow: requestContextWindow,
@@ -3204,7 +3361,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								planMode: request.startInPlanMode === true,
 							})
 						: undefined,
-					this.retrievalToolsBuilder.build(request.taskId),
+					[
+						...this.retrievalToolsBuilder.build(request.taskId),
+						...this.buildStepPlanSessionTools(request.taskId, request.workspaceRoot ?? request.cwd),
+					],
 				);
 				const extraTools = communitySkillAdmission
 					? restrictCommunitySkillExtraTools(baseExtraTools, communitySkillAdmission.effectiveTools)
@@ -3842,6 +4002,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				metadata: { category: "input_after_decomposition_dropped" },
 			});
 			return null;
+		}
+		// Step planning: an operator STEER on a planned card is a replan trigger — the plan is revised (through review)
+		// with the instruction as evidence and the next step rides along with the operator's text.
+		const steeredStepPrompt =
+			options?.delivery === "steer" && this.stepPlanController.hasPlan(taskId)
+				? await this.stepPlanController.onUserSteer(taskId, text).catch(() => null)
+				: null;
+		if (steeredStepPrompt) {
+			text = `${text}\n\n${steeredStepPrompt}`;
 		}
 		const interruptedRecaptureOwed =
 			entry.summary.state === "interrupted" && this.sandboxState.recaptureExpectedReason(taskId) !== null;
@@ -4590,6 +4759,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * loaded non-embedding models, preferred diverse-first via applyDiversityPreference. Null ⇒ caller falls back to
 	 * the worker model (today's behavior), with the waiver surfaced as a self-observation.
 	 */
+	/** Step planning: the delivery review bounced a planned card — replan (through review) and hand back the next step. */
+	async stepPlanOnReviewBounce(taskId: string, feedback: string): Promise<string | null> {
+		if (!this.stepPlanController.hasPlan(taskId)) {
+			return null;
+		}
+		return this.stepPlanController.onReviewBounce(taskId, feedback).catch(() => null);
+	}
+
 	async pickDiverseEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null> {
 		// A worker's terminal transition deliberately clears the volatile launch cache before review begins. Review
 		// escalation happens later, so consulting only that map falsely reports "no candidate" for every normally

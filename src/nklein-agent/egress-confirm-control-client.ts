@@ -118,6 +118,24 @@ export async function issueEgressTaskIdentity(
 	}
 }
 
+/** Register one time-bounded per-task host grant (the `lookup` fetch leg). Returns the proxy's normalized host. */
+export async function issueEgressTaskGrant(
+	endpoint: EgressConfirmControlEndpoint,
+	grant: { taskId: string; host: string; ttlMs: number; purpose?: string },
+	options: EgressConfirmControlClientOptions = {},
+): Promise<{ host: string; expiresAt: number }> {
+	const body = (await requestControl(
+		endpoint,
+		"/task-grants/issue",
+		{ method: "POST", body: JSON.stringify(grant) },
+		options,
+	)) as { outcome?: unknown; host?: unknown; expiresAt?: unknown } | null;
+	if (body?.outcome !== "applied" || typeof body.host !== "string" || typeof body.expiresAt !== "number") {
+		throw new Error("egress control did not apply the task grant");
+	}
+	return { host: body.host, expiresAt: body.expiresAt };
+}
+
 /** Revoke one task credential before its sandbox placement is released. */
 export async function revokeEgressTaskIdentity(
 	endpoint: EgressConfirmControlEndpoint,

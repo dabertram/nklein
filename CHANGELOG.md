@@ -2,6 +2,24 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Step planning (opt-in): every card can be planned in detail, reviewed, and executed one step at a time.** With
+  `NKLEIN_STEP_PLANNING=1`, a planner session writes a step-by-step plan for the card — exact files and symbols, the
+  concrete change, the commands, an acceptance check per step, what the step must not do, a difficulty tag — and a
+  plan reviewer (a stronger or lineage-different model, `modelRoles.plan_reviewer`) checks it against an explicit
+  checklist before anything runs. The worker then gets one step at a time through `complete_step`; !Klein runs each
+  step's acceptance in the worker's sandbox before handing over the next. When a step keeps failing, the worker is
+  blocked, a review bounces the delivery, the base moves, or you steer the card, the plan is revised with the full
+  history of what was tried and reviewed again. Off by default; a planning failure never costs a card (it simply
+  runs unplanned and says so).
+
+- **`lookup` (opt-in): an online fact-check for facts a model would otherwise state from memory.** With
+  `NKLEIN_LOOKUP=1`, workers and planners get one tool that web-searches (DuckDuckGo's HTML endpoint, no API key) or
+  reads one result page as text. Every request leaves through the sandbox egress proxy under the task's own
+  credential — the search host joins the allowlist as `ecosystem:lookup`, result pages ride 30-second per-task
+  grants — and every request writes a receipt (URL, sha256 of the bytes, size, card and step, timestamp) with the body
+  cached locally, so a re-run is reproducible and you can audit exactly what left the machine. Plans mark steps that
+  rest on a fact with a `verify` block; such a step is accepted only with a cited receipt.
+
 - **A model that batches several tool calls in one turn now gets all of them executed.** When a skill profile
   routed a turn through the direct forced-tool path, only the first call of the batch was run and persisted — a
   planner that laid out a whole spine in one turn (one focus-chain update plus fifty-two cards) saw exactly one

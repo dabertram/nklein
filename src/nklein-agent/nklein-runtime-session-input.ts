@@ -8,6 +8,8 @@ import type { NKleinTaskRestartLaunchConfig } from "./nklein-launch-config";
 import type { NKleinMergeResolutionSubmittedHandler } from "./nklein-merge-resolution-tool";
 import type { NKleinPlanCritiqueSubmittedHandler } from "./nklein-plan-critique-tool";
 import type { NKleinReviewSubmittedHandler } from "./nklein-review-tool";
+import type { NKleinStepPlanReviewSubmittedHandler } from "./nklein-step-plan-review-tool";
+import type { NKleinStepPlanSubmittedHandler } from "./nklein-step-plan-tool";
 import type { NKleinSdkPersistedMessage } from "./sdk-runtime-boundary.js";
 
 /**
@@ -47,6 +49,10 @@ export interface StartRuntimeTaskSessionFromLaunchConfigInput {
 	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
 	/** F12.62: capture the `::architect` session's submit_implementation_brief hand-back. */
 	onArchitectBriefSubmitted?: NKleinArchitectBriefSubmittedHandler;
+	/** Step planning: capture the `::step-plan` session's submit_step_plan hand-back. */
+	onStepPlanSubmitted?: NKleinStepPlanSubmittedHandler;
+	/** Step planning: capture the `::step-plan-review` session's submit_step_plan_review verdict. */
+	onStepPlanReviewSubmitted?: NKleinStepPlanReviewSubmittedHandler;
 	toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
 	extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
 }

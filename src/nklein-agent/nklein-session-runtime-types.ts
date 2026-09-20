@@ -30,6 +30,8 @@ import type {
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { NKleinReviewSubmittedHandler } from "./nklein-review-tool";
+import type { NKleinStepPlanReviewSubmittedHandler } from "./nklein-step-plan-review-tool";
+import type { NKleinStepPlanSubmittedHandler } from "./nklein-step-plan-tool";
 import type { AgentTool } from "./sdk-agent-types";
 import type {
 	NKleinSdkPersistedMessage,
@@ -201,6 +203,10 @@ export interface StartNKleinSessionRuntimeRequest {
 	onExplorerCitationsSubmitted?: NKleinExplorerCitationsSubmittedHandler;
 	/** F12.62: capture the `::architect` session's submit_implementation_brief hand-back. */
 	onArchitectBriefSubmitted?: NKleinArchitectBriefSubmittedHandler;
+	/** Step planning: when provided, the `submit_step_plan` tool is attached and the plan reported here. */
+	onStepPlanSubmitted?: NKleinStepPlanSubmittedHandler;
+	/** Step planning: when provided, the `submit_step_plan_review` tool is attached and the verdict reported here. */
+	onStepPlanReviewSubmitted?: NKleinStepPlanReviewSubmittedHandler;
 	/** F11.2j: when provided, the worker-side `explore` tool is attached — one bounded read-only subagent query per call. */
 	runExplorerQuery?: NKleinExplorerQueryHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */

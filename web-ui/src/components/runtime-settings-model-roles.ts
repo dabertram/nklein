@@ -7,12 +7,16 @@ import type { RuntimeModelRoles, RuntimeTaskNKleinSettings } from "@/runtime/typ
  * live here as the single source of truth. Pure, self-contained: no React/state.
  */
 
-export const MODEL_ROLE_IDS = ["architect", "worker", "reviewer"] as const;
+// Step planning (2026-09-20): `planner` / `plan_reviewer` are read by the step-planning stage (NKLEIN_STEP_PLANNING);
+// unset ⇒ the planner inherits the card model and the reviewer takes the lineage-diverse pick.
+export const MODEL_ROLE_IDS = ["architect", "worker", "reviewer", "planner", "plan_reviewer"] as const;
 export type ModelRoleId = (typeof MODEL_ROLE_IDS)[number];
 export const MODEL_ROLE_LABELS: Record<ModelRoleId, string> = {
 	architect: "Architect",
 	worker: "Worker",
 	reviewer: "Reviewer",
+	planner: "Step planner",
+	plan_reviewer: "Plan reviewer",
 };
 
 function normalizeModelRoleTaskSettings(settings: RuntimeTaskNKleinSettings | undefined): RuntimeTaskNKleinSettings {

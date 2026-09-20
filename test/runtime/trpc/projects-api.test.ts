@@ -171,6 +171,14 @@ async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
 	}
 }
 
+// The one gitUrl test below only asserts WHERE the clone destination resolves; its comment already says the clone
+// itself is expected to fail. Without this mock it really dialed https://example.com — on a saturated full-suite run
+// over a slow uplink that took longer than the 15 s test budget and failed the pre-commit gate (2026-09-20). A unit
+// test must not depend on the network to fail.
+vi.mock("../../../src/workspace/git-clone", () => ({
+	cloneGitRepository: vi.fn(async () => ({ ok: false, error: "no git server in unit tests" })),
+}));
+
 function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 	return {
 		getActiveWorkspacePath: vi.fn(() => null),

@@ -399,6 +399,8 @@ export interface NKleinTaskSessionService {
 	setSandboxEgressConfig(enabled: boolean, allowlist: string): void;
 	/** F2.3b host-only control seam for listing/resolving this pool's pending egress confirms. */
 	getAgentSandboxManagerForEgressControl(): AgentSandboxManager | null;
+	/** Step planning: replan a planned card after a delivery-review bounce; the worker's next-step prompt, or null. */
+	stepPlanOnReviewBounce(taskId: string, feedback: string): Promise<string | null>;
 	setModelTurnAdmissionGate(gate: NKleinModelTurnAdmissionGate | null): void;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -481,6 +483,10 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * switch is on; `"local"`/`"on"` allow them (every curated server is local/offline). Live-updated on config change.
 	 */
 	agentMcpAccess?: McpAccess;
+	/** Step planning: `modelRoles.planner` / `modelRoles.plan_reviewer` from the runtime config (null ⇒ unset). */
+	resolveStepPlanRoleModel?: (
+		role: "planner" | "plan_reviewer",
+	) => { providerId?: string | null; modelId?: string | null } | null;
 	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.

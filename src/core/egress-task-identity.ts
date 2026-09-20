@@ -12,6 +12,8 @@ export interface EgressTaskIdentityRegistry {
 	issue: (taskId: string, token: string) => string;
 	/** Validate a claimed (taskId, token) pair against the issued credential. */
 	validate: (taskId: string, token: string) => boolean;
+	/** True when the task currently holds an issued credential (grants are only meaningful for such tasks). */
+	has: (taskId: string) => boolean;
 	/** Revoke the task's credential (session teardown). Idempotent. */
 	revoke: (taskId: string) => void;
 	clearAll: () => void;
@@ -39,6 +41,9 @@ export function createEgressTaskIdentityRegistry(): EgressTaskIdentityRegistry {
 		validate(taskId, token) {
 			const issued = tokenByTaskId.get(taskId);
 			return issued !== undefined && tokensEqual(issued, token);
+		},
+		has(taskId) {
+			return tokenByTaskId.has(taskId);
 		},
 		revoke(taskId) {
 			tokenByTaskId.delete(taskId);

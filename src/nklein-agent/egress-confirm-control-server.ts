@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { handleEgressConfirmControlRequest } from "../core/egress-confirm-control";
 import type { EgressConfirmQueue } from "../core/egress-confirm-queue";
+import type { EgressTaskGrantRegistry } from "../core/egress-task-grants";
 import type { EgressTaskIdentityRegistry } from "../core/egress-task-identity";
 
 /** Small enough to cover the bound decision while preventing an unauthenticated memory-amplification surface. */
@@ -11,6 +12,8 @@ const MAX_CONTROL_BODY_BYTES = 16 * 1024;
 export interface EgressConfirmControlServerOptions {
 	queue: EgressConfirmQueue;
 	taskIdentities?: EgressTaskIdentityRegistry;
+	/** Per-task time-bounded host grants (the `lookup` fetch leg); absent ⇒ the route answers 400. */
+	taskGrants?: EgressTaskGrantRegistry;
 	token: string;
 	host?: string;
 	port: number;
@@ -93,6 +96,7 @@ export function createEgressConfirmControlServer(
 						options.queue,
 						now(),
 						options.taskIdentities,
+						options.taskGrants,
 					);
 					sendJson(response, result.status, result.body);
 				} catch (error) {

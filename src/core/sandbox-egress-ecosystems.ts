@@ -31,6 +31,12 @@ export const SANDBOX_EGRESS_ECOSYSTEM_PACKS: Readonly<Record<string, readonly st
 	java: ["repo.maven.apache.org", "repo1.maven.org", "plugins.gradle.org", "services.gradle.org"],
 	/** RubyGems. */
 	ruby: ["rubygems.org", "index.rubygems.org"],
+	/**
+	 * The `lookup` fact-check tool's SEARCH leg (NKLEIN_LOOKUP): DuckDuckGo's server-rendered HTML endpoint — no API
+	 * key, no JavaScript. Result PAGES are never pre-listed: each fetch rides a per-task time-bounded grant issued by
+	 * the trusted runtime through the proxy's control channel (`egress-task-grants.ts`).
+	 */
+	lookup: ["html.duckduckgo.com"],
 };
 
 export const ECOSYSTEM_ENTRY_PREFIX = "ecosystem:";

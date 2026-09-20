@@ -177,6 +177,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 				| "previewSessionForkBoundary"
 				| "rewindTaskSessionForRetry"
 				| "describeBlockedWrites"
+				| "stepPlanOnReviewBounce"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -1656,7 +1657,17 @@ export async function runSecondOpinionReviewForTask(
 						);
 					}
 				}
-				await input.service.sendTaskSessionInput(input.taskId, `${workerPrompt}${fileScopeNote}`, "act");
+				// Step planning: a planned card replans (through review) on the bounce; the revised first step rides along
+				// with the re-work brief so the worker gets the reviewer's ask AND an executable instruction.
+				const stepPlanPrompt =
+					(await input.service.stepPlanOnReviewBounce?.(input.taskId, workerPrompt).catch(() => null)) ?? null;
+				await input.service.sendTaskSessionInput(
+					input.taskId,
+					stepPlanPrompt
+						? `${workerPrompt}${fileScopeNote}\n\n${stepPlanPrompt}`
+						: `${workerPrompt}${fileScopeNote}`,
+					"act",
+				);
 			},
 			onEscalate: async ({ review, workerPrompt }) => {
 				// W4.2: the stuck card retries ONCE on the diverse/stronger worker (the W1.1b override machinery).
