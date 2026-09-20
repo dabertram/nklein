@@ -15,15 +15,25 @@ export function Dialog({
 	children,
 	contentClassName,
 	contentAriaDescribedBy,
+	description,
 	onEscapeKeyDown,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	children: ReactNode;
 	contentClassName?: string;
+	/**
+	 * Point `aria-describedby` at an element YOU render. Radix still warns for this in production (it checks its
+	 * own description id, not yours) — prefer `description`, which renders a visually hidden Radix Description.
+	 */
 	contentAriaDescribedBy?: string;
+	/** Screen-reader description of the dialog, rendered visually hidden and wired up by Radix. */
+	description?: string;
 	onEscapeKeyDown?: (event: KeyboardEvent) => void;
 }): React.ReactElement {
+	// With a Radix Description present, leave `aria-describedby` to Radix; otherwise pass the caller's value
+	// (explicitly `undefined` when absent, which is what silences Radix's console warning).
+	const describedByProps = description ? {} : { "aria-describedby": contentAriaDescribedBy };
 	return (
 		<RadixDialog.Root open={open} onOpenChange={onOpenChange}>
 			<RadixDialog.Portal>
@@ -32,13 +42,16 @@ export function Dialog({
 					style={{ animation: "kb-overlay-show 150ms ease" }}
 				/>
 				<RadixDialog.Content
-					aria-describedby={contentAriaDescribedBy}
+					{...describedByProps}
 					onEscapeKeyDown={onEscapeKeyDown}
 					className={cn(
 						"kb-dialog-content fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-lg max-h-[85vh] flex flex-col rounded-lg border border-border-bright bg-surface-1 shadow-2xl focus:outline-none",
 						contentClassName,
 					)}
 				>
+					{description ? (
+						<RadixDialog.Description className="sr-only">{description}</RadixDialog.Description>
+					) : null}
 					{children}
 				</RadixDialog.Content>
 			</RadixDialog.Portal>

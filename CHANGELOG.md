@@ -9,8 +9,10 @@
   tooltip, and a long path can no longer squeeze the branch chip to one letter per row. Also: the Get-started
   dialog had two close buttons; the board header clipped the "needs you" chip on wide screens; the sidebar's
   code-intelligence status wrapped into a five-line column; a card's empty chat pane now says what it is for;
-  a linked LM Link host is labelled as one instead of by its raw 32-hex id; and Settings copy no longer cites
-  internal backlog section codes — the "Read the docs" link now opens the repository documentation.
+  a linked LM Link host is labelled as one instead of by its raw 32-hex id; Settings copy no longer cites
+  internal backlog section codes — the "Read the docs" link now opens the repository documentation; Add Project
+  offers "Initialize Git Repository" once instead of twice; and the production console is quiet (a Radix
+  accessibility warning fired on every Add Project open).
 
 - **A model that batches several tool calls in one turn now gets all of them executed.** When a skill profile
   routed a turn through the direct forced-tool path, only the first call of the batch was run and persisted — a

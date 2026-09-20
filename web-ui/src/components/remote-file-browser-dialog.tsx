@@ -117,7 +117,7 @@ export function RemoteFileBrowserDialog({
 			open={open}
 			onOpenChange={onOpenChange}
 			contentClassName="max-w-xl"
-			contentAriaDescribedBy="remote-file-browser-description"
+			description="Browse the remote server filesystem to select a project directory."
 		>
 			<DialogHeader title="Browse Remote Directory" icon={<FolderOpen size={16} />} />
 			<DialogBody className="flex flex-col gap-3 p-0">
@@ -233,11 +233,6 @@ function RemoteFileBrowserContent({
 
 			{/* Directory listing */}
 			<DirectoryEntryList isLoading={isLoading} error={error} entries={entries} onNavigate={onNavigate} />
-
-			{/* Hidden description for accessibility */}
-			<p id="remote-file-browser-description" className="sr-only">
-				Browse the remote server filesystem to select a project directory.
-			</p>
 		</>
 	);
 }
