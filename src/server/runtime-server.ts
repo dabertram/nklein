@@ -4570,6 +4570,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				withSearchBackend,
 				agentWebResearchAllowed,
 				agentMcpAccess,
+				// Step planning: per-role planner / plan-reviewer models from the (open-keyed) modelRoles config.
+				resolveStepPlanRoleModel: (role) => runtimeConfig.effectiveModelRoles[role] ?? null,
 				modelTurnAdmissionGate: createModelTurnAdmissionGate(scope),
 				agentSandboxManager,
 				onDecompositionApplied: async (event) => {

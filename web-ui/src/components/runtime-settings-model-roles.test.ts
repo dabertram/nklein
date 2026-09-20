@@ -9,7 +9,7 @@ import {
 
 describe("model role constants", () => {
 	it("exposes the three roles with labels", () => {
-		expect(MODEL_ROLE_IDS).toEqual(["architect", "worker", "reviewer"]);
+		expect(MODEL_ROLE_IDS).toEqual(["architect", "worker", "reviewer", "planner", "plan_reviewer"]);
 		expect(MODEL_ROLE_IDS.every((id) => typeof MODEL_ROLE_LABELS[id] === "string")).toBe(true);
 	});
 });

@@ -79,6 +79,16 @@ export function derivePromptSessionKind(
 	if (taskId.endsWith("::architect")) {
 		return "architect-brief";
 	}
+	// Step planning (2026-09-20): the planner session is a read-only single-deliverable session exactly like the
+	// architect brief (verdict-only tool set, judge prompt shell); the plan-review session is a critic exactly like the
+	// decompose plan-critique. Mapping onto the existing kinds keeps the tool-policy narrowing + prompt diet + warmth
+	// tiers unchanged for those kinds instead of growing the union.
+	if (taskId.endsWith("::step-plan")) {
+		return "architect-brief";
+	}
+	if (taskId.endsWith("::step-plan-review")) {
+		return "plan-critique";
+	}
 	return options?.isExplicitDecomposition ? "architect" : "worker";
 }
 

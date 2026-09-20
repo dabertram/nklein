@@ -102,6 +102,8 @@ import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { resolveContextWindowTokens, resolveSdkApiTimeoutMs, toSdkUserImages } from "./nklein-session-sdk-inputs";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
+import { createNKleinStepPlanReviewTool } from "./nklein-step-plan-review-tool";
+import { createNKleinStepPlanTool } from "./nklein-step-plan-tool";
 import {
 	createSwarmToolBrokerState,
 	type SwarmToolBrokerState,
@@ -654,6 +656,14 @@ ${new Error("stack").stack ?? ""}
 				: []),
 			...(request.onArchitectBriefSubmitted
 				? [createNKleinArchitectBriefTool({ onSubmitted: request.onArchitectBriefSubmitted })]
+				: []),
+			// Step planning (2026-09-20): the `::step-plan` / `::step-plan-review` sessions get their one hand-back tool,
+			// same handler-keyed pattern, so ordinary sessions never see the schema.
+			...(request.onStepPlanSubmitted
+				? [createNKleinStepPlanTool({ onSubmitted: request.onStepPlanSubmitted })]
+				: []),
+			...(request.onStepPlanReviewSubmitted
+				? [createNKleinStepPlanReviewTool({ onSubmitted: request.onStepPlanReviewSubmitted })]
 				: []),
 			// F11.2j worker sessions get the `explore` delegation tool when the service wired a query handler.
 			...(request.runExplorerQuery ? [createNKleinExploreTool(request.runExplorerQuery)] : []),
