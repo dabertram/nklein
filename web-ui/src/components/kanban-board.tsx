@@ -1063,9 +1063,11 @@ export function KanbanBoard({
 
 	return (
 		<div className="flex flex-1 min-h-0 min-w-0 flex-col">
-			<div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-1 px-3">
-				{/* The cockpit counts row never wraps mid-word ("Local␤swarm") — it scrolls horizontally on overflow. */}
-				<div className="flex min-w-0 items-center gap-2 overflow-x-auto text-xs whitespace-nowrap text-text-secondary [scrollbar-width:none]">
+			<div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface-1 px-3 py-1">
+				{/* The cockpit counts row never wraps mid-word ("Local␤swarm"). On a phone it scrolls sideways; from
+				    md up it wraps between chips instead — a scroll strip there silently clipped the "needs you" chip,
+				    the one signal an operator must not miss (live-found 2026-09-20 at 1440px). */}
+				<div className="flex min-w-0 items-center gap-2 overflow-x-auto text-xs whitespace-nowrap text-text-secondary [scrollbar-width:none] md:flex-wrap md:gap-y-1 md:overflow-visible">
 					<span className="font-medium text-text-primary">Local swarm</span>
 					<span>Running {swarmCounts.running}</span>
 					<span>Waiting {swarmCounts.waiting}</span>

@@ -58,6 +58,7 @@ export function ProjectNavigationPanel({
 	nkleinProviderSettings,
 	cloudProviderSupportEnabled = false,
 	developerModeEnabled = false,
+	showWorkspaceTools = true,
 	featurebaseFeedbackState,
 	onSelectProject,
 	onRemoveProject,
@@ -75,6 +76,11 @@ export function ProjectNavigationPanel({
 	nkleinProviderSettings?: RuntimeNKleinProviderSettings | null;
 	cloudProviderSupportEnabled?: boolean;
 	developerModeEnabled?: boolean;
+	/**
+	 * §5.BB chrome diet: the code-intelligence status and the shortcut cheat-sheet are board-operator tools. At the
+	 * two "less" levels (Minimalistic, Clean) the sidebar is projects only; from Advanced up they return.
+	 */
+	showWorkspaceTools?: boolean;
 	featurebaseFeedbackState?: FeaturebaseFeedbackState;
 	onSelectProject: (projectId: string) => void;
 	onRemoveProject: (projectId: string, options?: { deleteGitRepository?: boolean }) => Promise<boolean>;
@@ -435,8 +441,8 @@ export function ProjectNavigationPanel({
 						</button>
 					) : null}
 					<CodeIntelligencePanel
-						workspaceId={currentProjectId}
-						active={currentProjectId !== null}
+						workspaceId={showWorkspaceTools ? currentProjectId : null}
+						active={showWorkspaceTools && currentProjectId !== null}
 						disabled={removingProjectId !== null}
 						compact
 						onOpenProjectSettings={() => {
@@ -628,7 +634,7 @@ export function ProjectNavigationPanel({
 						/>
 					) : null}
 				</div>
-				<ShortcutsCard />
+				{showWorkspaceTools ? <ShortcutsCard /> : null}
 				<ProjectSupportFooter
 					shouldShowFeaturebaseFeedback={shouldShowFeaturebaseFeedback}
 					featurebaseFeedbackState={featurebaseFeedbackState}

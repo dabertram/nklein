@@ -419,7 +419,7 @@ export function AddProjectDialog({
 					onOpenChange(isOpen);
 				}}
 				contentClassName={activeTab === "new" ? "max-w-3xl max-h-[90vh]" : "max-w-lg"}
-				contentAriaDescribedBy="add-project-dialog-description"
+				description="Add a project by entering a server path, browsing the remote filesystem, creating a new folder, or cloning a git repository."
 				onEscapeKeyDown={handleDialogEscapeKeyDown}
 			>
 				<DialogHeader title="Add Project" icon={<FolderOpen size={16} />} />
@@ -771,21 +771,13 @@ function PathTabContent({
 						This directory is not a git repository. !Klein requires git to manage isolated task workspaces.
 					</p>
 					<p className="font-mono text-[11px] text-text-secondary break-all">{pendingGitInitPath}</p>
-					<Button variant="primary" size="sm" type="submit" disabled={isInitializingGit} className="self-start">
-						{isInitializingGit ? (
-							<>
-								<Spinner size={14} />
-								Initializing...
-							</>
-						) : (
-							"Initialize Git Repository"
-						)}
-					</Button>
+					{/* The one action lives in the footer (the dialog's primary button changes to "Initialize Git
+					    Repository"); a second copy here read as two different steps (live-found 2026-09-20). */}
+					<p className="m-0 text-[12px] text-text-secondary">
+						Initialize it below and !Klein adds the project right after — nothing else in the folder changes.
+					</p>
 				</div>
 			) : null}
-			<p id="add-project-dialog-description" className="sr-only">
-				Add a project by entering a server path, browsing the remote filesystem, or cloning a git repository.
-			</p>
 		</form>
 	);
 }

@@ -336,8 +336,8 @@ export function ProjectSettingsDialog({
 								Skill dynamics
 							</div>
 							<p className="m-0 mb-3 text-[12px] text-text-secondary">
-								How dynamic vs. strict this project’s per-task skill/prompt assignment is (§5.AE). When off, the
-								project uses the global default ({config?.skillDynamicsLevelDefault ?? "fully_dynamic"}).
+								How dynamic vs. strict this project’s per-task skill/prompt assignment is. When off, the project
+								uses the global default ({config?.skillDynamicsLevelDefault ?? "fully_dynamic"}).
 							</p>
 							<div className="rounded-md border border-border bg-surface-1 p-3">
 								<div className="mb-3 flex items-center gap-2 text-[13px] text-text-primary">

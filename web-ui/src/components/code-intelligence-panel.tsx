@@ -1,6 +1,7 @@
 import { Database, RefreshCw, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/components/ui/cn";
 import { fetchNKleinCodeIntelligenceStatus } from "@/runtime/runtime-config-query";
 import type { RuntimeNKleinCodeIntelligenceStatusResponse } from "@/runtime/types";
 
@@ -208,35 +209,71 @@ export function CodeIntelligencePanel({
 					: "mt-4 border-t border-border pt-4"
 			}
 		>
-			<div className="flex items-center justify-between gap-3">
-				<div className="min-w-0">
-					<h6 className="m-0 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
+			{/* In the narrow sidebar the status line runs the full width UNDER the title row — beside the buttons it
+			    wrapped into a five-line column ("0/3 chunks / (0%) / indexed · / repo map / ready"). */}
+			<div className={cn("flex gap-3", compact ? "flex-col gap-1" : "items-center justify-between")}>
+				<div className="flex min-w-0 items-center justify-between gap-2">
+					<h6 className="m-0 flex items-center gap-2 whitespace-nowrap text-[12px] font-semibold uppercase tracking-wider text-text-secondary">
 						<Database size={14} />
 						Code intelligence
 					</h6>
-					<p className="mt-1 mb-0 text-[12px] text-text-secondary">{statusText}</p>
+					{compact ? (
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={<RefreshCw size={14} className={cn(isLoading && "animate-spin")} />}
+							disabled={disabled || isLoading || !workspaceId}
+							onClick={refreshStatus}
+							aria-label={isLoading ? "Refreshing code intelligence" : "Refresh code intelligence"}
+							title="Refresh"
+							className="-my-1 -mr-1.5"
+						/>
+					) : (
+						<p className="m-0 text-[12px] text-text-secondary">{statusText}</p>
+					)}
 				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						size="sm"
-						variant="ghost"
-						disabled={disabled || !status}
-						onClick={() => {
-							setDetailsOpen((currentValue) => !currentValue);
-						}}
-					>
-						Details
-					</Button>
-					<Button
-						size="sm"
-						variant="default"
-						icon={<RefreshCw size={14} />}
-						disabled={disabled || isLoading || !workspaceId}
-						onClick={refreshStatus}
-					>
-						{isLoading ? "Refreshing..." : "Refresh"}
-					</Button>
-				</div>
+				{compact ? (
+					<p className="m-0 min-w-0 text-[12px] leading-snug text-text-secondary">
+						{statusText}
+						{status ? (
+							<>
+								{" · "}
+								<button
+									type="button"
+									disabled={disabled}
+									onClick={() => {
+										setDetailsOpen((currentValue) => !currentValue);
+									}}
+									className="text-accent-text hover:underline disabled:opacity-50"
+								>
+									{detailsOpen ? "Hide details" : "Details"}
+								</button>
+							</>
+						) : null}
+					</p>
+				) : (
+					<div className="flex items-center gap-2">
+						<Button
+							size="sm"
+							variant="ghost"
+							disabled={disabled || !status}
+							onClick={() => {
+								setDetailsOpen((currentValue) => !currentValue);
+							}}
+						>
+							Details
+						</Button>
+						<Button
+							size="sm"
+							variant="default"
+							icon={<RefreshCw size={14} />}
+							disabled={disabled || isLoading || !workspaceId}
+							onClick={refreshStatus}
+						>
+							{isLoading ? "Refreshing..." : "Refresh"}
+						</Button>
+					</div>
+				)}
 			</div>
 			{status ? (
 				<div className="mt-2 grid gap-2 text-[12px] text-text-secondary">

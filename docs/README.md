@@ -14,6 +14,8 @@ New to the codebase? Read in order:
 
 ## Layout
 
+- `quick-start.md` — from a clean machine to a card moving on the board: prerequisites, install, first run, the
+  detail levels, where state lives, and the first things to check when something is off.
 - `architecture.md` — the system map.
 - `security-threat-model.md` — the Phase 7S trust-boundary map: untrusted ingestion points × privileged actions × the
   defenses that cover each. The living anchor for the security work in `todo.md`.

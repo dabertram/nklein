@@ -1396,6 +1396,20 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 					className={`min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-x-hidden overflow-y-auto px-2 py-3 ${sessionView === "steps" ? "hidden" : "flex"}`}
 					onScroll={handleMessageListScroll}
 				>
+					{messages.length === 0 && !showAgentProgressIndicator ? (
+						// Empty state: a blank pane above the composer read as "broken" on first open. Say what the
+						// pane is for and what to do next.
+						<div
+							className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
+							data-testid="card-chat-empty"
+						>
+							<p className="m-0 text-[13px] font-medium text-text-secondary">No conversation on this card yet</p>
+							<p className="m-0 text-[12px] text-text-tertiary">
+								Ask !Klein to change, start, split or link it — every answer is logged on the card&apos;s
+								timeline.
+							</p>
+						</div>
+					) : null}
 					{messages.map((message, index) => {
 						const nextMessage = messages[index + 1];
 						const durationMs = Math.max(0, (nextMessage?.createdAt ?? nowMs) - message.createdAt);

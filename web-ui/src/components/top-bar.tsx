@@ -48,6 +48,24 @@ function getWorkspacePathSegments(path: string): string[] {
 		.filter((segment) => segment.length > 0);
 }
 
+/** How many trailing path segments the title bar shows before eliding the head into "…/". */
+const WORKSPACE_PATH_TAIL_SEGMENTS = 3;
+
+/**
+ * The title bar shows the TAIL of the workspace path — the segments that identify the project — and elides the
+ * head. A `~`-collapsed home path fits whole; a long absolute path (a temp dir, a factory drain, a CI runner) does
+ * not, and wrapping it made the bar three lines tall. The full path stays available in the tooltip.
+ */
+export function selectWorkspacePathTail(
+	segments: readonly string[],
+	tailSegments: number = WORKSPACE_PATH_TAIL_SEGMENTS,
+): { segments: string[]; elided: boolean } {
+	if (segments.length <= tailSegments) {
+		return { segments: [...segments], elided: false };
+	}
+	return { segments: segments.slice(-tailSegments), elided: true };
+}
+
 function FirstShortcutIconPicker({
 	value,
 	onSelect,
@@ -131,12 +149,14 @@ function GitBranchStatusControl({
 					icon={<GitBranch size={12} />}
 					onClick={onToggleGitHistory}
 					className={cn(
-						"font-mono text-xs shrink min-w-0 max-w-full overflow-hidden",
+						// A branch name never wraps letter-by-letter: it truncates past ~180px (full name in the tooltip)
+						// and keeps a floor so a long workspace path cannot squeeze it to one glyph per row.
+						"font-mono text-xs shrink min-w-[72px] max-w-[180px] overflow-hidden",
 						isGitHistoryOpen ? "ring-1 ring-accent" : "kb-navbar-btn",
 					)}
 					title={branchLabel}
 				>
-					<span className="break-words w-full text-left">{branchLabel}</span>
+					<span className="block w-full truncate whitespace-nowrap text-left">{branchLabel}</span>
 				</Button>
 				<span className="font-mono text-xs text-text-tertiary ml-1.5 shrink-0 whitespace-nowrap">
 					({changedFiles} {changedFiles === 1 ? "file" : "files"}
@@ -344,6 +364,7 @@ export function TopBar({
 	const isMobile = useIsMobile();
 	const displayWorkspacePath = workspacePath ? formatPathForDisplay(workspacePath) : null;
 	const workspaceSegments = displayWorkspacePath ? getWorkspacePathSegments(displayWorkspacePath) : [];
+	const visibleWorkspaceSegments = selectWorkspacePathTail(workspaceSegments);
 	const hasAbsoluteLeadingSlash = Boolean(displayWorkspacePath?.startsWith("/"));
 	const handleAddShortcut = () => {
 		onOpenSettings?.("shortcuts");
@@ -435,9 +456,12 @@ export function TopBar({
 							aria-hidden
 						/>
 					) : displayWorkspacePath ? (
-						<div className={cn("shrink min-w-0 overflow-hidden", isMobile ? "max-w-[180px]" : "max-w-[640px]")}>
+						<div className={cn("shrink min-w-0 overflow-hidden", isMobile ? "max-w-[200px]" : "max-w-[440px]")}>
+							{/* One line, always: a long absolute path used to wrap into a three-line title bar and starve the
+							    branch chip down to one glyph per row (live-found 2026-09-20). The bar shows the tail — the
+							    segments that identify the project — and the full path lives in the tooltip. */}
 							<span
-								className="font-mono break-words block w-full min-w-0 text-xs max-w-full text-text-secondary"
+								className="block w-full min-w-0 max-w-full truncate font-mono text-xs text-text-secondary"
 								title={workspacePath}
 								data-testid="workspace-path"
 							>
@@ -445,9 +469,9 @@ export function TopBar({
 									<span className="text-text-primary">{workspaceSegments[workspaceSegments.length - 1]}</span>
 								) : (
 									<>
-										{hasAbsoluteLeadingSlash ? "/" : ""}
-										{workspaceSegments.map((segment, index) => {
-											const isLast = index === workspaceSegments.length - 1;
+										{visibleWorkspaceSegments.elided ? "…/" : hasAbsoluteLeadingSlash ? "/" : ""}
+										{visibleWorkspaceSegments.segments.map((segment, index) => {
+											const isLast = index === visibleWorkspaceSegments.segments.length - 1;
 											return (
 												<span key={`${segment}-${index}`}>
 													{index === 0 ? "" : "/"}

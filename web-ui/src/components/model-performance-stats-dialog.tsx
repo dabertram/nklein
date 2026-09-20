@@ -697,7 +697,7 @@ export function ModelPerformanceStatsDialog({
 						</tbody>
 					</table>
 				</div>
-				<SectionTitle title="Model fitness (§5.AB per-model × role × difficulty)" />
+				<SectionTitle title="Model fitness (per model × role × difficulty)" />
 				<div
 					className="mb-2 flex items-center gap-3 text-[12px] text-text-secondary"
 					data-testid="fitness-controls"
@@ -897,7 +897,7 @@ export function ModelPerformanceStatsDialog({
 							className="rounded-md border border-border bg-surface-1 p-2 text-[12px] text-text-secondary"
 							data-testid="retrieval-usefulness-summary"
 						>
-							<div className="font-semibold text-text-primary">Retrieval usefulness (§5.AC)</div>
+							<div className="font-semibold text-text-primary">Retrieval usefulness</div>
 							{ledgerAnalytics.retrieval.total === 0 ? (
 								<div className="text-text-tertiary">no retrieval turns yet</div>
 							) : (
@@ -1047,7 +1047,7 @@ export function ModelPerformanceStatsDialog({
 							{fitnessRows.length === 0 ? (
 								<tr className="border-t border-border bg-surface-2">
 									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={9}>
-										No fitness cells recorded yet — cells fill as terminal task runs fold into the §5.AB
+										No fitness cells recorded yet — cells fill as finished task runs fold into the fitness
 										store.
 									</td>
 								</tr>
@@ -1055,7 +1055,7 @@ export function ModelPerformanceStatsDialog({
 						</tbody>
 					</table>
 				</div>
-				<SectionTitle title="Learned model behavior (§5.AA recovery-ladder telemetry)" />
+				<SectionTitle title="Learned model behavior (recovery-ladder telemetry)" />
 				<div className="overflow-x-auto rounded-md border border-border" data-testid="model-behavior-profiles">
 					<table className="w-full min-w-[880px] border-collapse text-left text-[12px]">
 						<thead className="bg-surface-0 text-text-secondary">

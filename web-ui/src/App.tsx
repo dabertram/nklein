@@ -904,8 +904,13 @@ export default function App(): ReactElement {
 	const navbarWorkspacePath = hasNoProjects ? undefined : activeWorkspacePath;
 	const navbarWorkspaceHint = hasNoProjects ? undefined : activeWorkspaceHint;
 	const navbarRuntimeHint = hasNoProjects ? undefined : runtimeHint;
+	// §5.BB chrome diet: Minimalistic and Clean are the two "less" levels — the conversation and the map. Git
+	// plumbing (branch, fetch/pull/push, script shortcuts) is board-operator chrome and only appears from Advanced
+	// up; the levels differ in what they SHOW, never in what the runtime does.
+	const minimalChrome = !selectedCard && zoom <= 1;
 	const shouldHideProjectDependentTopBarActions =
-		!selectedCard && (isProjectSwitching || isAwaitingWorkspaceSnapshot || isWorkspaceMetadataPending);
+		minimalChrome ||
+		(!selectedCard && (isProjectSwitching || isAwaitingWorkspaceSnapshot || isWorkspaceMetadataPending));
 
 	const {
 		openTargetOptions,
@@ -1069,6 +1074,7 @@ export default function App(): ReactElement {
 						nkleinProviderSettings={settingsRuntimeProjectConfig?.nkleinProviderSettings ?? null}
 						cloudProviderSupportEnabled={cloudProviderSupportEnabled}
 						developerModeEnabled={developerSurfacesVisible}
+						showWorkspaceTools={zoom >= 2}
 						featurebaseFeedbackState={featurebaseFeedbackState}
 						onSelectProject={(projectId) => {
 							void handleSelectProject(projectId);
@@ -1209,23 +1215,37 @@ export default function App(): ReactElement {
 									<FleetPoolLossNotice workspaceId={currentProjectId} />
 									{/* §5.BB zoom control — one continuous surface, four zoom levels (buttons per the user's pick). */}
 									{!isGitHistoryOpen ? (
-										<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-1 px-3 py-1.5">
-											<div className="inline-flex overflow-hidden rounded-lg border border-border-bright bg-surface-2">
+										// One row, never wrapping: on a phone the level names collapse to their short keys
+										// (the full name stays in the tooltip) and the strip scrolls sideways instead of stacking
+										// into a 200px-tall header (live-found 2026-09-20 at 390px).
+										<div
+											className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-surface-1 px-3 py-1.5 whitespace-nowrap [scrollbar-width:none]"
+											data-testid="zoom-level-bar"
+										>
+											<div
+												role="radiogroup"
+												aria-label="Detail level"
+												className="inline-flex shrink-0 overflow-hidden rounded-lg border border-border-bright bg-surface-2"
+											>
 												{ZOOM_LEVELS.map((entry) => (
 													<button
 														key={entry.level}
 														type="button"
+														role="radio"
+														aria-checked={zoom === entry.level}
+														aria-label={entry.label}
+														title={entry.label}
 														onClick={() => setZoom(entry.level)}
 														className={
 															zoom === entry.level
-																? "flex items-center gap-1.5 border-r border-border bg-accent/15 px-3 py-1 text-[12px] text-accent-text last:border-r-0"
-																: "flex items-center gap-1.5 border-r border-border px-3 py-1 text-[12px] text-text-tertiary hover:text-text-primary last:border-r-0"
+																? "flex items-center gap-1.5 border-r border-border bg-accent/15 px-2 py-1 text-[12px] text-accent-text transition-colors last:border-r-0 sm:px-3"
+																: "flex items-center gap-1.5 border-r border-border px-2 py-1 text-[12px] text-text-tertiary transition-colors hover:bg-surface-3 hover:text-text-primary last:border-r-0 sm:px-3"
 														}
 													>
 														<span className="rounded border border-current px-1 text-[9px] opacity-70">
 															{entry.short}
 														</span>
-														{entry.label}
+														<span className="hidden sm:inline">{entry.label}</span>
 													</button>
 												))}
 											</div>
@@ -1278,22 +1298,22 @@ export default function App(): ReactElement {
 													data-testid="needs-you-badge"
 													title={`${needsYouCount} card${needsYouCount === 1 ? "" : "s"} need${needsYouCount === 1 ? "s" : ""} your input — open the full board`}
 													onClick={() => setZoom(2)}
-													className={`inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20${zoom >= 2 ? " sm:hidden" : ""}`}
+													className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold transition-colors hover:bg-status-gold/20${zoom >= 2 ? " sm:hidden" : ""}`}
 												>
 													<span aria-hidden>●</span>
 													{needsYouCount} need{needsYouCount === 1 ? "s" : ""} you
 												</button>
 											) : null}
 											{zoom === 0 ? (
-												<span className="text-[11px] text-text-tertiary">
+												<span className="hidden text-[11px] text-text-tertiary md:inline">
 													just talk to !Klein — switch levels anytime for the board behind it
 												</span>
 											) : zoom === 1 ? (
-												<span className="text-[11px] text-text-tertiary">
+												<span className="hidden text-[11px] text-text-tertiary md:inline">
 													click a cluster to drill into its stream · chat steers the swarm
 												</span>
 											) : zoom === GRAPH_ZOOM_LEVEL ? (
-												<span className="text-[11px] text-text-tertiary">
+												<span className="hidden text-[11px] text-text-tertiary md:inline">
 													dependency graph — drag to pan, scroll to zoom, click a card to open it
 												</span>
 											) : null}

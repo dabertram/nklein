@@ -370,6 +370,21 @@ describe("ProjectNavigationPanel width persistence", () => {
 		expect(container.textContent).toContain("Local lexical fallback");
 	});
 
+	it("hides the workspace tools (code intelligence, shortcuts) at the minimal detail levels", async () => {
+		renderPanel({ showWorkspaceTools: false });
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		// §5.BB chrome diet: Minimalistic/Clean keep the sidebar to projects + support; nothing is fetched for the
+		// hidden panel either, so the minimal levels cost no requests.
+		expect(fetchNKleinCodeIntelligenceStatusMock).not.toHaveBeenCalled();
+		expect(container.textContent).not.toContain("Code intelligence");
+		expect(container.textContent).not.toContain("All shortcuts");
+		expect(container.textContent).toContain("Report issue");
+		expect(container.textContent).toContain("Add Project");
+	});
+
 	it("does not load project code intelligence without a selected project", async () => {
 		renderPanel({ currentProjectId: null });
 		await act(async () => {
