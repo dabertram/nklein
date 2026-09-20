@@ -14,6 +14,17 @@ function formatPercent(value: number | null): string {
 	return value === null ? "sampling…" : `${value.toFixed(0)}%`;
 }
 
+/**
+ * LM Link identifies a linked machine by an opaque 32-hex id; as a card title that reads as a leaked internal.
+ * Show it as what it is — a linked host — with a short handle, and keep the full id in the tooltip.
+ */
+export function formatDeviceLabel(machineId: string): string {
+	if (/^[0-9a-f]{24,}$/i.test(machineId)) {
+		return `linked host ${machineId.slice(0, 8)}`;
+	}
+	return machineId;
+}
+
 function ResourceMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
 	return (
 		<div className="rounded-md border border-border bg-surface-0 px-2 py-1.5">
@@ -111,7 +122,9 @@ export function FleetResourcePanel({ resources }: { resources: Resources }): Rea
 							className="rounded-md border border-border bg-surface-0 px-2 py-1.5 text-[10px]"
 						>
 							<div className="flex items-center justify-between gap-2">
-								<span className="font-medium text-text-secondary">{device.machineId}</span>
+								<span className="font-medium text-text-secondary" title={device.machineId}>
+									{formatDeviceLabel(device.machineId)}
+								</span>
 								<span className="tabular-nums text-text-tertiary">
 									{device.fastMemoryCapacityBytes === null
 										? "fast-memory budget unset"

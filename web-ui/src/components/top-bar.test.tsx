@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TopBar } from "@/components/top-bar";
+import { selectWorkspacePathTail, TopBar } from "@/components/top-bar";
 
 function findButtonByText(container: HTMLElement, text: string): HTMLButtonElement | null {
 	return (Array.from(container.querySelectorAll("button")).find((button) => button.textContent?.trim() === text) ??
@@ -130,5 +130,26 @@ describe("TopBar script shortcut onboarding", () => {
 		});
 
 		expect(onOpenSettings).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("selectWorkspacePathTail", () => {
+	it("keeps a short path whole", () => {
+		expect(selectWorkspacePathTail(["~", "GIT", "nklein"])).toEqual({
+			segments: ["~", "GIT", "nklein"],
+			elided: false,
+		});
+	});
+
+	it("elides the head of a long absolute path down to the identifying tail", () => {
+		const segments = ["private", "tmp", "claude-501", "scratchpad", "sim-home", ".nklein", "dev-workspaces", "proj"];
+		expect(selectWorkspacePathTail(segments)).toEqual({
+			segments: [".nklein", "dev-workspaces", "proj"],
+			elided: true,
+		});
+	});
+
+	it("honours a custom tail length", () => {
+		expect(selectWorkspacePathTail(["a", "b", "c", "d"], 1)).toEqual({ segments: ["d"], elided: true });
 	});
 });

@@ -50,10 +50,13 @@ export function DialogHeader({
 	title,
 	icon,
 	children,
+	hideCloseButton = false,
 }: {
 	title: string;
 	icon?: ReactNode;
 	children?: ReactNode;
+	/** For dialogs that render their own labelled close/skip control in `children` — avoids a doubled ✕. */
+	hideCloseButton?: boolean;
 }): React.ReactElement {
 	return (
 		<div className="flex items-center justify-between px-2 py-2 max-md:px-3 max-md:py-3 bg-surface-2 border-b border-border-bright shrink-0 rounded-t-lg">
@@ -62,10 +65,12 @@ export function DialogHeader({
 				{title}
 			</RadixDialog.Title>
 			{children}
-			<RadixDialog.Close className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3 cursor-pointer max-md:min-h-11 max-md:min-w-11 max-md:flex max-md:items-center max-md:justify-center">
-				<X size={16} className="max-md:hidden" />
-				<X size={20} className="hidden max-md:block" />
-			</RadixDialog.Close>
+			{hideCloseButton ? null : (
+				<RadixDialog.Close className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3 cursor-pointer max-md:min-h-11 max-md:min-w-11 max-md:flex max-md:items-center max-md:justify-center">
+					<X size={16} className="max-md:hidden" />
+					<X size={20} className="hidden max-md:block" />
+				</RadixDialog.Close>
+			)}
 		</div>
 	);
 }

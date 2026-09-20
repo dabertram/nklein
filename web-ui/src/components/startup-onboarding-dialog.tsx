@@ -103,7 +103,8 @@ export function StartupOnboardingDialog({
 				if (!isOpen) onClose();
 			}}
 		>
-			<DialogHeader title="Get started">
+			{/* The skip button IS the close button — the header's own ✕ would render a second one beside it. */}
+			<DialogHeader title="Get started" hideCloseButton>
 				<button
 					type="button"
 					aria-label="Skip the tour"

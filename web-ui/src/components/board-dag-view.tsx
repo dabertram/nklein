@@ -232,8 +232,8 @@ export function BoardDagView({
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 flex-col bg-surface-0" data-testid="board-dag-view">
-			<div className="flex shrink-0 items-center gap-3 border-b border-border bg-surface-1 px-4 py-1.5">
-				<span className="text-[11.5px] text-text-tertiary">
+			<div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-1 px-4 py-1.5">
+				<span className="min-w-0 text-[11.5px] text-text-tertiary">
 					{graph.nodes.length} cards · {graph.edges.length} edges
 					{dagSchedule.boardEtaAt !== null && dagSchedule.boardFinishOffsetMs !== null ? (
 						<span className="ml-1" data-testid="board-dag-eta">
@@ -259,9 +259,9 @@ export function BoardDagView({
 				>
 					<span className="text-status-green">— finished</span>
 					<span className="text-accent">— active</span>
-					<span className="text-status-gold">— critical path</span>
+					<span className="whitespace-nowrap text-status-gold">— critical path</span>
 					<span className="text-status-red">— problem</span>
-					<span>— not started</span>
+					<span className="whitespace-nowrap">— not started</span>
 				</span>
 				<span className="ml-auto flex items-center gap-1.5">
 					<input

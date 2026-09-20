@@ -176,7 +176,9 @@ export function ProjectRow({
 				<div
 					title={project.name}
 					className={cn(
-						"font-medium whitespace-nowrap overflow-hidden text-ellipsis text-sm",
+						// Two lines before an ellipsis: sibling projects here usually differ only in a suffix, so a
+						// one-line truncation made them indistinguishable (David's rule: shrink before you truncate).
+						"line-clamp-2 break-words text-[13px] font-medium leading-snug",
 						isCurrent ? "text-accent-fg" : "text-text-primary",
 					)}
 				>
