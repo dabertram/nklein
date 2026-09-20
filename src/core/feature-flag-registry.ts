@@ -104,6 +104,18 @@ export const FEATURE_FLAG_REGISTRY: readonly FeatureFlagSpec[] = [
 		note: "Default-OFF worker-loop behaviour change (P1.LOOPGUARDNUDGE, 2026-09-15). In a headless run (SWE-bench arms, drains) the loop guard's park — 'send a new instruction to continue' — has nobody to answer it and the card is lost with nothing delivered (muse requests-1921, Legion pytest-7521). The rig/drain launchers set it; the interactive product keeps the park so an operator still sees a looping card.",
 	},
 	{
+		flag: "NKLEIN_STEP_PLANNING",
+		mode: "enforcing",
+		gate: "nklein-task-session-service.ts startTaskSession (refinable work card ⇒ plan + review before the worker starts; complete_step tool; replan on bounce/steer)",
+		note: "Step planning (David 2026-09-20): a reviewed, per-card detailed step plan executed one step at a time so small seats get complete instructions. Default OFF; planner/plan-reviewer models via NKLEIN_STEP_PLANNER_MODEL / NKLEIN_STEP_PLAN_REVIEWER_MODEL or modelRoles.planner / modelRoles.plan_reviewer; bounds NKLEIN_STEP_PLAN_MAX_REVIEW_ROUNDS / NKLEIN_STEP_PLAN_MAX_REPLANS / NKLEIN_STEP_PLAN_MAX_STEP_ATTEMPTS. Every degraded path runs the card unplanned and records why.",
+	},
+	{
+		flag: "NKLEIN_LOOKUP",
+		mode: "enforcing",
+		gate: "nklein-task-session-service.ts (attaches the `lookup` fact-check tool to worker + step-plan sessions) and nklein-agent-sandbox.ts (publishes the egress proxy's worker listener on host loopback + adds the ecosystem:lookup pack)",
+		note: "Online fact-check (David 2026-09-20): DuckDuckGo HTML search + page fetch THROUGH the sandbox egress proxy with the task's credential; result hosts ride 30s per-task grants; every request leaves a receipt (URL, sha256, card/step, time) under <diagnostic root>/lookup. Default OFF — nothing leaves the machine without it.",
+	},
+	{
 		flag: "NKLEIN_SKILL_API_DIRECT",
 		mode: "dev_only",
 		gate: 'skill-api-profile-agent-model.ts (value "off" bypasses the direct forced-tool/structured path; the SDK-native wire serves profile turns)',
@@ -437,6 +449,21 @@ export interface FlagsOnLaneExclusion {
  * apparent rule.
  */
 export const FLAGS_ON_LANE_EXCLUSIONS: readonly FlagsOnLaneExclusion[] = [
+	// Step planning + lookup (2026-09-20): both add model TURNS the recorded aimock sets never scripted (a planner
+	// session, a plan-review session, `complete_step` results) or NETWORK the hermetic lane has none of, so the
+	// nightly replay cannot exercise them; their coverage is the dedicated simulated e2e (test/runtime/step-plan).
+	{
+		flag: "NKLEIN_STEP_PLANNING",
+		kind: "permanent",
+		reason:
+			"adds planner + plan-reviewer sessions and a complete_step control loop the recorded nightly transcripts never scripted — replayed sets would hit no_fixture_match; covered by the step-plan simulated e2e instead",
+	},
+	{
+		flag: "NKLEIN_LOOKUP",
+		kind: "permanent",
+		reason:
+			"routes real web requests through the egress proxy — the nightly lane is hermetic and offline; covered by the lookup tool suite with a fake fetch",
+	},
 	{
 		flag: "NKLEIN_LLMFIT_PRIOR",
 		kind: "permanent",

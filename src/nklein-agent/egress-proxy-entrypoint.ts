@@ -7,6 +7,7 @@ import { AGENT_RULESET_ROLES, type AgentCapabilityRulesetConfig, type AgentRules
 import { createEgressConfirmQueue, type EgressConfirmQueue } from "../core/egress-confirm-queue";
 import type { EgressProxyAuditRecord } from "../core/egress-proxy-audit";
 import { buildEgressProxyDnsAuditRecord, type EgressProxyDnsAuditRecord } from "../core/egress-proxy-dns-audit";
+import { createEgressTaskGrantRegistry } from "../core/egress-task-grants";
 import { createEgressTaskIdentityRegistry } from "../core/egress-task-identity";
 import { isTruthyEnv } from "../core/env-flag";
 import { createEgressConfirmControlServer, type EgressConfirmControlServer } from "./egress-confirm-control-server";
@@ -81,6 +82,8 @@ export interface EgressProxyRuntimeDeps {
 	/** F2.5b authenticated per-task proxy identity validation. */
 	validateTaskIdentity?: (taskId: string, token: string) => boolean;
 	requireTaskIdentity?: boolean;
+	/** Per-task time-bounded host grants for the attributed task (the `lookup` fetch leg). */
+	taskGrantHosts?: (taskId: string) => readonly string[];
 	/** Root dir for the audit JSONL (RW mount). Default: the store's `~/.nklein/sandbox-audit`. */
 	auditRootDir?: string;
 	/** Host resolution seam. Default: `dns.lookup(host, { all: true })` → the resolved addresses. */
@@ -173,6 +176,7 @@ export function createEgressProxyRuntime(deps: EgressProxyRuntimeDeps = {}): Egr
 		confirmQueue: deps.confirmQueue,
 		validateTaskIdentity: deps.validateTaskIdentity,
 		requireTaskIdentity: deps.requireTaskIdentity,
+		taskGrantHosts: deps.taskGrantHosts,
 	});
 
 	// The DNS stub answers NXDOMAIN to every query (§4 exfil-channel closure, risk Q1). Query names reach both the
@@ -248,10 +252,13 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 	}
 	const confirmQueue = controlRequired ? createEgressConfirmQueue() : undefined;
 	const taskIdentities = taskIdentityRequired ? createEgressTaskIdentityRegistry() : undefined;
+	// Grants exist only where identities do: an unattributed request can never use one.
+	const taskGrants = taskIdentityRequired ? createEgressTaskGrantRegistry() : undefined;
 	const confirmControlServer = confirmQueue
 		? createEgressConfirmControlServer({
 				queue: confirmQueue,
 				taskIdentities,
+				taskGrants,
 				token: controlToken,
 				port: EGRESS_CONFIRM_CONTROL_PORT,
 			})
@@ -265,6 +272,7 @@ export async function runEgressProxyMain(): Promise<EgressProxyRuntime> {
 		confirmControlServer,
 		validateTaskIdentity: taskIdentities?.validate,
 		requireTaskIdentity: taskIdentityRequired,
+		taskGrantHosts: taskGrants ? (taskId) => taskGrants.hostsFor(taskId, Date.now()) : undefined,
 	});
 	await runtime.start();
 	return runtime;

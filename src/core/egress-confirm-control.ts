@@ -1,4 +1,5 @@
 import type { EgressConfirmQueue } from "./egress-confirm-queue";
+import type { EgressTaskGrantRegistry } from "./egress-task-grants";
 import type { EgressTaskIdentityRegistry } from "./egress-task-identity";
 
 /**
@@ -12,6 +13,7 @@ import type { EgressTaskIdentityRegistry } from "./egress-task-identity";
  *   - `POST /egress-confirms/resolve` → apply one operator decision (attemptId+host+port+role bound; approve boolean)
  *   - `POST /task-identities/issue`    → register one host-issued task credential
  *   - `POST /task-identities/revoke`   → revoke one task credential before releasing its sandbox placement
+ *   - `POST /task-grants/issue`        → register one time-bounded per-task host grant (the `lookup` fetch leg)
  */
 
 export interface EgressConfirmControlRequest {
@@ -46,6 +48,27 @@ function parseTaskIdentityIssue(body: unknown): { taskId: string; token: string 
 		return null;
 	}
 	return { taskId: record.taskId, token: record.token };
+}
+
+function parseTaskGrantIssue(body: unknown): { taskId: string; host: string; ttlMs: number; purpose?: string } | null {
+	if (typeof body !== "object" || body === null) return null;
+	const record = body as Record<string, unknown>;
+	if (
+		typeof record.taskId !== "string" ||
+		record.taskId.length === 0 ||
+		typeof record.host !== "string" ||
+		record.host.length === 0 ||
+		typeof record.ttlMs !== "number" ||
+		!Number.isFinite(record.ttlMs)
+	) {
+		return null;
+	}
+	return {
+		taskId: record.taskId,
+		host: record.host,
+		ttlMs: record.ttlMs,
+		...(typeof record.purpose === "string" ? { purpose: record.purpose } : {}),
+	};
 }
 
 function parseTaskIdentityRevoke(body: unknown): { taskId: string } | null {
@@ -85,6 +108,7 @@ export function handleEgressConfirmControlRequest(
 	queue: EgressConfirmQueue,
 	now: number,
 	taskIdentities?: EgressTaskIdentityRegistry,
+	taskGrants?: EgressTaskGrantRegistry,
 ): EgressConfirmControlResponse {
 	if (request.method === "GET" && request.path === "/egress-confirms") {
 		return { status: 200, body: { pending: queue.listPending(now) } };
@@ -107,6 +131,18 @@ export function handleEgressConfirmControlRequest(
 		if (!identity || !taskIdentities) return { status: 400, body: { error: "invalid task identity" } };
 		taskIdentities.revoke(identity.taskId);
 		return { status: 200, body: { outcome: "applied" } };
+	}
+	if (request.method === "POST" && request.path === "/task-grants/issue") {
+		const grant = parseTaskGrantIssue(request.body);
+		if (!grant || !taskGrants) return { status: 400, body: { error: "invalid task grant" } };
+		// A grant for a task without an issued credential is unattributable — the proxy only consults grants for
+		// credentialed requests, so refusing here keeps the control surface honest about what it can enforce.
+		if (taskIdentities && !taskIdentities.has(grant.taskId)) {
+			return { status: 409, body: { error: "task has no issued credential" } };
+		}
+		const issued = taskGrants.issue(grant, now);
+		if (!issued) return { status: 400, body: { error: "invalid task grant host" } };
+		return { status: 200, body: { outcome: "applied", host: issued.host, expiresAt: issued.expiresAt } };
 	}
 	return { status: 404, body: { error: "not found" } };
 }

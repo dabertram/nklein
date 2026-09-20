@@ -965,6 +965,28 @@ export const MECHANISM_REGISTRY: readonly MechanismEntry[] = [
 		expectation: "every_run",
 	},
 	{
+		// Step planning 2026-09-20: the stage's lifecycle per card — plan approved (steps, rounds, reviewed or
+		// waived), fallback to the unplanned path (and why), each step accepted, every replan (trigger, revision)
+		// and the exhausted budget. A planning failure runs the card unplanned, so without this record a planned
+		// card and an unplanned one look identical from the board.
+		category: "step_plan",
+		item: "P1.STEPPLAN",
+		observes:
+			"the step-planning lifecycle of a card: prepare (approved/fallback), each accepted step, each replan and its trigger, budget exhaustion",
+		enabledBy: "NKLEIN_STEP_PLANNING",
+		expectation: "every_run",
+	},
+	{
+		// Step planning 2026-09-20: one record per plan-review round — verdict, action, reviewer identity, finding
+		// count — so "does the reviewer ever bounce a plan, and on what?" has an answer per model.
+		category: "step_plan_review_round",
+		item: "P1.STEPPLAN",
+		observes:
+			"each plan-review round's verdict and the round decision (execute / revise / fallback / unreviewed waiver)",
+		enabledBy: "NKLEIN_STEP_PLANNING",
+		expectation: "every_run",
+	},
+	{
 		// F4.8b 2026-07-20: emitted nothing, so "does the spec lint ever catch anything?" — the question deciding
 		// whether this advisory earns its place in the prompt — had no answer. Records the clean case too, because
 		// a found/clean RATIO is the useful number and a gaps-only emission can only ever answer "yes".

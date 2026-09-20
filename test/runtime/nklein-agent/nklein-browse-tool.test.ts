@@ -1,6 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import { createNKleinBrowseTool, type NKleinBrowsePage } from "../../../src/nklein-agent/nklein-browse-tool";
 
+// The unconditional SSRF guard resolves every hostname through `node:dns/promises`; with the real resolver these tests
+// dialed DNS for example.com on every run and timed out under a saturated full-suite run on a slow uplink
+// (pre-commit gate, 2026-09-20). Hermetic resolver with the same semantics: example.com public, anything else
+// ENOTFOUND (allowed, as the guard cannot confirm it is internal).
+vi.mock("node:dns/promises", () => ({
+	lookup: vi.fn(async (host: string) => {
+		if (host === "example.com" || host.endsWith(".example.com")) {
+			return [{ address: "93.184.216.34", family: 4 }];
+		}
+		throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${host}`), { code: "ENOTFOUND" });
+	}),
+}));
+
 /** A fake page fetcher that echoes a fixed page; asserts the tool never reaches it when SSRF blocks first. */
 function fakeFetcher(page: NKleinBrowsePage) {
 	const fetchPage = vi.fn(async (_url: string) => page);

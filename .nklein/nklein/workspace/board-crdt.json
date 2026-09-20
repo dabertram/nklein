@@ -324,7 +324,7 @@
         "title": {
           "value": "P25.2b — 🔴 SUPPLY CHAIN remains the open constraint (acquisition is now consent-gated, which HELPS but",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -385,9 +385,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -409,7 +409,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -736,7 +736,7 @@
         "title": {
           "value": "P15.3 — Default-flip campaign, one mechanism at a time, each with its own evidence.",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -797,9 +797,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -821,7 +821,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -839,7 +839,7 @@
         "title": {
           "value": "F3.41 — Numeric card-difficulty → model-capability mapping, so decomposition can target the SMALLEST",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -900,9 +900,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -924,7 +924,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -942,7 +942,7 @@
         "title": {
           "value": "F3.40 — Flash-Next serving upgrade: LM Studio GGUF now possible; MLX+MTP is the 2× play (researched",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1003,9 +1003,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1027,7 +1027,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -1045,7 +1045,7 @@
         "title": {
           "value": "F3.39 — FreeToken runtime on legion5pro (David 2026-09-04: \"freetoken is a runtime .. go online\" — researched",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1106,9 +1106,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -1130,7 +1130,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -4377,9 +4377,9 @@
           }
         },
         "prompt": {
-          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 404):\n- e34472d39 fix(runtime): an unbuilt web UI served a blank page — explain it instead\n- b0a9e391e docs(swebench): finding 62 — the closure signature ignores install_requires, and it cost django 3.0\n- 1e712f5a7 fix(rig): a wire failure is retried, not answered — it was costing whole benchmark instances\n- 7a38d762d fix(swebench): force UTF-8 stdout in the grade container — django dies on its own ellipsis without it\n- 2142d120a docs(swebench): finding 61 — the free win that would have inflated the score\n- 4446c626a fix(swebench): a resolve on an EMPTY patch is impossible by construction\n- b49341315 docs(swebench): finding 60 — astropy 3.1's unpinned pyparsing turns a deprecation into 80 collection errors\n- 3376ccfda docs(swebench): findings 57-59 — the self-inflicted record, the aborted selection, and the starved daemon\n- 30b3dfd23 fix(swebench): a selection pytest cannot fully find corrects itself\n- 65f5a29c5 fix(swebench): the repo under test is never a requirement of itself\n- 5991629d5 fix(swebench): a gate proof is of the grader AND the cache it installed from\n- 7a9f7aeb5 feat(swebench): the gate prepares a closure its spec's prepare never saw\n- e3e9d9bdc feat(swebench): a dirty gate row keeps the grader's output tail\n- e6cfb3562 fix(swebench): a recorded requirement that moves a package can apply, and one that cannot refuses\n- e7e8e011d feat(swebench): the closure gate is a committed tool with a durable ledger, not a scratchpad\n- 34109dfa3 fix(rig): one call per model seat — concurrency across seats, not within one\n- f3dce30b3 fix(rig): a safeguard refusal is retried without past deliberation, and says what the model said\n- b9c363a46 fix(swebench): a recorded requirement is a floor, not an order to reinstall\n- 4f458efdb fix(swebench): honour the unresolved list in build requirements, and stop predicting which backend a checkout gets\n- 4e4bdb285 fix(swebench): editable_mode is a PEP 660 setting — a setup.py-only checkout must not be given it\n- 24fe0bce5 fix(swebench): a build pin the platform cannot supply is NAMED, not fatal\n- 9df14a9e0 docs(todo): findings 49–55 — the closure gate's recoveries, and the quotes we were handing to pip\n- 72e33a736 fix(swebench): upstream quotes its version specifiers, and we were handing the quotes to pip\n- 55d061a32 docs(swebench): findings 49–54 from the closure gate, with the recoveries they bought\n- d994cd6df fix(swebench): the constraint for a recorded requirement is the environment itself, frozen\n- f3f2882e7 fix(swebench): PEP 660 hid the checkout from sys.path — pylint's \"unexplained\" 105 tests explained\n- f8dee39c1 fix(swebench): fill in only the MISSING dependencies, set astropy offline from a plugin, name the dataset's own seals\n- 3f6857394 fix(swebench): drop a build-era setuptools cap that makes the install impossible, and stop installing half a package\n- b55c8f1e6 fix(swebench): the build backend is declared by the checkout, not by the spec\n- 75fc278e8 fix(swebench): the recorder retracts what it broke, and astropy stops asking the internet for the time\n- 72ffc2033 fix(swebench): colour hid the missing-package skips — the third time colour has changed a result\n- 51f7db34f docs(swebench): findings 44–48 and the gate's new unit — the closure, not the spec\n- 515270533 fix(swebench): three more defects the per-spec gate could not see, all found by the variant gate\n- 33f2ad0ec fix(swebench): a spec's closure covers every sibling instance, and a failed install refuses instead of scoring\n- 0edd285df feat(rigs): a budget stop and a quota pause, so an arm cannot spend into overage\n- b74067dfd docs(swebench): the environment gate is closed — 81 of 81 controls clean\n- cab7c393f fix(swebench): the era's pytest for nose-style suites, and graphviz in the image\n- 36e2ba443 feat(swebench): a test that fails in a pristine tree is sealed and named, not counted\n- a6088af5f fix(swebench): the collect intersection is for node ids only, and the selection lives in a file\n- 69f75a2cd docs(swebench): four Codex seats have arms, created and not started",
+          "value": "Commits whose subject names no todo/done item id (newest first, last 40 of 404):\n- ebc76fec9 fix(rig): a UUID is not a rate limit — the Claude responder reads the CLI's verdict before pattern-matching\n- e34472d39 fix(runtime): an unbuilt web UI served a blank page — explain it instead\n- b0a9e391e docs(swebench): finding 62 — the closure signature ignores install_requires, and it cost django 3.0\n- 1e712f5a7 fix(rig): a wire failure is retried, not answered — it was costing whole benchmark instances\n- 7a38d762d fix(swebench): force UTF-8 stdout in the grade container — django dies on its own ellipsis without it\n- 2142d120a docs(swebench): finding 61 — the free win that would have inflated the score\n- 4446c626a fix(swebench): a resolve on an EMPTY patch is impossible by construction\n- b49341315 docs(swebench): finding 60 — astropy 3.1's unpinned pyparsing turns a deprecation into 80 collection errors\n- 3376ccfda docs(swebench): findings 57-59 — the self-inflicted record, the aborted selection, and the starved daemon\n- 30b3dfd23 fix(swebench): a selection pytest cannot fully find corrects itself\n- 65f5a29c5 fix(swebench): the repo under test is never a requirement of itself\n- 5991629d5 fix(swebench): a gate proof is of the grader AND the cache it installed from\n- 7a9f7aeb5 feat(swebench): the gate prepares a closure its spec's prepare never saw\n- e3e9d9bdc feat(swebench): a dirty gate row keeps the grader's output tail\n- e6cfb3562 fix(swebench): a recorded requirement that moves a package can apply, and one that cannot refuses\n- e7e8e011d feat(swebench): the closure gate is a committed tool with a durable ledger, not a scratchpad\n- 34109dfa3 fix(rig): one call per model seat — concurrency across seats, not within one\n- f3dce30b3 fix(rig): a safeguard refusal is retried without past deliberation, and says what the model said\n- b9c363a46 fix(swebench): a recorded requirement is a floor, not an order to reinstall\n- 4f458efdb fix(swebench): honour the unresolved list in build requirements, and stop predicting which backend a checkout gets\n- 4e4bdb285 fix(swebench): editable_mode is a PEP 660 setting — a setup.py-only checkout must not be given it\n- 24fe0bce5 fix(swebench): a build pin the platform cannot supply is NAMED, not fatal\n- 9df14a9e0 docs(todo): findings 49–55 — the closure gate's recoveries, and the quotes we were handing to pip\n- 72e33a736 fix(swebench): upstream quotes its version specifiers, and we were handing the quotes to pip\n- 55d061a32 docs(swebench): findings 49–54 from the closure gate, with the recoveries they bought\n- d994cd6df fix(swebench): the constraint for a recorded requirement is the environment itself, frozen\n- f3f2882e7 fix(swebench): PEP 660 hid the checkout from sys.path — pylint's \"unexplained\" 105 tests explained\n- f8dee39c1 fix(swebench): fill in only the MISSING dependencies, set astropy offline from a plugin, name the dataset's own seals\n- 3f6857394 fix(swebench): drop a build-era setuptools cap that makes the install impossible, and stop installing half a package\n- b55c8f1e6 fix(swebench): the build backend is declared by the checkout, not by the spec\n- 75fc278e8 fix(swebench): the recorder retracts what it broke, and astropy stops asking the internet for the time\n- 72ffc2033 fix(swebench): colour hid the missing-package skips — the third time colour has changed a result\n- 51f7db34f docs(swebench): findings 44–48 and the gate's new unit — the closure, not the spec\n- 515270533 fix(swebench): three more defects the per-spec gate could not see, all found by the variant gate\n- 33f2ad0ec fix(swebench): a spec's closure covers every sibling instance, and a failed install refuses instead of scoring\n- 0edd285df feat(rigs): a budget stop and a quota pause, so an arm cannot spend into overage\n- b74067dfd docs(swebench): the environment gate is closed — 81 of 81 controls clean\n- cab7c393f fix(swebench): the era's pytest for nose-style suites, and graphviz in the image\n- 36e2ba443 feat(swebench): a test that fails in a pristine tree is sealed and named, not counted\n- a6088af5f fix(swebench): the collect intersection is for node ids only, and the selection lives in a file",
           "stamp": {
-            "counter": 1789844063711,
+            "counter": 1789870123642,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4433,9 +4433,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844063711,
+          "value": 1789870123642,
           "stamp": {
-            "counter": 1789844063711,
+            "counter": 1789870123642,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -4457,7 +4457,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844063711,
+          "counter": 1789870123642,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -5276,7 +5276,7 @@
         "title": {
           "value": "2026-07-23 test-driven delivery: default ON + upfront testability (F1.34b closed)",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5337,9 +5337,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -5361,7 +5361,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8355,9 +8355,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and…",
+          "value": "P1.STARTHANG — a task start that never settles wedges its card permanently, and only a log line notices.",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8431,9 +8431,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8448,7 +8448,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -8793,7 +8793,7 @@
         "title": {
           "value": "P1.REVIEWSANDBOX — a `::review` task's placement vanishes with NO release record.",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8867,9 +8867,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -8884,7 +8884,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9227,9 +9227,9 @@
           }
         },
         "title": {
-          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture…",
+          "value": "P1.PARKEDINREVIEW — a turn-loop park leaves the card held in Review with capture unsettled, and the board",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9303,9 +9303,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9320,7 +9320,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9445,9 +9445,9 @@
           }
         },
         "title": {
-          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and…",
+          "value": "P1.STARTHANG2 — sandbox provisioning hangs after the egress proxy comes up, and the single-flight guard",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9521,9 +9521,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -9538,7 +9538,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -9992,7 +9992,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — Phase 3 — model learning, routing, and recovery",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10059,9 +10059,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10083,7 +10083,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10101,7 +10101,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.BD — Schema-tolerance sweep across ALL SDK tool boundaries ✅ COMPLETE — moved from todo.md 2026-07-05",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10168,9 +10168,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10192,7 +10192,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10210,7 +10210,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM — Surfaced test-failure debts (all discharged) ✅ COMPLETE — moved from todo.md 2026-07-05",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10277,9 +10277,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10301,7 +10301,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10319,7 +10319,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.AM + 5.BD — moved from todo.md 2026-07-05 (belated migrations: fully-shipped sections that never got moved in their delivering commits)",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10386,9 +10386,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10410,7 +10410,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10428,7 +10428,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/config/runtime-config.ts` decomposition ✅ COMPLETE (2026-06-27) *(another finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the \"move finished sub-trees early\" rule)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10495,9 +10495,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10519,7 +10519,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10537,7 +10537,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 5.U — `src/commands/task.ts` CLI decomposition ✅ COMPLETE (2026-06-27) *(a finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the \"move finished sub-trees early\" rule)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10604,9 +10604,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10628,7 +10628,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10646,7 +10646,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.13 Recovery, artifact application, review actions, settings clarity & diagnostics *(follow-up-2 hardening)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10713,9 +10713,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10737,7 +10737,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10755,7 +10755,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.12 SDK vendoring & repo integration *(2026-06-22)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10822,9 +10822,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10846,7 +10846,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10864,7 +10864,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.11 Runtime control, chat UX, self-improvement, security, portability baseline",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10931,9 +10931,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -10955,7 +10955,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -10973,7 +10973,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.10 Polyglot core, native agent core & local-model SOTA *(postdates the predecessor docs)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11040,9 +11040,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11064,7 +11064,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11082,7 +11082,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.9 Strict Docker agent isolation",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11149,9 +11149,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11173,7 +11173,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11191,7 +11191,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.8 Operator UI & observability (swarm cockpit)",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11258,9 +11258,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11282,7 +11282,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11395,7 +11395,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.6 Autonomous decomposition & planning",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11462,9 +11462,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11486,7 +11486,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11504,7 +11504,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.5 Parallel local swarm executor",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11571,9 +11571,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11595,7 +11595,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11613,7 +11613,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.4 Model Capability & Speed Registry (MCSR)",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11680,9 +11680,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11704,7 +11704,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11722,7 +11722,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.3 Context budget visualization",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11789,9 +11789,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11813,7 +11813,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -11926,7 +11926,7 @@
         "title": {
           "value": "6. SHIPPED — already implemented (do not rebuild) — 6.1 Local-only platform & cloud lockdown",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -11993,9 +11993,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12017,7 +12017,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12035,7 +12035,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12102,9 +12102,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12126,7 +12126,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12144,7 +12144,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.T — Settings/UI polish *(raised 2026-06-23, from a Swarm/Settings review)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12211,9 +12211,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12235,7 +12235,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12253,7 +12253,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.Q — Model telemetry & performance-stats consistency *(raised 2026-06-23)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12320,9 +12320,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12344,7 +12344,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12362,7 +12362,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.K — Second-opinion reviewer workflow ✅ *(complete; raised 2026-06-22)*",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12429,9 +12429,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12453,7 +12453,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12566,7 +12566,7 @@
         "title": {
           "value": "2026-07-13 Phase 0 stop-the-line fixes — 5.A — Finish strict-isolation reconciliation & live verification (completed items)",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12633,9 +12633,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12657,7 +12657,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -12673,9 +12673,9 @@
           }
         },
         "title": {
-          "value": "P1.SANDBOXPACKS — the sandbox is READY for Python and extensible per ecosystem (…",
+          "value": "P1.SANDBOXPACKS — the sandbox is READY for Python and extensible per ecosystem (David 2026-09-14: \"the",
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12749,9 +12749,9 @@
           }
         },
         "updatedAt": {
-          "value": 1789844129467,
+          "value": 1789871116197,
           "stamp": {
-            "counter": 1789844129467,
+            "counter": 1789871116197,
             "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
           }
         },
@@ -12766,7 +12766,7 @@
       "deleted": {
         "value": false,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13093,7 +13093,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13129,7 +13129,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13141,7 +13141,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13153,7 +13153,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13165,7 +13165,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13177,7 +13177,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13189,7 +13189,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13201,7 +13201,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13213,7 +13213,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13225,7 +13225,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13237,7 +13237,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13249,7 +13249,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13405,7 +13405,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13417,7 +13417,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13429,7 +13429,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13441,7 +13441,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13465,7 +13465,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13489,7 +13489,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13501,7 +13501,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13513,7 +13513,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13525,7 +13525,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13645,7 +13645,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13693,7 +13693,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13741,7 +13741,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13765,7 +13765,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13825,7 +13825,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789378500149,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13837,7 +13837,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13849,7 +13849,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13861,7 +13861,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13873,7 +13873,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13885,7 +13885,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13897,7 +13897,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13909,7 +13909,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13921,7 +13921,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13933,7 +13933,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13945,7 +13945,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13957,7 +13957,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13969,7 +13969,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13981,7 +13981,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -13993,7 +13993,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14005,7 +14005,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14017,7 +14017,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14029,7 +14029,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14041,7 +14041,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14053,7 +14053,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14065,7 +14065,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14077,7 +14077,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14089,7 +14089,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14101,7 +14101,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14113,7 +14113,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14125,7 +14125,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14137,7 +14137,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14149,7 +14149,7 @@
       "present": {
         "value": true,
         "stamp": {
-          "counter": 1789844129467,
+          "counter": 1789871116197,
           "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
         }
       }
@@ -14170,519 +14170,519 @@
   "satisfiedDependencies": {
     "done:2026-07-13-phase-0-stop-the-line-fixes->done:2026-07-13-backlog-consolidation-archive": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes->done:2026-07-13-backlog-consolidation-archive",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes->done:2026-07-13-backlog-consolidation-archive",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes",
         "toTaskId": "done:2026-07-13-backlog-consolidation-archive",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild->done:2026-07-13-phase-0-stop-the-line-fixes": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild->done:2026-07-13-phase-0-stop-the-line-fixes",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild->done:2026-07-13-phase-0-stop-the-line-fixes",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild": {
       "value": {
-        "id": "self:done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild",
+        "id": "done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild",
         "fromTaskId": "done:2026-07-22-measured-context-and-cache-experiments",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-phase-12-adaptive-mechanism-closure->done:2026-07-22-measured-context-and-cache-experiments": {
       "value": {
-        "id": "self:done:2026-07-23-phase-12-adaptive-mechanism-closure->done:2026-07-22-measured-context-and-cache-experiments",
+        "id": "done:2026-07-23-phase-12-adaptive-mechanism-closure->done:2026-07-22-measured-context-and-cache-experiments",
         "fromTaskId": "done:2026-07-23-phase-12-adaptive-mechanism-closure",
         "toTaskId": "done:2026-07-22-measured-context-and-cache-experiments",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed->done:2026-07-23-phase-12-adaptive-mechanism-closure": {
       "value": {
-        "id": "self:done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed->done:2026-07-23-phase-12-adaptive-mechanism-closure",
+        "id": "done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed->done:2026-07-23-phase-12-adaptive-mechanism-closure",
         "fromTaskId": "done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed",
         "toTaskId": "done:2026-07-23-phase-12-adaptive-mechanism-closure",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-p20-11-acknowledged->done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed": {
       "value": {
-        "id": "self:done:2026-07-23-p20-11-acknowledged->done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed",
+        "id": "done:2026-07-23-p20-11-acknowledged->done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed",
         "fromTaskId": "done:2026-07-23-p20-11-acknowledged",
         "toTaskId": "done:2026-07-23-test-driven-delivery-default-on-upfront-testability-f1-34b-closed",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-n12-recording-staleness-workflow->done:2026-07-23-p20-11-acknowledged": {
       "value": {
-        "id": "self:done:2026-07-23-n12-recording-staleness-workflow->done:2026-07-23-p20-11-acknowledged",
+        "id": "done:2026-07-23-n12-recording-staleness-workflow->done:2026-07-23-p20-11-acknowledged",
         "fromTaskId": "done:2026-07-23-n12-recording-staleness-workflow",
         "toTaskId": "done:2026-07-23-p20-11-acknowledged",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-n13-double-run-flake-quarantine->done:2026-07-23-n12-recording-staleness-workflow": {
       "value": {
-        "id": "self:done:2026-07-23-n13-double-run-flake-quarantine->done:2026-07-23-n12-recording-staleness-workflow",
+        "id": "done:2026-07-23-n13-double-run-flake-quarantine->done:2026-07-23-n12-recording-staleness-workflow",
         "fromTaskId": "done:2026-07-23-n13-double-run-flake-quarantine",
         "toTaskId": "done:2026-07-23-n12-recording-staleness-workflow",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-p16-5b-intervention-capture-completed->done:2026-07-23-n13-double-run-flake-quarantine": {
       "value": {
-        "id": "self:done:2026-07-23-p16-5b-intervention-capture-completed->done:2026-07-23-n13-double-run-flake-quarantine",
+        "id": "done:2026-07-23-p16-5b-intervention-capture-completed->done:2026-07-23-n13-double-run-flake-quarantine",
         "fromTaskId": "done:2026-07-23-p16-5b-intervention-capture-completed",
         "toTaskId": "done:2026-07-23-n13-double-run-flake-quarantine",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-23-p17-3-mcp-protocol-seam-pinned->done:2026-07-23-p16-5b-intervention-capture-completed": {
       "value": {
-        "id": "self:done:2026-07-23-p17-3-mcp-protocol-seam-pinned->done:2026-07-23-p16-5b-intervention-capture-completed",
+        "id": "done:2026-07-23-p17-3-mcp-protocol-seam-pinned->done:2026-07-23-p16-5b-intervention-capture-completed",
         "fromTaskId": "done:2026-07-23-p17-3-mcp-protocol-seam-pinned",
         "toTaskId": "done:2026-07-23-p16-5b-intervention-capture-completed",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-24-p21-10-p21-11-recorded-in-4a->done:2026-07-23-p17-3-mcp-protocol-seam-pinned": {
       "value": {
-        "id": "self:done:2026-07-24-p21-10-p21-11-recorded-in-4a->done:2026-07-23-p17-3-mcp-protocol-seam-pinned",
+        "id": "done:2026-07-24-p21-10-p21-11-recorded-in-4a->done:2026-07-23-p17-3-mcp-protocol-seam-pinned",
         "fromTaskId": "done:2026-07-24-p21-10-p21-11-recorded-in-4a",
         "toTaskId": "done:2026-07-23-p17-3-mcp-protocol-seam-pinned",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-24-p21-13a-stage-delivery-mode->done:2026-07-24-p21-10-p21-11-recorded-in-4a": {
       "value": {
-        "id": "self:done:2026-07-24-p21-13a-stage-delivery-mode->done:2026-07-24-p21-10-p21-11-recorded-in-4a",
+        "id": "done:2026-07-24-p21-13a-stage-delivery-mode->done:2026-07-24-p21-10-p21-11-recorded-in-4a",
         "fromTaskId": "done:2026-07-24-p21-13a-stage-delivery-mode",
         "toTaskId": "done:2026-07-24-p21-10-p21-11-recorded-in-4a",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-24-p21-13c-executed-command-audit->done:2026-07-24-p21-13a-stage-delivery-mode": {
       "value": {
-        "id": "self:done:2026-07-24-p21-13c-executed-command-audit->done:2026-07-24-p21-13a-stage-delivery-mode",
+        "id": "done:2026-07-24-p21-13c-executed-command-audit->done:2026-07-24-p21-13a-stage-delivery-mode",
         "fromTaskId": "done:2026-07-24-p21-13c-executed-command-audit",
         "toTaskId": "done:2026-07-24-p21-13a-stage-delivery-mode",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics->done:2026-07-24-p21-13c-executed-command-audit": {
       "value": {
-        "id": "self:done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics->done:2026-07-24-p21-13c-executed-command-audit",
+        "id": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics->done:2026-07-24-p21-13c-executed-command-audit",
         "fromTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "toTaskId": "done:2026-07-24-p21-13c-executed-command-audit",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.RECONCILE-SKIP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.RECONCILE-SKIP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.RECONCILE-SKIP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.RECONCILE-SKIP",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.REVRANK->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.REVRANK->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.REVRANK->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.REVRANK",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.AUDIT0904->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.AUDIT0904->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.AUDIT0904->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.AUDIT0904",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.REVIEWNOVERDICT->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.REVIEWNOVERDICT->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.REVIEWNOVERDICT->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.REVIEWNOVERDICT",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.IMGREBUILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.IMGREBUILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.IMGREBUILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.IMGREBUILD",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.ACCEPT-ORPHAN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.ACCEPT-ORPHAN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.ACCEPT-ORPHAN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.ACCEPT-ORPHAN",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.CTX500->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.CTX500->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.CTX500->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.CTX500",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.HEAP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.HEAP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.HEAP->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.HEAP",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P0.DSTALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P0.DSTALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P0.DSTALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P0.DSTALL",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F2.30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F2.30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F2.30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F2.30",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F2.32->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F2.32->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F2.32->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F2.32",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F2.31->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F2.31->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F2.31->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F2.31",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F3.39->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F3.39->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F3.39->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F3.39",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F3.40->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F3.40->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F3.40->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F3.40",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F3.41->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F3.41->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F3.41->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F3.41",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P15.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P15.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P15.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P15.3",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P15.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P15.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P15.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P15.5",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P18.4b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P18.4b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P18.4b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P18.4b",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P21.6b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P21.6b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P21.6b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P21.6b",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P25.2b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P25.2b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P25.2b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P25.2b",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P25.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P25.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P25.3->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P25.3",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P23.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P23.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P23.5->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P23.5",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "commits:unfiled->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:commits:unfiled->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "commits:unfiled->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "commits:unfiled",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788644281208,
-        "releasedAt": 1788644306073,
+        "createdAt": 1788644305964,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788644306073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
@@ -14926,729 +14926,729 @@
     },
     "todo:F2.36->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F2.36->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F2.36->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F2.36",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788644421081,
-        "releasedAt": 1788646196770,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788646196770,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.NPMSEED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.NPMSEED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.NPMSEED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.NPMSEED",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788785673861,
-        "releasedAt": 1788785923542,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788785923542,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.REVIEWNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.REVIEWNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.REVIEWNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.REVIEWNUDGE",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788785673861,
-        "releasedAt": 1788785923542,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788785923542,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.SIMFLOW-DSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.SIMFLOW-DSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.SIMFLOW-DSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.SIMFLOW-DSCHINN",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788785673861,
-        "releasedAt": 1788785923542,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788785923542,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.SIMFLOWDSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.SIMFLOWDSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.SIMFLOWDSCHINN->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.SIMFLOWDSCHINN",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788785923469,
-        "releasedAt": 1788785923544,
+        "createdAt": 1788786249805,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788785923544,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P2.SIMMULTICALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P2.SIMMULTICALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P2.SIMMULTICALL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P2.SIMMULTICALL",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788786533040,
-        "releasedAt": 1788786624528,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788786624528,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:DEVTEST30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:DEVTEST30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:DEVTEST30->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:DEVTEST30",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788869206292,
-        "releasedAt": 1788869529571,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788869529571,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.RESPONDERLEADS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.RESPONDERLEADS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.RESPONDERLEADS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.RESPONDERLEADS",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788878123335,
-        "releasedAt": 1788878544811,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788878544811,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:F2.31b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:F2.31b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:F2.31b->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:F2.31b",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
-        "createdAt": 1788885623162,
-        "releasedAt": 1788885623238,
+        "createdAt": 1788886905876,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788885623238,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.STARTHANG->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.STARTHANG->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.STARTHANG->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.STARTHANG",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788903520171,
-        "releasedAt": 1788905724034,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788905724034,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.REVIEWBUDGET->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.REVIEWBUDGET->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.REVIEWBUDGET->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.REVIEWBUDGET",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788905790179,
-        "releasedAt": 1788908142129,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788908142129,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.SETTLEDNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.SETTLEDNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.SETTLEDNUDGE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.SETTLEDNUDGE",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788908142044,
-        "releasedAt": 1788911880351,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788911880351,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.PHANTOMRUNNING->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.PHANTOMRUNNING->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.PHANTOMRUNNING->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.PHANTOMRUNNING",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788953072423,
-        "releasedAt": 1788955998524,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788955998524,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.REVIEWSANDBOX->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.REVIEWSANDBOX->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.REVIEWSANDBOX->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.REVIEWSANDBOX",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788971859910,
-        "releasedAt": 1788972307887,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788972307887,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.PASSEDBUTUNLANDED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.PASSEDBUTUNLANDED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.PASSEDBUTUNLANDED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.PASSEDBUTUNLANDED",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1788995886078,
-        "releasedAt": 1788997415395,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1788997415395,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.DECOMPOSEABORTS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.DECOMPOSEABORTS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.DECOMPOSEABORTS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.DECOMPOSEABORTS",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789001324842,
-        "releasedAt": 1789002328794,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789002328794,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.REPLAYUNDRAINED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.REPLAYUNDRAINED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.REPLAYUNDRAINED->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.REPLAYUNDRAINED",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789010090186,
-        "releasedAt": 1789011901073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789011901073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.PARKEDINREVIEW->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.PARKEDINREVIEW->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.PARKEDINREVIEW->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.PARKEDINREVIEW",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789045277104,
-        "releasedAt": 1789046330582,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789046330582,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.NOWRITETOOL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.NOWRITETOOL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.NOWRITETOOL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.NOWRITETOOL",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789053701600,
-        "releasedAt": 1789055814193,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789055814193,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.STARTHANG2->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.STARTHANG2->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.STARTHANG2->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.STARTHANG2",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789066269912,
-        "releasedAt": 1789067543822,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789067543822,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.UNSATGATE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.UNSATGATE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.UNSATGATE->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.UNSATGATE",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789078477732,
-        "releasedAt": 1789081537706,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789081537706,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.ZOMBIEBOARD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.ZOMBIEBOARD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.ZOMBIEBOARD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.ZOMBIEBOARD",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789084033716,
-        "releasedAt": 1789085190744,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789085190744,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.REPLAYNOCHILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.REPLAYNOCHILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.REPLAYNOCHILD->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.REPLAYNOCHILD",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789102969509,
-        "releasedAt": 1789103485765,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789103485765,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P2.FIXTUREINTEGRITY->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P2.FIXTUREINTEGRITY->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P2.FIXTUREINTEGRITY->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P2.FIXTUREINTEGRITY",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789326205910,
-        "releasedAt": 1789327045832,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789327045832,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items->done:2026-07-13-phase-0-stop-the-line-fixes": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items->done:2026-07-13-phase-0-stop-the-line-fixes",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items->done:2026-07-13-phase-0-stop-the-line-fixes",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage->done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage->done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage->done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-a-finish-strict-isolation-reconciliation-live-verification-completed-items",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22->done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22->done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22->done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-e-cache-key-hygiene-fuzz-coverage",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23->done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23->done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23->done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-k-second-opinion-reviewer-workflow-complete-raised-2026-06-22",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-q-model-telemetry-performance-stats-consistency-raised-2026-06-23",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review": {
       "value": {
-        "id": "self:done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review",
+        "id": "done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review->done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review",
         "fromTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-t-settings-ui-polish-raised-2026-06-23-from-a-swarm-settings-review",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown->done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown->done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown->done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown",
         "toTaskId": "done:2026-07-13-phase-0-stop-the-line-fixes--5-y-security-hardening-backlog-raised-2026-06-26-from-a-static-security-review",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core->done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core->done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core->done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-1-local-only-platform-cloud-lockdown",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization->done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization->done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization->done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-2-reliability-core",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr->done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr->done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr->done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-3-context-budget-visualization",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor->done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor->done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor->done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-4-model-capability-speed-registry-mcsr",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning->done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning->done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning->done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-5-parallel-local-swarm-executor",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence->done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence->done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence->done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-6-autonomous-decomposition-planning",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit->done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit->done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit->done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-7-codebase-intelligence",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation->done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation->done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation->done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-8-operator-ui-observability-swarm-cockpit",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-->done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-->done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-->done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-9-strict-docker-agent-isolation",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline->done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline->done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline->done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-10-polyglot-core-native-agent-core-local-model-sota-postdates-the-predecessor-",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22->done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22->done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22->done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-11-runtime-control-chat-ux-self-improvement-security-portability-baseline",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f->done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f->done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f->done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-12-sdk-vendoring-repo-integration-2026-06-22",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi->done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi->done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi->done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--6-13-recovery-artifact-application-review-actions-settings-clarity-diagnostics-f",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-commands-task-ts-cli-decomposition-complete-2026-06-27-a-finished-cohesi",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section->done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-u-src-config-runtime-config-ts-decomposition-complete-2026-06-27-another-finis",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026->done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026->done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026->done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-am-5-bd-moved-from-todo-md-2026-07-05-belated-migrations-fully-shipped-section",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t->done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t->done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t->done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-am-surfaced-test-failure-debts-all-discharged-complete-moved-from-todo-md-2026",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery->done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t": {
       "value": {
-        "id": "self:done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery->done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t",
+        "id": "done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery->done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t",
         "fromTaskId": "done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--5-bd-schema-tolerance-sweep-across-all-sdk-tool-boundaries-complete-moved-from-t",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery": {
       "value": {
-        "id": "self:done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery",
+        "id": "done:2026-07-22-measured-context-and-cache-experiments->done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery",
         "fromTaskId": "done:2026-07-22-measured-context-and-cache-experiments",
         "toTaskId": "done:6-shipped-already-implemented-do-not-rebuild--phase-3-model-learning-routing-and-recovery",
         "createdAt": 1789382265919,
-        "releasedAt": 1789382464073,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789382464073,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.SANDBOXPACKS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.SANDBOXPACKS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.SANDBOXPACKS->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.SANDBOXPACKS",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789395415648,
-        "releasedAt": 1789395661756,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789395661756,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     },
     "todo:P1.SWEBENCHFULL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics": {
       "value": {
-        "id": "self:todo:P1.SWEBENCHFULL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
+        "id": "todo:P1.SWEBENCHFULL->done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "fromTaskId": "todo:P1.SWEBENCHFULL",
         "toTaskId": "done:2026-07-24-auto-start-failure-guard-paused-set-gate-campaign-forensics",
         "createdAt": 1789430470653,
-        "releasedAt": 1789430661271,
+        "releasedAt": 1789870123717,
         "releasedBy": "completed"
       },
       "stamp": {
-        "counter": 1789430661271,
+        "counter": 1789870123717,
         "replicaId": "d98bc793-cbb1-41d5-8988-5bf029c87384"
       }
     }

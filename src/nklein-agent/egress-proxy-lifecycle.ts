@@ -172,6 +172,8 @@ export interface StartEgressProxyContainerOptions {
 	env?: Record<string, string>;
 	/** Publish the authenticated control listener to an ephemeral host-loopback port. */
 	publishConfirmControl?: boolean;
+	/** Publish the WORKER listener to an ephemeral host-loopback port (the `lookup` client's route through the proxy). */
+	publishLookupListener?: boolean;
 }
 
 /**
@@ -217,6 +219,7 @@ export async function startEgressProxyContainer(
 		"--tmpfs",
 		"/tmp:noexec,nosuid,size=64m",
 		...(options.publishConfirmControl ? ["--publish", `127.0.0.1::${EGRESS_CONFIRM_CONTROL_PORT}`] : []),
+		...(options.publishLookupListener ? ["--publish", `127.0.0.1::${EGRESS_PROXY_ROLE_PORTS.worker}`] : []),
 		"--mount",
 		`type=bind,src=${options.bundleHostPath},dst=${EGRESS_PROXY_BUNDLE_CONTAINER_PATH},readonly`,
 		"--user",
@@ -342,12 +345,21 @@ async function readRunningEgressConfirmConfig(
 	return { roles, token, taskIdentityRequired };
 }
 
-/** Resolve Docker's ephemeral host-loopback publish (`127.0.0.1::<containerPort>`). */
+/** Resolve Docker's ephemeral host-loopback publish (`127.0.0.1::<containerPort>`) of the control listener. */
 export async function resolveEgressConfirmControlHostPort(
 	runDocker: EgressProxyRunDocker,
 	containerName: string,
 ): Promise<number | null> {
-	const result = await runDocker(["port", containerName, `${EGRESS_CONFIRM_CONTROL_PORT}/tcp`], {
+	return resolveEgressPublishedHostPort(runDocker, containerName, EGRESS_CONFIRM_CONTROL_PORT);
+}
+
+/** Resolve Docker's ephemeral host-loopback publish (`127.0.0.1::<containerPort>`) of any container port. */
+export async function resolveEgressPublishedHostPort(
+	runDocker: EgressProxyRunDocker,
+	containerName: string,
+	containerPort: number,
+): Promise<number | null> {
+	const result = await runDocker(["port", containerName, `${containerPort}/tcp`], {
 		timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS,
 	});
 	if (result.exitCode !== 0) return null;
@@ -451,6 +463,12 @@ export interface EgressProxyAvailability {
 	internalIp: string | null;
 	/** Healthy authenticated host-loopback control channel (confirms and/or per-task identity lifecycle). */
 	confirmControl?: EgressConfirmControlEndpoint;
+	/**
+	 * The worker listener published on host loopback (only when `publishLookupListener` was requested): the trusted
+	 * runtime's `lookup` client routes THROUGH the proxy with the task's own credential, so every fact-check request
+	 * is allowlisted, attributed and audited like a sandbox request.
+	 */
+	lookupProxy?: { host: string; port: number };
 }
 
 export interface EnsureEgressProxyOptions {
@@ -470,6 +488,8 @@ export interface EnsureEgressProxyOptions {
 	 * source. v1 is ONE global allowlist for every role. Empty/absent ⇒ default-deny (fail-closed).
 	 */
 	allowlist?: readonly string[];
+	/** `lookup` (NKLEIN_LOOKUP): also publish the worker listener on host loopback for the runtime's lookup client. */
+	publishLookupListener?: boolean;
 	/** Explicit role set for per-action confirmation; absent derives from `NKLEIN_EGRESS_CONFIRM_ROLES`. */
 	confirmRoles?: readonly AgentRulesetRole[];
 	/** F2.5b: keep the authenticated control channel available for per-task credential issue/revoke. */
@@ -520,7 +540,12 @@ export async function ensureEgressProxyAvailable(
 				runningConfirm.taskIdentityRequired !== (options.taskIdentityControlEnabled === true) ||
 				(runningConfirm.token !== null) !== controlEnabled ||
 				(controlEnabled && (runningConfirm.token?.length ?? 0) < 32);
-			if (runningAllowlist === undefined || runningAllowlist !== desiredAllowlist || confirmDrift) {
+			// A running proxy started WITHOUT the lookup publish cannot serve the lookup client; replace it (same
+			// drift class as an allowlist change — a brief restart only affects new connections).
+			const lookupDrift =
+				options.publishLookupListener === true &&
+				(await resolveEgressPublishedHostPort(runDocker, containerName, EGRESS_PROXY_ROLE_PORTS.worker)) === null;
+			if (runningAllowlist === undefined || runningAllowlist !== desiredAllowlist || confirmDrift || lookupDrift) {
 				await runDocker(["rm", "-f", containerName], { timeoutMs: DEFAULT_DOCKER_TIMEOUT_MS }).catch(() => null);
 			} else if (controlEnabled) {
 				confirmControlToken = runningConfirm?.token ?? null;
@@ -553,6 +578,7 @@ export async function ensureEgressProxyAvailable(
 				// source). Only set when non-empty so an empty allowlist injects nothing (byte-identical container args).
 				...(Object.keys(containerEnv).length > 0 ? { env: containerEnv } : {}),
 				publishConfirmControl: controlEnabled,
+				publishLookupListener: options.publishLookupListener === true,
 			});
 		}
 		const healthy = await probeEgressProxyHealthy(runDocker, {
@@ -574,11 +600,16 @@ export async function ensureEgressProxyAvailable(
 				// A requested approval boundary with no reachable operator channel would only create opaque timeouts.
 				return { available: false, networkName, internalIp: null };
 			}
+			const lookupPort =
+				options.publishLookupListener === true
+					? await resolveEgressPublishedHostPort(runDocker, containerName, EGRESS_PROXY_ROLE_PORTS.worker)
+					: null;
 			return {
 				available: true,
 				networkName,
 				internalIp,
 				confirmControl: { baseUrl: `http://127.0.0.1:${hostPort}`, token: confirmControlToken },
+				...(lookupPort ? { lookupProxy: { host: "127.0.0.1", port: lookupPort } } : {}),
 			};
 		}
 		return { available: true, networkName, internalIp };

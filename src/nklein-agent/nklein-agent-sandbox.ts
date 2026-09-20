@@ -19,6 +19,8 @@ import type {
 	EgressConfirmResolveOutcome,
 	PendingEgressConfirm,
 } from "../core/egress-confirm-queue";
+import { DEFAULT_EGRESS_TASK_GRANT_TTL_MS } from "../core/egress-task-grants";
+import { buildTaskProxyUrl } from "../core/egress-task-identity";
 import { isTruthyEnv } from "../core/env-flag";
 import {
 	buildGeneratedLockfileRestoreCommand,
@@ -26,9 +28,11 @@ import {
 	selectGeneratedLockfilesToDrop,
 } from "../core/generated-lockfile-capture";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { isLookupEnabled, LOOKUP_ECOSYSTEM_PACK } from "../core/lookup-policy";
 import { normalizePositiveInteger } from "../core/normalize-number";
 import { isProcessAlive } from "../core/process-identity";
 import { classifySandboxFailure, type SandboxAbsence } from "../core/sandbox-disposed-session";
+import { ECOSYSTEM_ENTRY_PREFIX } from "../core/sandbox-egress-ecosystems";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	planSandboxOrphanReaping,
@@ -39,6 +43,7 @@ import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { TOOL_RUNNER_STDIN_INPUT_ARG, TOOL_RUNNER_STDIN_THRESHOLD_BYTES } from "./agent-sandbox/tool-runner-protocol";
 import { ensureEgressBundleFresh } from "./egress-bundle-freshness";
 import {
+	issueEgressTaskGrant,
 	issueEgressTaskIdentity,
 	listPendingEgressConfirms,
 	resolvePendingEgressConfirm,
@@ -685,6 +690,40 @@ export class AgentSandboxManager {
 		}
 		this.sandboxEgressProxyEnabled = enabled;
 		this.sandboxEgressAllowlist = allowlist;
+	}
+
+	/**
+	 * `lookup` (NKLEIN_LOOKUP): the credentialed proxy URL the trusted runtime's lookup client routes through for a
+	 * placed task — the proxy's published host-loopback worker listener + the task's own identity. Null when the proxy
+	 * is not active, the listener was not published, or the task has no placement/credential (⇒ no lookup; never a
+	 * direct fetch around the proxy).
+	 */
+	getLookupProxyUrl(taskId: string): string | null {
+		const availability = this.lastEgressAvailability;
+		const placement = this.placements.get(taskId);
+		if (!availability?.lookupProxy || !placement?.egressIdentityToken) {
+			return null;
+		}
+		return buildTaskProxyUrl({
+			proxyHost: availability.lookupProxy.host,
+			proxyPort: availability.lookupProxy.port,
+			taskId,
+			token: placement.egressIdentityToken,
+		});
+	}
+
+	/** `lookup`: register a time-bounded per-task host grant through the authenticated control channel. */
+	async issueLookupGrant(taskId: string, host: string, ttlMs = DEFAULT_EGRESS_TASK_GRANT_TTL_MS): Promise<boolean> {
+		const endpoint = await this.currentEgressControlEndpoint();
+		if (!endpoint || !this.placements.get(taskId)?.egressIdentityToken) {
+			return false;
+		}
+		try {
+			await issueEgressTaskGrant(endpoint, { taskId, host, ttlMs, purpose: "lookup" });
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	/** F2.3b: pending confirms for this pool's already-started proxy; polling never starts Docker on its own. */
@@ -1935,7 +1974,14 @@ export class AgentSandboxManager {
 			// §6 I3: the persisted flag (env still overrides) + the resolved global allowlist handed to the proxy
 			// container as its `allowlistForRole` source. v1 is ONE global allowlist for every role (per-role later).
 			configuredEnabled: this.sandboxEgressProxyEnabled,
-			allowlist: parseEgressAllowlist(this.sandboxEgressAllowlist),
+			// `lookup` (NKLEIN_LOOKUP): the search host joins the static allowlist as an ecosystem pack — written the
+			// same way an operator would, so the running-allowlist drift check sees exactly what was started.
+			allowlist: parseEgressAllowlist(
+				isLookupEnabled()
+					? `${this.sandboxEgressAllowlist}${this.sandboxEgressAllowlist.trim() ? "," : ""}${ECOSYSTEM_ENTRY_PREFIX}${LOOKUP_ECOSYSTEM_PACK}`
+					: this.sandboxEgressAllowlist,
+			),
+			publishLookupListener: isLookupEnabled(),
 			taskIdentityControlEnabled: true,
 		});
 		const controlEndpoint = availability.confirmControl;
